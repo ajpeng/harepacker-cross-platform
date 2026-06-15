@@ -74,7 +74,7 @@
     <!-- WPF XAML code-behinds (replaced by .axaml.cs files) -->
     <Compile Remove="GUI\Panels\MainPanel.xaml.cs" />
     <Compile Remove="GUI\Panels\MainPanelPropertyItems.cs" />
-    <Compile Remove="GUI\Panels\ImageAnimationPreviewWindow.cs" />
+    <!-- ImageAnimationPreviewWindow.cs: ported to cross-platform (SKBitmap, HaRepacker.Models.WzNode) -->
     <Compile Remove="GUI\Panels\SubPanels\ImageRenderViewer.xaml.cs" />
     <Compile Remove="GUI\Panels\SubPanels\ImageRenderViewerItem.cs" />
     <Compile Remove="GUI\Panels\SubPanels\AvalonTextEditor.xaml.cs" />

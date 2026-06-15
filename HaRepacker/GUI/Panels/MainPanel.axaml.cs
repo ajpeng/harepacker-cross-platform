@@ -210,7 +210,21 @@ namespace HaRepacker.GUI.Panels
 
         public void SortNodeProperties(WzNode node) => SortNodesRecursively(node, true);
 
-        public void StartAnimateSelectedCanvas() => Warning.Error("Animation preview not yet implemented.");
+        public void StartAnimateSelectedCanvas()
+        {
+            var nodes = GetSelectedNodesForAnimation();
+            if (nodes.Count == 0)
+            { Warning.Error("Please select one or more canvas/animation nodes."); return; }
+            var win = new ImageAnimationPreviewWindow(nodes, nodes[0].Name);
+            win.Run();
+        }
+
+        private List<WzNode> GetSelectedNodesForAnimation()
+        {
+            var result = new List<WzNode>();
+            if (SelectedNode is WzNode sel) result.Add(sel);
+            return result;
+        }
         public void SaveImageAnimation_Click() => Warning.Error("Save animation not yet implemented.");
         public void FixLinkForOldMapleStory_OnClick() => Warning.Error("Fix inlink not yet implemented.");
         public void AiBatchImageUpscaleEdit(float factor) => Warning.Error("AI upscale not yet implemented.");
