@@ -67,6 +67,16 @@
                 <subpanels:ImageRenderViewer x:Name="imageViewer" IsVisible="False" />
                 <subpanels:AvalonTextEditor x:Name="textEditor" IsVisible="False" />
                 <subpanels:XYPanel x:Name="xyPanel" IsVisible="False" />
+
+                <!-- Simple value editor for numeric/UOL/null properties -->
+                <Border x:Name="valuePanel" IsVisible="False" Padding="16">
+                    <StackPanel Spacing="8">
+                        <TextBlock x:Name="valueTypeLabel" FontSize="11" Foreground="#888" />
+                        <TextBox x:Name="valueBox" FontSize="14" />
+                        <Button x:Name="valueApplyButton" Content="Apply" Width="80"
+                                HorizontalAlignment="Left" Click="OnValueApplyClick" />
+                    </StackPanel>
+                </Border>
             </Panel>
         </Grid>
     </Grid>

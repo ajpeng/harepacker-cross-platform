@@ -5,6 +5,7 @@ using HaRepacker.Models;
 using MapleLib.Helpers;
 using MapleLib.WzLib;
 using MapleLib.WzLib.WzProperties;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
@@ -83,30 +84,110 @@ namespace HaRepacker.GUI.Panels
         private void WzTreeView_SelectionChanged(object? sender, SelectionChangedEventArgs e)
         {
             if (wzTreeView.SelectedItem is not WzNode node) return;
+            ShowObjectValue(node.WzObject);
+        }
 
-            var obj = node.WzObject;
-
-            // Show the appropriate sub-panel for the selected node type
+        private void ShowObjectValue(WzObject? obj)
+        {
             imageViewer.IsVisible = false;
             textEditor.IsVisible = false;
             xyPanel.IsVisible = false;
+            valuePanel.IsVisible = false;
+            if (obj == null) return;
 
-            if (obj is MapleLib.WzLib.WzProperties.WzCanvasProperty canvas)
+            if (obj is WzCanvasProperty canvas)
             {
                 var bmp = canvas.GetLinkedWzCanvasBitmap();
                 imageViewer.SetImage(bmp);
                 imageViewer.IsVisible = true;
             }
-            else if (obj is MapleLib.WzLib.WzProperties.WzStringProperty strProp)
+            else if (obj is WzPngProperty png)
+            {
+                imageViewer.SetImage(png.GetImage(false));
+                imageViewer.IsVisible = true;
+            }
+            else if (obj is WzStringProperty strProp)
             {
                 textEditor.SetText(strProp.Value);
                 textEditor.IsVisible = true;
             }
-            else if (obj is MapleLib.WzLib.WzProperties.WzVectorProperty vecProp)
+            else if (obj is WzVectorProperty vecProp)
             {
                 xyPanel.X = vecProp.X.Value;
                 xyPanel.Y = vecProp.Y.Value;
                 xyPanel.IsVisible = true;
+            }
+            else if (obj is WzUOLProperty uol)
+            {
+                valueTypeLabel.Text = $"UOL Link (resolves to: {uol.LinkValue?.GetType().Name ?? "null"})";
+                valueBox.Text = uol.Value;
+                valuePanel.IsVisible = true;
+            }
+            else if (obj is WzIntProperty intProp)
+            {
+                valueTypeLabel.Text = "Int (32-bit)";
+                valueBox.Text = intProp.Value.ToString();
+                valuePanel.IsVisible = true;
+            }
+            else if (obj is WzLongProperty longProp)
+            {
+                valueTypeLabel.Text = "Long (64-bit)";
+                valueBox.Text = longProp.Value.ToString();
+                valuePanel.IsVisible = true;
+            }
+            else if (obj is WzShortProperty shortProp)
+            {
+                valueTypeLabel.Text = "Short (16-bit)";
+                valueBox.Text = shortProp.Value.ToString();
+                valuePanel.IsVisible = true;
+            }
+            else if (obj is WzFloatProperty floatProp)
+            {
+                valueTypeLabel.Text = "Float";
+                valueBox.Text = floatProp.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                valuePanel.IsVisible = true;
+            }
+            else if (obj is WzDoubleProperty doubleProp)
+            {
+                valueTypeLabel.Text = "Double";
+                valueBox.Text = doubleProp.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                valuePanel.IsVisible = true;
+            }
+            else if (obj is WzNullProperty)
+            {
+                valueTypeLabel.Text = "Null";
+                valueBox.Text = "(null)";
+                valueBox.IsEnabled = false;
+                valuePanel.IsVisible = true;
+            }
+        }
+
+        private void OnValueApplyClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        {
+            var obj = SelectedNode?.WzObject;
+            if (obj == null) return;
+            string text = valueBox.Text ?? "";
+            try
+            {
+                if (obj is WzUOLProperty uol)
+                { uol.Value = text; }
+                else if (obj is WzIntProperty ip)
+                { ip.Value = int.Parse(text, System.Globalization.CultureInfo.InvariantCulture); }
+                else if (obj is WzLongProperty lp)
+                { lp.Value = long.Parse(text, System.Globalization.CultureInfo.InvariantCulture); }
+                else if (obj is WzShortProperty sp)
+                { sp.Value = short.Parse(text, System.Globalization.CultureInfo.InvariantCulture); }
+                else if (obj is WzFloatProperty fp)
+                { fp.Value = float.Parse(text, System.Globalization.CultureInfo.InvariantCulture); }
+                else if (obj is WzDoubleProperty dp)
+                { dp.Value = double.Parse(text, System.Globalization.CultureInfo.InvariantCulture); }
+
+                if (obj is WzImageProperty imgProp && imgProp.ParentImage != null)
+                    imgProp.ParentImage.Changed = true;
+            }
+            catch (FormatException)
+            {
+                Warning.Error($"Invalid value '{text}' for {obj.GetType().Name}.");
             }
         }
 
