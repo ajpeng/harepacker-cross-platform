@@ -1,9 +1,9 @@
 using MapleLib.Helpers;
+using MapleLib.WzLib.WzProperties;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Microsoft.Xna.Framework.Graphics;
+using SkiaSharp;
 using System;
 using System.Drawing;
-using System.Drawing.Imaging;
 using System.IO;
 using System.Runtime.InteropServices;
 
@@ -16,10 +16,10 @@ namespace UnitTest_WzFile
         [TestMethod]
         public void BitmapToByteArray_ValidBitmap_ReturnsPngBytes()
         {
-            using var bmp = new Bitmap(16, 16, PixelFormat.Format32bppArgb);
+            using var bmp = new SKBitmap(16, 16, SKColorType.Bgra8888, SKAlphaType.Unpremul);
             for (int y = 0; y < 16; y++)
                 for (int x = 0; x < 16; x++)
-                    bmp.SetPixel(x, y, Color.FromArgb(255, x * 16, y * 16, (x + y) * 8));
+                    bmp.SetPixel(x, y, new SKColor((byte)(x * 16), (byte)(y * 16), (byte)((x + y) * 8)));
 
             byte[] result = PngUtility.BitmapToByteArray(bmp);
 
@@ -35,14 +35,13 @@ namespace UnitTest_WzFile
         [TestMethod]
         public void BitmapToByteArray_SmallBitmap_ReturnsValidPng()
         {
-            using var bmp = new Bitmap(1, 1, PixelFormat.Format32bppArgb);
-            bmp.SetPixel(0, 0, Color.Red);
+            using var bmp = new SKBitmap(1, 1, SKColorType.Bgra8888, SKAlphaType.Unpremul);
+            bmp.SetPixel(0, 0, SKColors.Red);
 
             byte[] result = PngUtility.BitmapToByteArray(bmp);
 
-            // Verify we can read it back as a PNG
             using var ms = new MemoryStream(result);
-            using var loadedBmp = new Bitmap(ms);
+            using var loadedBmp = SKBitmap.Decode(ms);
             Assert.AreEqual(1, loadedBmp.Width);
             Assert.AreEqual(1, loadedBmp.Height);
         }
@@ -50,18 +49,18 @@ namespace UnitTest_WzFile
         [TestMethod]
         public void BitmapToByteArray_TransparentBitmap_PreservesAlpha()
         {
-            using var bmp = new Bitmap(4, 4, PixelFormat.Format32bppArgb);
+            using var bmp = new SKBitmap(4, 4, SKColorType.Bgra8888, SKAlphaType.Unpremul);
             for (int y = 0; y < 4; y++)
                 for (int x = 0; x < 4; x++)
-                    bmp.SetPixel(x, y, Color.FromArgb(128, 255, 0, 0));
+                    bmp.SetPixel(x, y, new SKColor(255, 0, 0, 128));
 
             byte[] result = PngUtility.BitmapToByteArray(bmp);
 
             using var ms = new MemoryStream(result);
-            using var loadedBmp = new Bitmap(ms);
-            Color pixel = loadedBmp.GetPixel(0, 0);
+            using var loadedBmp = SKBitmap.Decode(ms);
+            SKColor pixel = loadedBmp.GetPixel(0, 0);
             // PNG preserves alpha
-            Assert.AreEqual(128, pixel.A);
+            Assert.AreEqual(128, (int)pixel.Alpha);
         }
         #endregion
 
@@ -172,18 +171,10 @@ namespace UnitTest_WzFile
                 rawData[i] = (byte)((i * 17) & 0xFF);
             }
 
-            using var bmp = new Bitmap(width, height, PixelFormat.Format32bppArgb);
-            BitmapData bmpData = bmp.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
-            try
-            {
-                PngUtility.DecompressImage_PixelDataBgra4444(rawData, width, height, bmp, bmpData);
-            }
-            finally
-            {
-                bmp.UnlockBits(bmpData);
-            }
+            using var bmp = new SKBitmap(width, height, SKColorType.Bgra8888, SKAlphaType.Unpremul);
+            var bmpData = WzBitmapData.FromSKBitmap(bmp);
+            PngUtility.DecompressImage_PixelDataBgra4444(rawData, width, height, bmp, bmpData);
 
-            // Verify decompression occurred (output size is 4x input)
             Assert.IsNotNull(bmp);
         }
 
@@ -191,20 +182,13 @@ namespace UnitTest_WzFile
         public unsafe void DecompressImage_PixelDataBgra4444_InsufficientData_ThrowsException()
         {
             int width = 8, height = 8;
-            // Create insufficient raw data
             byte[] rawData = new byte[width * height]; // Should be width * height * 2
 
-            using var bmp = new Bitmap(width, height, PixelFormat.Format32bppArgb);
-            BitmapData bmpData = bmp.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
-            try
-            {
-                Assert.Throws<ArgumentException>(() =>
-           PngUtility.DecompressImage_PixelDataBgra4444(rawData, width, height, bmp, bmpData));
-            }
-            finally
-            {
-                bmp.UnlockBits(bmpData);
-            }
+            using var bmp = new SKBitmap(width, height, SKColorType.Bgra8888, SKAlphaType.Unpremul);
+            var bmpData = WzBitmapData.FromSKBitmap(bmp);
+
+            Assert.Throws<ArgumentException>(() =>
+                PngUtility.DecompressImage_PixelDataBgra4444(rawData, width, height, bmp, bmpData));
         }
 
         [TestMethod]
@@ -217,24 +201,16 @@ namespace UnitTest_WzFile
             for (int i = 0; i < rawData.Length; i++)
                 rawData[i] = 0xFF;
 
-            using var bmp = new Bitmap(width, height, PixelFormat.Format32bppArgb);
-            BitmapData bmpData = bmp.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
-            try
-            {
-                PngUtility.DecompressImage_PixelDataBgra4444(rawData, width, height, bmp, bmpData);
-            }
-            finally
-            {
-                bmp.UnlockBits(bmpData);
-            }
+            using var bmp = new SKBitmap(width, height, SKColorType.Bgra8888, SKAlphaType.Unpremul);
+            var bmpData = WzBitmapData.FromSKBitmap(bmp);
+            PngUtility.DecompressImage_PixelDataBgra4444(rawData, width, height, bmp, bmpData);
 
-            // Check pixel values
-            Color pixel = bmp.GetPixel(0, 0);
-            // All channels should be 0xFF (fully expanded)
-            Assert.AreEqual(255, pixel.A);
-            Assert.AreEqual(255, pixel.R);
-            Assert.AreEqual(255, pixel.G);
-            Assert.AreEqual(255, pixel.B);
+            // Check pixel values — all channels should be 0xFF (fully expanded)
+            SKColor pixel = bmp.GetPixel(0, 0);
+            Assert.AreEqual(255, (int)pixel.Alpha);
+            Assert.AreEqual(255, (int)pixel.Red);
+            Assert.AreEqual(255, (int)pixel.Green);
+            Assert.AreEqual(255, (int)pixel.Blue);
         }
         #endregion
 
@@ -243,29 +219,28 @@ namespace UnitTest_WzFile
         public void DXT3_RoundTrip_EncodeDecode()
         {
             // Create a test image (32x32, BGRA)
-            using var bmp = new Bitmap(32, 32, PixelFormat.Format32bppArgb);
+            using var bmp = new SKBitmap(32, 32, SKColorType.Bgra8888, SKAlphaType.Unpremul);
             for (int y = 0; y < 32; y++)
                 for (int x = 0; x < 32; x++)
-                    bmp.SetPixel(x, y, Color.FromArgb(128 + x % 128, x * 8 % 256, y * 8 % 256, (x + y) % 256));
+                    bmp.SetPixel(x, y, new SKColor((byte)(x * 8 % 256), (byte)(y * 8 % 256), (byte)((x + y) % 256), (byte)(128 + x % 128)));
 
             // Encode to DXT3
             var dxt3 = typeof(PngUtility).GetMethod("CompressDXT3", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
             byte[] encoded = (byte[])dxt3.Invoke(null, new object[] { bmp });
 
             // Decode back
-            using var bmpOut = new Bitmap(32, 32, PixelFormat.Format32bppArgb);
-            BitmapData bmpData = bmpOut.LockBits(new Rectangle(0, 0, 32, 32), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
+            using var bmpOut = new SKBitmap(32, 32, SKColorType.Bgra8888, SKAlphaType.Unpremul);
+            var bmpData = WzBitmapData.FromSKBitmap(bmpOut);
             PngUtility.DecompressImageDXT3(encoded, 32, 32, bmpData);
-            bmpOut.UnlockBits(bmpData);
 
             // Compare pixels - DXT3 stores 4-bit alpha, so compare on 4-bit precision
             for (int y = 0; y < 32; y++)
                 for (int x = 0; x < 32; x++)
                 {
-                    Color orig = bmp.GetPixel(x, y);
-                    Color decoded = bmpOut.GetPixel(x, y);
+                    SKColor orig = bmp.GetPixel(x, y);
+                    SKColor decoded = bmpOut.GetPixel(x, y);
                     // Compare 4-bit alpha values (quantized)
-                    Assert.AreEqual(orig.A >> 4, decoded.A >> 4, $"Alpha 4-bit mismatch at ({x},{y})");
+                    Assert.AreEqual(orig.Alpha >> 4, decoded.Alpha >> 4, $"Alpha 4-bit mismatch at ({x},{y})");
                 }
         }
 
@@ -276,17 +251,11 @@ namespace UnitTest_WzFile
             // DXT3 needs (width/4) * (height/4) * 16 bytes = 2 * 2 * 16 = 64 bytes
             byte[] rawData = new byte[32]; // Insufficient
 
-            using var bmp = new Bitmap(width, height, PixelFormat.Format32bppArgb);
-            BitmapData bmpData = bmp.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
-            try
-            {
-                Assert.Throws<ArgumentException>(() =>
-              PngUtility.DecompressImageDXT3(rawData, width, height, bmpData));
-            }
-            finally
-            {
-                bmp.UnlockBits(bmpData);
-            }
+            using var bmp = new SKBitmap(width, height, SKColorType.Bgra8888, SKAlphaType.Unpremul);
+            var bmpData = WzBitmapData.FromSKBitmap(bmp);
+
+            Assert.Throws<ArgumentException>(() =>
+                PngUtility.DecompressImageDXT3(rawData, width, height, bmpData));
         }
 
         [TestMethod]
@@ -312,21 +281,20 @@ namespace UnitTest_WzFile
             rawData[14] = 0x00;
             rawData[15] = 0x00;
 
-            using var bmp = new Bitmap(width, height, PixelFormat.Format32bppArgb);
-            BitmapData bmpData = bmp.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
+            using var bmp = new SKBitmap(width, height, SKColorType.Bgra8888, SKAlphaType.Unpremul);
+            var bmpData = WzBitmapData.FromSKBitmap(bmp);
             PngUtility.DecompressImageDXT3(rawData, width, height, bmpData);
-            bmp.UnlockBits(bmpData);
 
             // Check all pixels are red with full alpha
             for (int y = 0; y < height; y++)
             {
                 for (int x = 0; x < width; x++)
                 {
-                    Color pixel = bmp.GetPixel(x, y);
-                    Assert.AreEqual(255, pixel.A, $"Alpha mismatch at ({x},{y})");
-                    Assert.AreEqual(255, pixel.R, $"Red mismatch at ({x},{y})");
-                    Assert.AreEqual(0, pixel.G, $"Green mismatch at ({x},{y})");
-                    Assert.AreEqual(0, pixel.B, $"Blue mismatch at ({x},{y})");
+                    SKColor pixel = bmp.GetPixel(x, y);
+                    Assert.AreEqual(255, (int)pixel.Alpha, $"Alpha mismatch at ({x},{y})");
+                    Assert.AreEqual(255, (int)pixel.Red, $"Red mismatch at ({x},{y})");
+                    Assert.AreEqual(0, (int)pixel.Green, $"Green mismatch at ({x},{y})");
+                    Assert.AreEqual(0, (int)pixel.Blue, $"Blue mismatch at ({x},{y})");
                 }
             }
         }
@@ -336,27 +304,26 @@ namespace UnitTest_WzFile
         [TestMethod]
         public void DXT5_RoundTrip_EncodeDecode()
         {
-            using var bmp = new Bitmap(32, 32, PixelFormat.Format32bppArgb);
+            using var bmp = new SKBitmap(32, 32, SKColorType.Bgra8888, SKAlphaType.Unpremul);
             for (int y = 0; y < 32; y++)
                 for (int x = 0; x < 32; x++)
-                    bmp.SetPixel(x, y, Color.FromArgb(255 - x % 128, x * 8 % 256, y * 8 % 256, (x + y) % 256));
+                    bmp.SetPixel(x, y, new SKColor((byte)(x * 8 % 256), (byte)(y * 8 % 256), (byte)((x + y) % 256), (byte)(255 - x % 128)));
 
             var dxt5 = typeof(PngUtility).GetMethod("GetPixelDataFormat2050", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
             byte[] encoded = (byte[])dxt5.Invoke(null, new object[] { bmp });
 
-            using var bmpOut = new Bitmap(32, 32, PixelFormat.Format32bppArgb);
-            BitmapData bmpData = bmpOut.LockBits(new Rectangle(0, 0, 32, 32), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
+            using var bmpOut = new SKBitmap(32, 32, SKColorType.Bgra8888, SKAlphaType.Unpremul);
+            var bmpData = WzBitmapData.FromSKBitmap(bmpOut);
             PngUtility.DecompressImageDXT5(encoded, 32, 32, bmpData);
-            bmpOut.UnlockBits(bmpData);
 
             // Compare pixels - DXT5 stores alpha with limited precision; allow a small tolerance
             for (int y = 0; y < 32; y++)
                 for (int x = 0; x < 32; x++)
                 {
-                    Color orig = bmp.GetPixel(x, y);
-                    Color decoded = bmpOut.GetPixel(x, y);
-                    int diff = Math.Abs(orig.A - decoded.A);
-                    Assert.IsTrue(diff <= 16, $"Alpha mismatch at ({x},{y}) - expected {orig.A} got {decoded.A}");
+                    SKColor orig = bmp.GetPixel(x, y);
+                    SKColor decoded = bmpOut.GetPixel(x, y);
+                    int diff = Math.Abs(orig.Alpha - decoded.Alpha);
+                    Assert.IsTrue(diff <= 16, $"Alpha mismatch at ({x},{y}) - expected {orig.Alpha} got {decoded.Alpha}");
                 }
         }
 
@@ -367,17 +334,11 @@ namespace UnitTest_WzFile
             // DXT5 needs (width/4) * (height/4) * 16 bytes = 2 * 2 * 16 = 64 bytes
             byte[] rawData = new byte[32]; // Insufficient
 
-            using var bmp = new Bitmap(width, height, PixelFormat.Format32bppArgb);
-            BitmapData bmpData = bmp.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
-            try
-            {
-                Assert.Throws<ArgumentException>(() =>
-      PngUtility.DecompressImageDXT5(rawData, width, height, bmpData));
-            }
-            finally
-            {
-                bmp.UnlockBits(bmpData);
-            }
+            using var bmp = new SKBitmap(width, height, SKColorType.Bgra8888, SKAlphaType.Unpremul);
+            var bmpData = WzBitmapData.FromSKBitmap(bmp);
+
+            Assert.Throws<ArgumentException>(() =>
+                PngUtility.DecompressImageDXT5(rawData, width, height, bmpData));
         }
 
         [TestMethod]
@@ -385,18 +346,12 @@ namespace UnitTest_WzFile
         {
             byte[] rawData = new byte[64];
 
-            using var bmp = new Bitmap(1, 1, PixelFormat.Format32bppArgb);
-            BitmapData bmpData = bmp.LockBits(new Rectangle(0, 0, 1, 1), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
-            try
-            {
-                // Width and height of 0 should throw
-                Assert.Throws<ArgumentException>(() =>
-              PngUtility.DecompressImageDXT5(rawData, 0, 0, bmpData));
-            }
-            finally
-            {
-                bmp.UnlockBits(bmpData);
-            }
+            using var bmp = new SKBitmap(1, 1, SKColorType.Bgra8888, SKAlphaType.Unpremul);
+            var bmpData = WzBitmapData.FromSKBitmap(bmp);
+
+            // Width and height of 0 should throw
+            Assert.Throws<ArgumentException>(() =>
+                PngUtility.DecompressImageDXT5(rawData, 0, 0, bmpData));
         }
         #endregion
 
@@ -404,7 +359,7 @@ namespace UnitTest_WzFile
         [TestMethod]
         public void DecompressImage_PixelDataForm517_ValidData_DecompressesCorrectly()
         {
-            // Format 517 uses 16x16 blocks with a single RGB565 value per block
+            // Format 517 uses 16x16 blocks with a single RGB565 value per block, expanded to BGRA8888
             int width = 32, height = 32;
             int blockCountX = width / 16;
             int blockCountY = height / 16;
@@ -424,12 +379,10 @@ namespace UnitTest_WzFile
             rawData[6] = 0xFF;
             rawData[7] = 0xFF;
 
-            using var bmp = new Bitmap(width, height, PixelFormat.Format16bppRgb565);
-            BitmapData bmpData = bmp.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.WriteOnly, PixelFormat.Format16bppRgb565);
-            PngUtility.DecompressImage_PixelDataForm517(rawData, width, height, bmp, bmpData);
-            bmp.UnlockBits(bmpData);
+            using var bmp = new SKBitmap(width, height, SKColorType.Bgra8888, SKAlphaType.Unpremul);
+            var bmpData = WzBitmapData.FromSKBitmap(bmp);
+            PngUtility.DecompressImage_PixelDataForm517(rawData, width, height, bmpData);
 
-            // Verify the raw data was copied to the bitmap
             Assert.IsNotNull(bmp);
         }
 
@@ -444,80 +397,37 @@ namespace UnitTest_WzFile
             rawData[0] = 0xFF;
             rawData[1] = 0x07;
 
-            using var bmp = new Bitmap(width, height, PixelFormat.Format16bppRgb565);
-            BitmapData bmpData = bmp.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.WriteOnly, PixelFormat.Format16bppRgb565);
-            PngUtility.DecompressImage_PixelDataForm517(rawData, width, height, bmp, bmpData);
-            bmp.UnlockBits(bmpData);
+            using var bmp = new SKBitmap(width, height, SKColorType.Bgra8888, SKAlphaType.Unpremul);
+            var bmpData = WzBitmapData.FromSKBitmap(bmp);
+            PngUtility.DecompressImage_PixelDataForm517(rawData, width, height, bmpData);
 
             // All pixels should have the same color (replicated from block)
             Assert.IsNotNull(bmp);
         }
         #endregion
 
-        #region CopyBmpDataWithStride Tests
+        #region Format2 Round-trip Test
         [TestMethod]
-        public void CopyBmpDataWithStride_MatchingStride_CopiesDirectly()
+        public void Format2_RoundTrip_PixelData()
         {
-            int width = 16, height = 8;
-            int stride = width * 4;
-            byte[] source = new byte[stride * height];
-
-            // Fill with pattern
-            for (int i = 0; i < source.Length; i++)
-                source[i] = (byte)(i % 256);
-
-            using var bmp = new Bitmap(width, height, PixelFormat.Format32bppArgb);
-            BitmapData bmpData = bmp.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
-            try
-            {
-                PngUtility.CopyBmpDataWithStride(source, stride, bmpData);
-
-                // Verify data was copied
-                byte[] result = new byte[source.Length];
-                Marshal.Copy(bmpData.Scan0, result, 0, Math.Min(result.Length, bmpData.Stride * height));
-
-                // If strides match, should be identical
-                if (bmpData.Stride == stride)
-                {
-                    for (int i = 0; i < source.Length; i++)
-                        Assert.AreEqual(source[i], result[i], $"Byte mismatch at index {i}");
-                }
-            }
-            finally
-            {
-                bmp.UnlockBits(bmpData);
-            }
-        }
-
-        [TestMethod]
-        public void Format2_RoundTrip_CopyBmpDataWithStride()
-        {
-            using var bmp = new Bitmap(16, 8, PixelFormat.Format32bppArgb);
+            using var bmp = new SKBitmap(16, 8, SKColorType.Bgra8888, SKAlphaType.Unpremul);
             for (int y = 0; y < bmp.Height; y++)
                 for (int x = 0; x < bmp.Width; x++)
-                    bmp.SetPixel(x, y, Color.FromArgb((x * 17) & 255, (y * 31) & 255, (x * 13) & 255, (y * 7) & 255));
+                    bmp.SetPixel(x, y, new SKColor((byte)((x * 17) & 255), (byte)((y * 31) & 255), (byte)((x * 13) & 255), (byte)((y * 7) & 255)));
 
-            var (fmt, pixelData) = PngUtility.CompressImageToPngFormat(bmp, SurfaceFormat.Color);
-            Assert.AreEqual(MapleLib.WzLib.WzProperties.WzPngFormat.Format2, fmt);
+            var (fmt, pixelData) = PngUtility.CompressImageToPngFormat(bmp, WzSurfaceFormat.Color);
+            Assert.AreEqual(WzPngFormat.Format2, fmt);
 
-            using var bmpOut = new Bitmap(bmp.Width, bmp.Height, PixelFormat.Format32bppArgb);
-            var bmpData = bmpOut.LockBits(new Rectangle(0, 0, bmpOut.Width, bmpOut.Height), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
-            try
-            {
-                int srcStride = bmp.Width * 4;
-                PngUtility.CopyBmpDataWithStride(pixelData, srcStride, bmpData);
-            }
-            finally
-            {
-                bmpOut.UnlockBits(bmpData);
-            }
-
+            // pixelData is raw BGRA8888 — verify it matches bmp's pixel buffer
             for (int y = 0; y < bmp.Height; y++)
                 for (int x = 0; x < bmp.Width; x++)
                 {
-                    Color orig = bmp.GetPixel(x, y);
-                    Color outc = bmpOut.GetPixel(x, y);
-                    Assert.AreEqual(orig.ToArgb(), outc.ToArgb(), $"Pixel mismatch at ({x},{y})");
+                    int idx = (y * bmp.Width + x) * 4;
+                    SKColor orig = bmp.GetPixel(x, y);
+                    Assert.AreEqual(orig.Blue,  pixelData[idx],     $"Blue mismatch at ({x},{y})");
+                    Assert.AreEqual(orig.Green, pixelData[idx + 1], $"Green mismatch at ({x},{y})");
+                    Assert.AreEqual(orig.Red,   pixelData[idx + 2], $"Red mismatch at ({x},{y})");
+                    Assert.AreEqual(orig.Alpha, pixelData[idx + 3], $"Alpha mismatch at ({x},{y})");
                 }
         }
         #endregion
@@ -526,56 +436,56 @@ namespace UnitTest_WzFile
         [TestMethod]
         public void CompressImageToPngFormat_Format1_Bgra4444()
         {
-            using var bmp = new Bitmap(8, 8, PixelFormat.Format32bppArgb);
+            using var bmp = new SKBitmap(8, 8, SKColorType.Bgra8888, SKAlphaType.Unpremul);
             for (int y = 0; y < 8; y++)
                 for (int x = 0; x < 8; x++)
-                    bmp.SetPixel(x, y, Color.FromArgb(x * 32, y * 32, (x + y) * 16, 128));
+                    bmp.SetPixel(x, y, new SKColor((byte)(y * 32), (byte)((x + y) * 16), 128, (byte)(x * 32)));
 
-            var (fmt, pixelData) = PngUtility.CompressImageToPngFormat(bmp, SurfaceFormat.Bgra4444);
+            var (fmt, pixelData) = PngUtility.CompressImageToPngFormat(bmp, WzSurfaceFormat.Bgra4444);
 
-            Assert.AreEqual(MapleLib.WzLib.WzProperties.WzPngFormat.Format1, fmt);
+            Assert.AreEqual(WzPngFormat.Format1, fmt);
             Assert.AreEqual(8 * 8 * 2, pixelData.Length); // 2 bytes per pixel
         }
 
         [TestMethod]
         public void CompressImageToPngFormat_Format2_Bgra8888()
         {
-            using var bmp = new Bitmap(8, 8, PixelFormat.Format32bppArgb);
+            using var bmp = new SKBitmap(8, 8, SKColorType.Bgra8888, SKAlphaType.Unpremul);
             for (int y = 0; y < 8; y++)
                 for (int x = 0; x < 8; x++)
-                    bmp.SetPixel(x, y, Color.FromArgb(255, x * 32, y * 32, (x + y) * 16));
+                    bmp.SetPixel(x, y, new SKColor((byte)(x * 32), (byte)(y * 32), (byte)((x + y) * 16), 255));
 
-            var (fmt, pixelData) = PngUtility.CompressImageToPngFormat(bmp, SurfaceFormat.Color);
+            var (fmt, pixelData) = PngUtility.CompressImageToPngFormat(bmp, WzSurfaceFormat.Color);
 
-            Assert.AreEqual(MapleLib.WzLib.WzProperties.WzPngFormat.Format2, fmt);
+            Assert.AreEqual(WzPngFormat.Format2, fmt);
             Assert.AreEqual(8 * 8 * 4, pixelData.Length); // 4 bytes per pixel
         }
 
         [TestMethod]
         public void CompressImageToPngFormat_Format2_Bgra32()
         {
-            using var bmp = new Bitmap(8, 8, PixelFormat.Format32bppArgb);
+            using var bmp = new SKBitmap(8, 8, SKColorType.Bgra8888, SKAlphaType.Unpremul);
             for (int y = 0; y < 8; y++)
                 for (int x = 0; x < 8; x++)
-                    bmp.SetPixel(x, y, Color.FromArgb(255, x * 32, y * 32, (x + y) * 16));
+                    bmp.SetPixel(x, y, new SKColor((byte)(x * 32), (byte)(y * 32), (byte)((x + y) * 16), 255));
 
-            var (fmt, pixelData) = PngUtility.CompressImageToPngFormat(bmp, SurfaceFormat.Bgra32);
+            var (fmt, pixelData) = PngUtility.CompressImageToPngFormat(bmp, WzSurfaceFormat.Bgra32);
 
-            Assert.AreEqual(MapleLib.WzLib.WzProperties.WzPngFormat.Format2, fmt);
+            Assert.AreEqual(WzPngFormat.Format2, fmt);
             Assert.AreEqual(8 * 8 * 4, pixelData.Length);
         }
 
         [TestMethod]
         public void CompressImageToPngFormat_Format257_Bgra5551()
         {
-            using var bmp = new Bitmap(8, 8, PixelFormat.Format32bppArgb);
+            using var bmp = new SKBitmap(8, 8, SKColorType.Bgra8888, SKAlphaType.Unpremul);
             for (int y = 0; y < 8; y++)
                 for (int x = 0; x < 8; x++)
-                    bmp.SetPixel(x, y, Color.FromArgb(255, x * 32, y * 32, (x + y) * 16));
+                    bmp.SetPixel(x, y, new SKColor((byte)(x * 32), (byte)(y * 32), (byte)((x + y) * 16), 255));
 
-            var (fmt, pixelData) = PngUtility.CompressImageToPngFormat(bmp, SurfaceFormat.Bgra5551);
+            var (fmt, pixelData) = PngUtility.CompressImageToPngFormat(bmp, WzSurfaceFormat.Bgra5551);
 
-            Assert.AreEqual(MapleLib.WzLib.WzProperties.WzPngFormat.Format257, fmt);
+            Assert.AreEqual(WzPngFormat.Format257, fmt);
             Assert.AreEqual(8 * 8 * 2, pixelData.Length); // 2 bytes per pixel
         }
 
@@ -583,14 +493,14 @@ namespace UnitTest_WzFile
         public void CompressImageToPngFormat_Format513_Bgr565_NonBlockAligned()
         {
             // Use dimensions not divisible by 16 to get Format513 instead of Format517
-            using var bmp = new Bitmap(10, 10, PixelFormat.Format32bppArgb);
+            using var bmp = new SKBitmap(10, 10, SKColorType.Bgra8888, SKAlphaType.Unpremul);
             for (int y = 0; y < 10; y++)
                 for (int x = 0; x < 10; x++)
-                    bmp.SetPixel(x, y, Color.FromArgb(255, x * 25, y * 25, 0));
+                    bmp.SetPixel(x, y, new SKColor((byte)(x * 25), (byte)(y * 25), 0, 255));
 
-            var (fmt, pixelData) = PngUtility.CompressImageToPngFormat(bmp, SurfaceFormat.Bgr565);
+            var (fmt, pixelData) = PngUtility.CompressImageToPngFormat(bmp, WzSurfaceFormat.Bgr565);
 
-            Assert.AreEqual(MapleLib.WzLib.WzProperties.WzPngFormat.Format513, fmt);
+            Assert.AreEqual(WzPngFormat.Format513, fmt);
             Assert.AreEqual(10 * 10 * 2, pixelData.Length); // 2 bytes per pixel
         }
 
@@ -599,13 +509,13 @@ namespace UnitTest_WzFile
         {
             var rand = new Random(12345);
             int w = 8, h = 8;
-            using var bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+            using var bmp = new SKBitmap(w, h, SKColorType.Bgra8888, SKAlphaType.Unpremul);
             for (int y = 0; y < h; y++)
                 for (int x = 0; x < w; x++)
-                    bmp.SetPixel(x, y, Color.FromArgb(rand.Next(256), rand.Next(256), rand.Next(256), rand.Next(256)));
+                    bmp.SetPixel(x, y, new SKColor((byte)rand.Next(256), (byte)rand.Next(256), (byte)rand.Next(256), (byte)rand.Next(256)));
 
-            var (fmt, pixelData) = PngUtility.CompressImageToPngFormat(bmp, SurfaceFormat.Bgr565);
-            Assert.AreEqual(MapleLib.WzLib.WzProperties.WzPngFormat.Format513, fmt);
+            var (fmt, pixelData) = PngUtility.CompressImageToPngFormat(bmp, WzSurfaceFormat.Bgr565);
+            Assert.AreEqual(WzPngFormat.Format513, fmt);
 
             // pixelData is 2 bytes per pixel in RGB565 little-endian
             for (int y = 0; y < h; y++)
@@ -615,11 +525,11 @@ namespace UnitTest_WzFile
                     int idx = (y * w + x) * 2;
                     ushort val = (ushort)(pixelData[idx] | (pixelData[idx + 1] << 8));
                     Color decoded = PngUtility.RGB565ToColor(val);
-                    Color orig = bmp.GetPixel(x, y);
+                    SKColor orig = bmp.GetPixel(x, y);
                     // Allow small differences due to 5/6/5 quantization
-                    Assert.IsTrue(Math.Abs(decoded.R - orig.R) <= 8, $"R channel too far at ({x},{y})");
-                    Assert.IsTrue(Math.Abs(decoded.G - orig.G) <= 8, $"G channel too far at ({x},{y})");
-                    Assert.IsTrue(Math.Abs(decoded.B - orig.B) <= 8, $"B channel too far at ({x},{y})");
+                    Assert.IsTrue(Math.Abs(decoded.R - orig.Red) <= 8, $"R channel too far at ({x},{y})");
+                    Assert.IsTrue(Math.Abs(decoded.G - orig.Green) <= 8, $"G channel too far at ({x},{y})");
+                    Assert.IsTrue(Math.Abs(decoded.B - orig.Blue) <= 8, $"B channel too far at ({x},{y})");
                 }
             }
         }
@@ -628,14 +538,14 @@ namespace UnitTest_WzFile
         public void CompressImageToPngFormat_Format517_Bgr565_BlockAligned()
         {
             // Use dimensions divisible by 16 to get Format517
-            using var bmp = new Bitmap(32, 32, PixelFormat.Format32bppArgb);
+            using var bmp = new SKBitmap(32, 32, SKColorType.Bgra8888, SKAlphaType.Unpremul);
             for (int y = 0; y < 32; y++)
                 for (int x = 0; x < 32; x++)
-                    bmp.SetPixel(x, y, Color.FromArgb(255, x * 8, y * 8, 0));
+                    bmp.SetPixel(x, y, new SKColor((byte)(x * 8), (byte)(y * 8), 0, 255));
 
-            var (fmt, pixelData) = PngUtility.CompressImageToPngFormat(bmp, SurfaceFormat.Bgr565);
+            var (fmt, pixelData) = PngUtility.CompressImageToPngFormat(bmp, WzSurfaceFormat.Bgr565);
 
-            Assert.AreEqual(MapleLib.WzLib.WzProperties.WzPngFormat.Format517, fmt);
+            Assert.AreEqual(WzPngFormat.Format517, fmt);
             // Format517: 2 bytes per 16x16 block
             int blockCount = (32 / 16) * (32 / 16);
             Assert.AreEqual(blockCount * 2, pixelData.Length);
@@ -645,22 +555,27 @@ namespace UnitTest_WzFile
         public void Format517_BlockTopLeftSampling()
         {
             int w = 32, h = 32; // 2x2 blocks of 16x16
-            using var bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+            using var bmp = new SKBitmap(w, h, SKColorType.Bgra8888, SKAlphaType.Unpremul);
             // Set each pixel so top-left of block has a unique color
             for (int by = 0; by < h / 16; by++)
             {
                 for (int bx = 0; bx < w / 16; bx++)
                 {
-                    Color blockColor = Color.FromArgb(255, bx * 50 % 256, by * 80 % 256, (bx + by) * 70 % 256);
-                    // fill block with some different colors but top-left is unique
+                    byte blockR = (byte)(bx * 50 % 256);
+                    byte blockG = (byte)(by * 80 % 256);
+                    byte blockB = (byte)((bx + by) * 70 % 256);
                     for (int j = 0; j < 16; j++)
                         for (int i = 0; i < 16; i++)
-                            bmp.SetPixel(bx * 16 + i, by * 16 + j, Color.FromArgb(blockColor.A, (blockColor.R + i) % 256, (blockColor.G + j) % 256, (blockColor.B + i + j) % 256));
+                            bmp.SetPixel(bx * 16 + i, by * 16 + j, new SKColor(
+                                (byte)((blockR + i) % 256),
+                                (byte)((blockG + j) % 256),
+                                (byte)((blockB + i + j) % 256),
+                                255));
                 }
             }
 
-            var (fmt, pixelData) = PngUtility.CompressImageToPngFormat(bmp, SurfaceFormat.Bgr565);
-            Assert.AreEqual(MapleLib.WzLib.WzProperties.WzPngFormat.Format517, fmt);
+            var (fmt, pixelData) = PngUtility.CompressImageToPngFormat(bmp, WzSurfaceFormat.Bgr565);
+            Assert.AreEqual(WzPngFormat.Format517, fmt);
 
             int blocksX = w / 16;
             int blocksY = h / 16;
@@ -671,11 +586,11 @@ namespace UnitTest_WzFile
                     int idx = (bx + by * blocksX) * 2;
                     ushort val = (ushort)(pixelData[idx] | (pixelData[idx + 1] << 8));
                     // Compute expected from top-left pixel of the block
-                    Color topLeft = bmp.GetPixel(bx * 16, by * 16);
+                    SKColor topLeft = bmp.GetPixel(bx * 16, by * 16);
                     // Convert topLeft to rgb565 same as PngUtility.GetPixelDataFormat517
-                    int r5 = (topLeft.R * 31) / 255;
-                    int g6 = (topLeft.G * 63) / 255;
-                    int b5 = (topLeft.B * 31) / 255;
+                    int r5 = (topLeft.Red * 31) / 255;
+                    int g6 = (topLeft.Green * 63) / 255;
+                    int b5 = (topLeft.Blue * 31) / 255;
                     ushort expected = (ushort)((r5 << 11) | (g6 << 5) | b5);
                     Assert.AreEqual(expected, val, $"Block value mismatch at block ({bx},{by})");
                 }
@@ -686,14 +601,14 @@ namespace UnitTest_WzFile
         public void CompressImageToPngFormat_Format1026_Dxt3_ColorImage()
         {
             // Color image should produce Format1026
-            using var bmp = new Bitmap(8, 8, PixelFormat.Format32bppArgb);
+            using var bmp = new SKBitmap(8, 8, SKColorType.Bgra8888, SKAlphaType.Unpremul);
             for (int y = 0; y < 8; y++)
                 for (int x = 0; x < 8; x++)
-                    bmp.SetPixel(x, y, Color.FromArgb(255, x * 32, 0, y * 32)); // RGB varies
+                    bmp.SetPixel(x, y, new SKColor((byte)(x * 32), 0, (byte)(y * 32), 255)); // RGB varies
 
-            var (fmt, pixelData) = PngUtility.CompressImageToPngFormat(bmp, SurfaceFormat.Dxt3);
+            var (fmt, pixelData) = PngUtility.CompressImageToPngFormat(bmp, WzSurfaceFormat.Dxt3);
 
-            Assert.AreEqual(MapleLib.WzLib.WzProperties.WzPngFormat.Format1026, fmt);
+            Assert.AreEqual(WzPngFormat.Format1026, fmt);
             // DXT3: 16 bytes per 4x4 block
             int blockCount = (8 / 4) * (8 / 4);
             Assert.AreEqual(blockCount * 16, pixelData.Length);
@@ -703,30 +618,30 @@ namespace UnitTest_WzFile
         public void CompressImageToPngFormat_Format3_Dxt3_GrayscaleImage()
         {
             // Grayscale image should produce Format3
-            using var bmp = new Bitmap(8, 8, PixelFormat.Format32bppArgb);
+            using var bmp = new SKBitmap(8, 8, SKColorType.Bgra8888, SKAlphaType.Unpremul);
             for (int y = 0; y < 8; y++)
                 for (int x = 0; x < 8; x++)
                 {
-                    int gray = (x + y) * 16;
-                    bmp.SetPixel(x, y, Color.FromArgb(255, gray, gray, gray));
+                    byte gray = (byte)((x + y) * 16);
+                    bmp.SetPixel(x, y, new SKColor(gray, gray, gray, 255));
                 }
 
-            var (fmt, pixelData) = PngUtility.CompressImageToPngFormat(bmp, SurfaceFormat.Dxt3);
+            var (fmt, pixelData) = PngUtility.CompressImageToPngFormat(bmp, WzSurfaceFormat.Dxt3);
 
-            Assert.AreEqual(MapleLib.WzLib.WzProperties.WzPngFormat.Format3, fmt);
+            Assert.AreEqual(WzPngFormat.Format3, fmt);
         }
 
         [TestMethod]
         public void CompressImageToPngFormat_Format2050_Dxt5()
         {
-            using var bmp = new Bitmap(8, 8, PixelFormat.Format32bppArgb);
+            using var bmp = new SKBitmap(8, 8, SKColorType.Bgra8888, SKAlphaType.Unpremul);
             for (int y = 0; y < 8; y++)
                 for (int x = 0; x < 8; x++)
-                    bmp.SetPixel(x, y, Color.FromArgb(x * 32, y * 32, (x + y) * 16, 128));
+                    bmp.SetPixel(x, y, new SKColor((byte)(y * 32), (byte)((x + y) * 16), 128, (byte)(x * 32)));
 
-            var (fmt, pixelData) = PngUtility.CompressImageToPngFormat(bmp, SurfaceFormat.Dxt5);
+            var (fmt, pixelData) = PngUtility.CompressImageToPngFormat(bmp, WzSurfaceFormat.Dxt5);
 
-            Assert.AreEqual(MapleLib.WzLib.WzProperties.WzPngFormat.Format2050, fmt);
+            Assert.AreEqual(WzPngFormat.Format2050, fmt);
             // DXT5: 16 bytes per 4x4 block
             int blockCount = (8 / 4) * (8 / 4);
             Assert.AreEqual(blockCount * 16, pixelData.Length);
@@ -735,15 +650,15 @@ namespace UnitTest_WzFile
         [TestMethod]
         public void CompressImageToPngFormat_DefaultFormat_ReturnsFormat2()
         {
-            using var bmp = new Bitmap(8, 8, PixelFormat.Format32bppArgb);
+            using var bmp = new SKBitmap(8, 8, SKColorType.Bgra8888, SKAlphaType.Unpremul);
             for (int y = 0; y < 8; y++)
                 for (int x = 0; x < 8; x++)
-                    bmp.SetPixel(x, y, Color.Red);
+                    bmp.SetPixel(x, y, SKColors.Red);
 
             // Use an unsupported format to trigger default case
-            var (fmt, pixelData) = PngUtility.CompressImageToPngFormat(bmp, (SurfaceFormat)9999);
+            var (fmt, pixelData) = PngUtility.CompressImageToPngFormat(bmp, (WzSurfaceFormat)9999);
 
-            Assert.AreEqual(MapleLib.WzLib.WzProperties.WzPngFormat.Format2, fmt);
+            Assert.AreEqual(WzPngFormat.Format2, fmt);
             Assert.AreEqual(8 * 8 * 4, pixelData.Length);
         }
 
@@ -751,18 +666,18 @@ namespace UnitTest_WzFile
         public void CompressImageToPngFormat_WithIsGrayscaleOverride_RespectsParameter()
         {
             // Color image but force grayscale detection
-            using var bmp = new Bitmap(8, 8, PixelFormat.Format32bppArgb);
+            using var bmp = new SKBitmap(8, 8, SKColorType.Bgra8888, SKAlphaType.Unpremul);
             for (int y = 0; y < 8; y++)
                 for (int x = 0; x < 8; x++)
-                    bmp.SetPixel(x, y, Color.FromArgb(255, x * 32, 0, y * 32));
+                    bmp.SetPixel(x, y, new SKColor((byte)(x * 32), 0, (byte)(y * 32), 255));
 
             // Force isGrayscale = true
-            var (fmt, _) = PngUtility.CompressImageToPngFormat(bmp, SurfaceFormat.Dxt3, true);
-            Assert.AreEqual(MapleLib.WzLib.WzProperties.WzPngFormat.Format3, fmt);
+            var (fmt, _) = PngUtility.CompressImageToPngFormat(bmp, WzSurfaceFormat.Dxt3, true);
+            Assert.AreEqual(WzPngFormat.Format3, fmt);
 
             // Force isGrayscale = false
-            var (fmt2, _) = PngUtility.CompressImageToPngFormat(bmp, SurfaceFormat.Dxt3, false);
-            Assert.AreEqual(MapleLib.WzLib.WzProperties.WzPngFormat.Format1026, fmt2);
+            var (fmt2, _) = PngUtility.CompressImageToPngFormat(bmp, WzSurfaceFormat.Dxt3, false);
+            Assert.AreEqual(WzPngFormat.Format1026, fmt2);
         }
         #endregion
 
@@ -770,16 +685,16 @@ namespace UnitTest_WzFile
         [TestMethod]
         public void CompressImageToPngFormat_Format257_AlphaThreshold()
         {
-            using var bmp = new Bitmap(4, 4, PixelFormat.Format32bppArgb);
+            using var bmp = new SKBitmap(4, 4, SKColorType.Bgra8888, SKAlphaType.Unpremul);
             // Set pixels with varying alpha
-            bmp.SetPixel(0, 0, Color.FromArgb(127, 255, 0, 0)); // Alpha < 128 -> 0
-            bmp.SetPixel(1, 0, Color.FromArgb(128, 0, 255, 0)); // Alpha >= 128 -> 1
-            bmp.SetPixel(2, 0, Color.FromArgb(0, 0, 0, 255));   // Alpha = 0 -> 0
-            bmp.SetPixel(3, 0, Color.FromArgb(255, 255, 255, 0)); // Alpha = 255 -> 1
+            bmp.SetPixel(0, 0, new SKColor(255, 0, 0, 127)); // Alpha < 128 -> 0
+            bmp.SetPixel(1, 0, new SKColor(0, 255, 0, 128)); // Alpha >= 128 -> 1
+            bmp.SetPixel(2, 0, new SKColor(0, 0, 255, 0));   // Alpha = 0 -> 0
+            bmp.SetPixel(3, 0, new SKColor(255, 255, 0, 255)); // Alpha = 255 -> 1
 
-            var (fmt, pixelData) = PngUtility.CompressImageToPngFormat(bmp, SurfaceFormat.Bgra5551);
+            var (fmt, pixelData) = PngUtility.CompressImageToPngFormat(bmp, WzSurfaceFormat.Bgra5551);
 
-            Assert.AreEqual(MapleLib.WzLib.WzProperties.WzPngFormat.Format257, fmt);
+            Assert.AreEqual(WzPngFormat.Format257, fmt);
 
             // Check alpha bit in first row
             ushort pixel0 = (ushort)(pixelData[0] | (pixelData[1] << 8));
@@ -799,16 +714,16 @@ namespace UnitTest_WzFile
         [TestMethod]
         public void CompressImageToPngFormat_Format1_NibbleQuantization()
         {
-            using var bmp = new Bitmap(2, 2, PixelFormat.Format32bppArgb);
-            // Set known values
-            bmp.SetPixel(0, 0, Color.FromArgb(255, 255, 255, 255)); // All 0xF nibbles
-            bmp.SetPixel(1, 0, Color.FromArgb(0, 0, 0, 0));         // All 0x0 nibbles
-            bmp.SetPixel(0, 1, Color.FromArgb(128, 128, 128, 128)); // Mid values -> 0x8 nibbles
-            bmp.SetPixel(1, 1, Color.FromArgb(16, 32, 48, 64));     // Various values
+            using var bmp = new SKBitmap(2, 2, SKColorType.Bgra8888, SKAlphaType.Unpremul);
+            // Set known values: SKColor(r, g, b, a)
+            bmp.SetPixel(0, 0, new SKColor(255, 255, 255, 255)); // All 0xF nibbles
+            bmp.SetPixel(1, 0, new SKColor(0, 0, 0, 0));         // All 0x0 nibbles
+            bmp.SetPixel(0, 1, new SKColor(128, 128, 128, 128)); // Mid values -> 0x8 nibbles
+            bmp.SetPixel(1, 1, new SKColor(32, 48, 64, 16));     // Various values
 
-            var (fmt, pixelData) = PngUtility.CompressImageToPngFormat(bmp, SurfaceFormat.Bgra4444);
+            var (fmt, pixelData) = PngUtility.CompressImageToPngFormat(bmp, WzSurfaceFormat.Bgra4444);
 
-            Assert.AreEqual(MapleLib.WzLib.WzProperties.WzPngFormat.Format1, fmt);
+            Assert.AreEqual(WzPngFormat.Format1, fmt);
             Assert.AreEqual(2 * 2 * 2, pixelData.Length);
 
             // Pixel 0,0: All 0xFF -> all nibbles = 0xF
@@ -827,7 +742,7 @@ namespace UnitTest_WzFile
         public void CompressImageToPngFormat_Dxt3_NonMultipleOf4_ThrowsException()
         {
             // DXT3 requires dimensions to be multiples of 4
-            using var bmp = new Bitmap(7, 7, PixelFormat.Format32bppArgb);
+            using var bmp = new SKBitmap(7, 7, SKColorType.Bgra8888, SKAlphaType.Unpremul);
 
             var method = typeof(PngUtility).GetMethod("CompressDXT3", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
             var ex = Assert.Throws<System.Reflection.TargetInvocationException>(() =>
@@ -840,7 +755,7 @@ namespace UnitTest_WzFile
         public void CompressImageToPngFormat_Dxt5_NonMultipleOf4_ThrowsException()
         {
             // DXT5 requires dimensions to be multiples of 4
-            using var bmp = new Bitmap(7, 7, PixelFormat.Format32bppArgb);
+            using var bmp = new SKBitmap(7, 7, SKColorType.Bgra8888, SKAlphaType.Unpremul);
 
             var method = typeof(PngUtility).GetMethod("GetPixelDataFormat2050", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
             var ex = Assert.Throws<System.Reflection.TargetInvocationException>(() =>
@@ -853,14 +768,14 @@ namespace UnitTest_WzFile
         public void CompressImageToPngFormat_LargeImage_HandlesCorrectly()
         {
             // Test with a larger image to ensure no issues with size
-            using var bmp = new Bitmap(64, 64, PixelFormat.Format32bppArgb);
+            using var bmp = new SKBitmap(64, 64, SKColorType.Bgra8888, SKAlphaType.Unpremul);
             for (int y = 0; y < 64; y++)
                 for (int x = 0; x < 64; x++)
-                    bmp.SetPixel(x, y, Color.FromArgb(x * 4, y * 4, (x + y) * 2, 128));
+                    bmp.SetPixel(x, y, new SKColor((byte)(x * 4), (byte)(y * 4), (byte)((x + y) * 2), 128));
 
-            var (fmt, pixelData) = PngUtility.CompressImageToPngFormat(bmp, SurfaceFormat.Color);
+            var (fmt, pixelData) = PngUtility.CompressImageToPngFormat(bmp, WzSurfaceFormat.Color);
 
-            Assert.AreEqual(MapleLib.WzLib.WzProperties.WzPngFormat.Format2, fmt);
+            Assert.AreEqual(WzPngFormat.Format2, fmt);
             Assert.AreEqual(64 * 64 * 4, pixelData.Length);
         }
 
@@ -868,22 +783,22 @@ namespace UnitTest_WzFile
         public void CompressImageToPngFormat_MinimumSize_HandlesCorrectly()
         {
             // Test with minimum size images
-            using var bmp = new Bitmap(4, 4, PixelFormat.Format32bppArgb);
-            bmp.SetPixel(0, 0, Color.Red);
+            using var bmp = new SKBitmap(4, 4, SKColorType.Bgra8888, SKAlphaType.Unpremul);
+            bmp.SetPixel(0, 0, SKColors.Red);
 
             // Test various formats with minimum size
-            var (fmt1, _) = PngUtility.CompressImageToPngFormat(bmp, SurfaceFormat.Color);
-            Assert.AreEqual(MapleLib.WzLib.WzProperties.WzPngFormat.Format2, fmt1);
+            var (fmt1, _) = PngUtility.CompressImageToPngFormat(bmp, WzSurfaceFormat.Color);
+            Assert.AreEqual(WzPngFormat.Format2, fmt1);
 
-            var (fmt2, _) = PngUtility.CompressImageToPngFormat(bmp, SurfaceFormat.Bgra4444);
-            Assert.AreEqual(MapleLib.WzLib.WzProperties.WzPngFormat.Format1, fmt2);
+            var (fmt2, _) = PngUtility.CompressImageToPngFormat(bmp, WzSurfaceFormat.Bgra4444);
+            Assert.AreEqual(WzPngFormat.Format1, fmt2);
 
-            var (fmt3, _) = PngUtility.CompressImageToPngFormat(bmp, SurfaceFormat.Dxt3);
-            Assert.IsTrue(fmt3 == MapleLib.WzLib.WzProperties.WzPngFormat.Format3 ||
-               fmt3 == MapleLib.WzLib.WzProperties.WzPngFormat.Format1026);
+            var (fmt3, _) = PngUtility.CompressImageToPngFormat(bmp, WzSurfaceFormat.Dxt3);
+            Assert.IsTrue(fmt3 == WzPngFormat.Format3 ||
+               fmt3 == WzPngFormat.Format1026);
 
-            var (fmt4, _) = PngUtility.CompressImageToPngFormat(bmp, SurfaceFormat.Dxt5);
-            Assert.AreEqual(MapleLib.WzLib.WzProperties.WzPngFormat.Format2050, fmt4);
+            var (fmt4, _) = PngUtility.CompressImageToPngFormat(bmp, WzSurfaceFormat.Dxt5);
+            Assert.AreEqual(WzPngFormat.Format2050, fmt4);
         }
         #endregion
 
@@ -891,45 +806,45 @@ namespace UnitTest_WzFile
         [TestMethod]
         public void IsGrayscaleBitmap_PureGray_ReturnsTrue()
         {
-            using var bmp = new Bitmap(16, 16, PixelFormat.Format32bppArgb);
+            using var bmp = new SKBitmap(16, 16, SKColorType.Bgra8888, SKAlphaType.Unpremul);
             for (int y = 0; y < 16; y++)
                 for (int x = 0; x < 16; x++)
                 {
-                    int gray = (x + y) * 8;
-                    bmp.SetPixel(x, y, Color.FromArgb(255, gray, gray, gray));
+                    byte gray = (byte)((x + y) * 8);
+                    bmp.SetPixel(x, y, new SKColor(gray, gray, gray, 255));
                 }
 
-            var (fmt, _) = PngUtility.CompressImageToPngFormat(bmp, SurfaceFormat.Dxt3);
-            Assert.AreEqual(MapleLib.WzLib.WzProperties.WzPngFormat.Format3, fmt);
+            var (fmt, _) = PngUtility.CompressImageToPngFormat(bmp, WzSurfaceFormat.Dxt3);
+            Assert.AreEqual(WzPngFormat.Format3, fmt);
         }
 
         [TestMethod]
         public void IsGrayscaleBitmap_ColorImage_ReturnsFalse()
         {
-            using var bmp = new Bitmap(16, 16, PixelFormat.Format32bppArgb);
+            using var bmp = new SKBitmap(16, 16, SKColorType.Bgra8888, SKAlphaType.Unpremul);
             for (int y = 0; y < 16; y++)
                 for (int x = 0; x < 16; x++)
-                    bmp.SetPixel(x, y, Color.FromArgb(255, x * 16, 0, y * 16));
+                    bmp.SetPixel(x, y, new SKColor((byte)(x * 16), 0, (byte)(y * 16), 255));
 
-            var (fmt, _) = PngUtility.CompressImageToPngFormat(bmp, SurfaceFormat.Dxt3);
-            Assert.AreEqual(MapleLib.WzLib.WzProperties.WzPngFormat.Format1026, fmt);
+            var (fmt, _) = PngUtility.CompressImageToPngFormat(bmp, WzSurfaceFormat.Dxt3);
+            Assert.AreEqual(WzPngFormat.Format1026, fmt);
         }
 
         [TestMethod]
         public void IsGrayscaleBitmap_NearGrayWithTolerance_ReturnsTrue()
         {
             // Within tolerance (8)
-            using var bmp = new Bitmap(8, 8, PixelFormat.Format32bppArgb);
+            using var bmp = new SKBitmap(8, 8, SKColorType.Bgra8888, SKAlphaType.Unpremul);
             for (int y = 0; y < 8; y++)
                 for (int x = 0; x < 8; x++)
                 {
-                    int baseGray = 128;
+                    const int baseGray = 128;
                     // Add small variations within tolerance
-                    bmp.SetPixel(x, y, Color.FromArgb(255, baseGray, baseGray + 3, baseGray - 2));
+                    bmp.SetPixel(x, y, new SKColor((byte)baseGray, (byte)(baseGray + 3), (byte)(baseGray - 2), 255));
                 }
 
-            var (fmt, _) = PngUtility.CompressImageToPngFormat(bmp, SurfaceFormat.Dxt3);
-            Assert.AreEqual(MapleLib.WzLib.WzProperties.WzPngFormat.Format3, fmt);
+            var (fmt, _) = PngUtility.CompressImageToPngFormat(bmp, WzSurfaceFormat.Dxt3);
+            Assert.AreEqual(WzPngFormat.Format3, fmt);
         }
         #endregion
     }

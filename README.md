@@ -14,11 +14,10 @@ A collection of tools for MapleStory, including a .wz file and level/field/map e
 ----
 ## Project contents
 * HaCreator - MapleStory level editor
-* HaRepacker - MapleStory .wz file editor
+* HaRepacker - MapleStory .wz file editor (cross-platform port: macOS, Linux, Windows)
 * HaSharedLibrary - A shared library between HaRepacker & HaCreator for mostly GUI
-* squish-1.11\apng - (Unused for now, might consider .NET Core implementation of SIMD for images in future releases) [info](https://sjbrown.co.uk/?code=squish)
-* Real-ESRGAN - For AI 2D image up-scaling. [Official website](https://github.com/xinntao/Real-ESRGAN-ncnn-vulkan) | [Official website ](https://github.com/xinntao/Real-ESRGAN)
 * spine-csharp 2.1.25 - 2D animation library [official website](https://github.com/EsotericSoftware/spine-runtimes) | [official website, spine demo](http://esotericsoftware.com/spine-demos) | [MapleStory dev's note](https://orangemushroom.net/2015/06/17/developers-note-maplestory-reboot-update-introduction-2-and-3/)
+* Real-ESRGAN - For AI 2D image up-scaling. [Official website](https://github.com/xinntao/Real-ESRGAN-ncnn-vulkan) | [Official website ](https://github.com/xinntao/Real-ESRGAN)
 * UnitTest_WzFile - For testing of wz file across versions.
 
 ##### MapleLib2 by haha01haha01;
@@ -28,26 +27,34 @@ A collection of tools for MapleStory, including a .wz file and level/field/map e
 ----
 
 ## BUILD
-### To build, you need 
- - at least [Microsoft Visual Studio 2022](https://visualstudio.microsoft.com/vs/), including the Desktop development with C++ workload with all default components.
- - [Git](https://git-scm.com/downloads) or [Github, bundled](https://desktop.github.com/) for cloning, and downloading of related sub-module components in the repository.
+### To build, you need
+ - [.NET 10.0 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
+ - [Git](https://git-scm.com/downloads) for cloning and submodule management
 
-### To run, you need (.NET 8.0)
- - Operating system: Windows 10/11 version 1607+, Windows Server 2016+
- - Processor Architecture: x64, ARM64, x86
+### To run (cross-platform — net10.0)
+ - Operating system: **macOS**, **Linux**, or **Windows**
+ - Processor Architecture: x64, ARM64
  - RAM: 8GB and above minimum recommended
- - Graphics: DirectX 12 with minimum 2GB VRAM
 
+> **Note:** The `cross-platform` branch targets `net10.0` (macOS/Linux/Windows) and uses Avalonia UI, SkiaSharp, and MonoGame.DesktopGL instead of WinForms/WPF and DirectX. HaCreator still requires Windows for the time being.
 
 ### Cloning
 ```
- git clone https://github.com/lastbattle/Harepacker-resurrected.git
- git submodule update --init --recursive
+git clone https://github.com/lastbattle/Harepacker-resurrected.git
+git checkout cross-platform
+git submodule update --init --recursive
 ```
 
-```nuget Update-Package```
+### Running HaRepacker (cross-platform)
+```
+dotnet run --project HaRepacker/Harepacker-resurrected.csproj
+```
 
-  
+### Running tests
+```
+dotnet test UnitTest_WzFile/UnitTest_WzFile.csproj
+```
+
 ### Modules / [Submodules](https://www.atlassian.com/git/tutorials/git-submodule) used
 
 - [Spine-Runtime](https://github.com/EsotericSoftware/spine-runtimes)
@@ -58,10 +65,10 @@ A collection of tools for MapleStory, including a .wz file and level/field/map e
 If you want to use the `wzimg` MCP server with OpenAI Codex:
 - Build it (after cloning with submodules):
 ```
-dotnet publish .\\WzImg-MCP-Server\\WzImgMCP\\WzImgMCP.csproj -c Release -r win-x64 --self-contained false
+dotnet publish ./WzImg-MCP-Server/WzImgMCP/WzImgMCP.csproj -c Release -r win-x64 --self-contained false
 ```
 - Then configure it in Codex (`codex mcp add ...`) pointing at:
-`WzImg-MCP-Server\\WzImgMCP\\bin\\Release\\net10.0-windows\\win-x64\\publish\\WzImgMCP.exe`
+`WzImg-MCP-Server/WzImgMCP/bin/Release/net10.0-windows/win-x64/publish/WzImgMCP.exe`
 
 
  ----
@@ -93,7 +100,7 @@ Technical documentation for HaSuite internals.
 
   
 
-Please note that this is a community-driven project that I work on in my free time. Don't expect any issues to be fixed or new features to be added quickly.
+Please note that this is a community-driven project. Don't expect any issues to be fixed or new features to be added quickly.
 
 Want to support the development?  **BTC**: [3AEEJKaTNuw8KoafKNevpMsP2tVmaip4Fx](https://blockstream.info/address/3AEEJKaTNuw8KoafKNevpMsP2tVmaip4Fx)
 
@@ -125,7 +132,8 @@ Want to support the development?  **BTC**: [3AEEJKaTNuw8KoafKNevpMsP2tVmaip4Fx](
 MIT
 
 ```
-Copyright (c) 2018~2024, LastBattle https://github.com/lastbattle
+Copyright (c) 2018~2025, LastBattle https://github.com/lastbattle
+Copyright (c) 2024~2025, Alex Peng (cross-platform port) https://github.com/alexpeng
 Copyright (c) 2010~2013, haha01haha http://forum.ragezone.com/f701/release-universal-harepacker-version-892005/
  
 Permission is hereby granted, free of charge, to any person obtaining a copy

@@ -1,26 +1,17 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0-windows</TargetFramework>
-    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <AssemblyTitle>UnitTest_WzFile</AssemblyTitle>
     <Product>UnitTest_WzFile</Product>
     <Copyright>Copyright ©  2022</Copyright>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <FileVersion>1.0.0.0</FileVersion>
-
-    <UseWindowsForms>true</UseWindowsForms>
-    <UseWPF>true</UseWPF>
     <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
     <None Remove="Assets\Images\dxt3_back.blackheaven.98.png" />
-  </ItemGroup>
-  <ItemGroup>
-    <Reference Include="MonoGame.Framework, Version=3.8.0.1641, Culture=neutral, PublicKeyToken=null" />
-    <Reference Include="MonoGame.Framework.Net, Version=3.7.1.189, Culture=neutral, processorArchitecture=MSIL" />
-    <Reference Include="System.Configuration" />
-    <Reference Include="System.Runtime" />
   </ItemGroup>
   <ItemGroup>
     <None Update="WzFiles\Common\TamingMob_000_GMS_237.wz">

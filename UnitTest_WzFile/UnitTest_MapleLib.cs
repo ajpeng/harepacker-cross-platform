@@ -1,25 +1,22 @@
-﻿using MapleLib;
+using MapleLib;
 using MapleLib.ClientLib;
 using MapleLib.Helpers;
 using MapleLib.WzLib;
 using MapleLib.WzLib.Util;
+using MapleLib.WzLib.WzProperties;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Microsoft.Xna.Framework.Graphics;
+using SkiaSharp;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Drawing;
-using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
-using System.Runtime.Versioning;
+using System.Runtime.InteropServices;
 
 namespace UnitTest_WzFile {
 
     [TestClass]
-    [SupportedOSPlatform("windows")]
     public class UnitTest_MapleLib {
-
 
         public UnitTest_MapleLib() {
         }
@@ -55,70 +52,66 @@ namespace UnitTest_WzFile {
             Assert.IsTrue(imageFiles.Length > 0, "No image files found in the Assets/Images folder.");
 
             foreach (string imagePath in imageFiles) {
-                using (Bitmap bitmap = new Bitmap(imagePath)) {
-                    // get image
-                    BitmapData bmpData = bitmap.LockBits(new Rectangle(0, 0, bitmap.Width, bitmap.Height), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+                using SKBitmap decoded = SKBitmap.Decode(imagePath);
+                // Ensure BGRA8888 layout so pixel byte order matches ImageFormatDetector expectations
+                using SKBitmap bitmap = decoded.ColorType == SKColorType.Bgra8888
+                    ? decoded
+                    : decoded.Copy(SKColorType.Bgra8888);
 
-                    int byteCount = bmpData.Stride * bitmap.Height;
-                    byte[] argbData = new byte[byteCount];
-                    System.Runtime.InteropServices.Marshal.Copy(bmpData.Scan0, argbData, 0, byteCount);
+                int width = bitmap.Width;
+                int height = bitmap.Height;
+                int byteCount = bitmap.RowBytes * height;
+                byte[] argbData = new byte[byteCount];
+                Marshal.Copy(bitmap.GetPixels(), argbData, 0, byteCount);
 
-                    bitmap.UnlockBits(bmpData);
+                WzSurfaceFormat detectedFormat = ImageFormatDetector.DetermineTextureFormat(argbData, width, height);
+                var (uniqueRgbColors, uniqueAlphaValues, hasAlpha, hasPartialAlpha, maxAlpha, avgAlphaGradient, alphaVariance, isGrayscale) = ImageFormatDetector.AnalyzeImageData(argbData, width, height);
+                bool isDxtCompressionCandidate = ImageFormatDetector.IsDxtCompressionCandidate(width, height);
 
-                    int width = bitmap.Width;
-                    int height = bitmap.Height;
+                Debug.WriteLine($"Image: {Path.GetFileName(imagePath)}");
+                Debug.WriteLine($"Dimensions: {width}x{height}");
+                Debug.WriteLine($"Total pixels: {width * height}");
+                Debug.WriteLine($"Has Alpha: {hasAlpha}");
+                Debug.WriteLine($"Has Partial Alpha: {hasPartialAlpha}");
+                Debug.WriteLine($"Unique RGB Color: {uniqueRgbColors}");
+                Debug.WriteLine($"Unique Alpha Values: {uniqueAlphaValues}");
+                Debug.WriteLine($"Max Alpha: {maxAlpha}");
+                Debug.WriteLine($"Avg Alpha Gradient: {avgAlphaGradient}");
+                Debug.WriteLine($"Alpha Variance: {alphaVariance}");
+                Debug.WriteLine($"Is Grayscale: {isGrayscale}");
+                Debug.WriteLine($"IsDxtCompressionCandidate: {isDxtCompressionCandidate}");
+                Debug.WriteLine($"Detected Format: {detectedFormat}");
 
-                    SurfaceFormat detectedFormat = ImageFormatDetector.DetermineTextureFormat(argbData, width, height);
-                    var (uniqueRgbColors, uniqueAlphaValues, hasAlpha, hasPartialAlpha, maxAlpha, avgAlphaGradient, alphaVariance, isGrayscale) = ImageFormatDetector.AnalyzeImageData(argbData, width, height);
-                    bool isDxtCompressionCandidate = ImageFormatDetector.IsDxtCompressionCandidate(width, height);
+                WzSurfaceFormat expectedFormat = GetExpectedFormat(imagePath);
 
-                    Debug.WriteLine($"Image: {Path.GetFileName(imagePath)}");
-                    Debug.WriteLine($"Dimensions: {width}x{height}");
-                    Debug.WriteLine($"Total pixels: {width * height}");
-                    Debug.WriteLine($"Has Alpha: {hasAlpha}");
-                    Debug.WriteLine($"Has Partial Alpha: {hasPartialAlpha}");
-                    Debug.WriteLine($"Unique RGB Color: {uniqueRgbColors}");
-                    Debug.WriteLine($"Unique Alpha Values: {uniqueAlphaValues}");
-                    Debug.WriteLine($"Max Alpha: {maxAlpha}");
-                    Debug.WriteLine($"Avg Alpha Gradient: {avgAlphaGradient}");
-                    Debug.WriteLine($"Alpha Variance: {alphaVariance}");
-                    Debug.WriteLine($"Is Grayscale: {isGrayscale}");
-                    Debug.WriteLine($"IsDxtCompressionCandidate: {isDxtCompressionCandidate}");
-                    Debug.WriteLine($"Detected Format: {detectedFormat}");
+                Debug.WriteLine($"Expected: {expectedFormat.ToString()}");
+                Debug.WriteLine("");
 
-                    SurfaceFormat expectedFormat = GetExpectedFormat(imagePath);
-
-                    Debug.WriteLine($"Expected: {expectedFormat.ToString()}");
-                    Debug.WriteLine("");
-
-                    Assert.AreEqual(expectedFormat, detectedFormat,
-                        $"Incorrect format detected for {Path.GetFileName(imagePath)}. " +
-                        $"Expected: {expectedFormat}, Detected: {detectedFormat}");
-                }
+                Assert.AreEqual(expectedFormat, detectedFormat,
+                    $"Incorrect format detected for {Path.GetFileName(imagePath)}. " +
+                    $"Expected: {expectedFormat}, Detected: {detectedFormat}");
             }
         }
 
-        private SurfaceFormat GetExpectedFormat(string imagePath) {
-            // This is a placeholder. You should replace this with actual logic to determine
-            // the expected format based on the image file name or properties.
+        private WzSurfaceFormat GetExpectedFormat(string imagePath) {
             string fileName = Path.GetFileNameWithoutExtension(imagePath).ToLower();
             if (fileName.StartsWith("dxt5")) {
-                return SurfaceFormat.Dxt5;
+                return WzSurfaceFormat.Dxt5;
             }
             else if (fileName.StartsWith("dxt3")) {
-                return SurfaceFormat.Dxt3;
+                return WzSurfaceFormat.Dxt3;
             }
             else if (fileName.StartsWith("bgra32") || fileName.StartsWith("bga32")) {
-                return SurfaceFormat.Bgra32;
+                return WzSurfaceFormat.Bgra32;
             }
             else if (fileName.StartsWith("bgr565")) {
-                return SurfaceFormat.Bgr565;
-            } 
-            else if (fileName.StartsWith("bgra4444")) 
-                return SurfaceFormat.Bgra4444;
+                return WzSurfaceFormat.Bgr565;
+            }
+            else if (fileName.StartsWith("bgra4444"))
+                return WzSurfaceFormat.Bgra4444;
 
             // Default case
-            return SurfaceFormat.Color;
+            return WzSurfaceFormat.Color;
         }
 
     }
