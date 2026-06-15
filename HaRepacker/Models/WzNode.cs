@@ -1,3 +1,4 @@
+using HaRepacker;
 using MapleLib.Img;
 using MapleLib.WzLib;
 using MapleLib.WzLib.WzProperties;
@@ -134,6 +135,27 @@ namespace HaRepacker.Models
         }
 
         public string GetTypeName() => WzObject.GetType().Name;
+
+        public WzNode AddObject(WzObject wzObject, UndoRedoManager? undoMan)
+        {
+            // Attach the WzObject to our WzObject hierarchy
+            WzObject target = WzObject is WzFile wf ? wf.WzDirectory : WzObject;
+            if (target is WzDirectory dir)
+            {
+                if (wzObject is WzImage img) dir.AddImage(img);
+                else if (wzObject is WzDirectory childDir) dir.AddDirectory(childDir);
+            }
+            else if (target is WzImage image && wzObject is WzImageProperty imgProp)
+                image.AddProperty(imgProp);
+            else if (target is IPropertyContainer container && wzObject is WzImageProperty prop)
+                container.AddProperty(prop);
+
+            var newNode = new WzNode(wzObject, true);
+            Nodes.Add(newNode);
+            undoMan?.AddUndoBatch(new System.Collections.Generic.List<UndoRedoAction>
+                { UndoRedoManager.ObjectAdded(this, newNode) });
+            return newNode;
+        }
 
         public void AddChildNode(WzNode child)
         {

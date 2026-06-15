@@ -57,7 +57,7 @@
     <Compile Remove="GUI\WzStringSearchFormDataCache.cs" />
     <Compile Remove="GUI\ZLZPacketEncryptionKeyForm.cs" />
     <Compile Remove="GUI\ZLZPacketEncryptionKeyForm.designer.cs" />
-    <Compile Remove="GUI\ContextMenuManager.cs" />
+    <!-- GUI\ContextMenuManager.cs: ported to Avalonia MenuItem/ContextMenu -->
     <Compile Remove="GUI\Resources.Designer.cs" />
 
     <!-- HotSwap (depends on MainForm) -->

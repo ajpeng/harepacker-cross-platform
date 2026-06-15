@@ -5,6 +5,7 @@ using MapleLib.WzLib;
 using MapleLib.WzLib.WzProperties;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
 
 namespace HaRepacker.GUI.Panels
 {
@@ -83,5 +84,95 @@ namespace HaRepacker.GUI.Panels
         {
             searchBox.Text = string.Empty;
         }
+
+        public WzNode? SelectedNode => wzTreeView.SelectedItem as WzNode;
+
+        public async System.Threading.Tasks.Task PromptRenameWzTreeNode(WzNode node, Avalonia.Controls.Window owner)
+        {
+            var (ok, newName) = await GUI.Input.InputDialogs.ShowRenameAsync(owner, "Rename", node.Name);
+            if (ok && !string.IsNullOrEmpty(newName)) node.ChangeName(newName!);
+        }
+
+        public void PromptRemoveSelectedTreeNodes(UndoRedoManager undoMan)
+        {
+            if (!Warning.Warn("Are you sure you want to remove the selected node(s)?")) return;
+            if (SelectedNode is not WzNode node) return;
+            // Find parent node and remove
+            WzNode? parent = FindParentOf(node, _rootNodes);
+            if (parent != null)
+            {
+                node.DeleteNode();
+                parent.Nodes.Remove(node);
+                undoMan.AddUndoBatch(new System.Collections.Generic.List<UndoRedoAction>
+                    { UndoRedoManager.ObjectRemoved(parent, node) });
+            }
+            else
+            {
+                // Root node — remove from root collection
+                node.DeleteNode();
+                _rootNodes.Remove(node);
+            }
+        }
+
+        private static WzNode? FindParentOf(WzNode target, System.Collections.Generic.IEnumerable<WzNode> nodes)
+        {
+            foreach (var node in nodes)
+            {
+                if (node.Nodes.Contains(target)) return node;
+                var found = FindParentOf(target, node.Nodes);
+                if (found != null) return found;
+            }
+            return null;
+        }
+
+        public void UnloadWzFile(WzFile? wz)
+        {
+            if (wz == null) return;
+            var node = _rootNodes.FirstOrDefault(n => n.WzObject == wz);
+            if (node != null) _rootNodes.Remove(node);
+            wz.Dispose();
+        }
+
+        public void ReloadWzFile(WzFile? wz)
+        {
+            if (wz == null) return;
+            string? path = wz.FilePath;
+            var version = wz.MapleVersion;
+            UnloadWzFile(wz);
+            if (path != null) OpenFile(path, version);
+        }
+
+        public void OpenFile(string path, WzMapleVersion version = WzMapleVersion.CLASSIC)
+        {
+            if (!File.Exists(path)) return;
+            loadingPanel.IsVisible = true;
+            loadingPanel.OnStartAnimate();
+            try
+            {
+                var wz = new WzFile(path, version);
+                wz.ParseWzFile();
+                _rootNodes.Add(new WzNode(wz));
+            }
+            catch { }
+            finally
+            {
+                loadingPanel.IsVisible = false;
+                loadingPanel.OnPauseAnimate();
+            }
+        }
+
+        public void SortNodesRecursively(WzNode node, bool viewOnly)
+        {
+            var sorted = node.Nodes.OrderBy(n => n.Name).ToList();
+            node.Nodes.Clear();
+            foreach (var n in sorted) node.Nodes.Add(n);
+        }
+
+        public void SortNodeProperties(WzNode node) => SortNodesRecursively(node, true);
+
+        public void StartAnimateSelectedCanvas() => Warning.Error("Animation preview not yet implemented.");
+        public void SaveImageAnimation_Click() => Warning.Error("Save animation not yet implemented.");
+        public void FixLinkForOldMapleStory_OnClick() => Warning.Error("Fix inlink not yet implemented.");
+        public void AiBatchImageUpscaleEdit(float factor) => Warning.Error("AI upscale not yet implemented.");
     }
 }

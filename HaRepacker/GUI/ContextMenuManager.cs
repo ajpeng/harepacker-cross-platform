@@ -1,806 +1,415 @@
-using HaRepacker.GUI;
+using Avalonia.Controls;
 using HaRepacker.GUI.Input;
 using HaRepacker.GUI.Panels;
+using HaRepacker.Models;
 using MapleLib.Img;
 using MapleLib.WzLib;
 using MapleLib.WzLib.WzProperties;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
-using System.Windows.Forms;
+using System.Threading.Tasks;
 
 namespace HaRepacker
 {
     public class ContextMenuManager
     {
-        private MainPanel parentPanel;
+        private readonly MainPanel _panel;
+        private readonly UndoRedoManager _undoMan;
+        private WzNode? _currNode;
 
-        private ToolStripMenuItem SaveFile;
-        private ToolStripMenuItem SaveImg;
-        private ToolStripMenuItem CreateNewImgFile;
-        private ToolStripMenuItem DeleteImgFile;
-        private ToolStripMenuItem Remove;
-        private ToolStripMenuItem Unload;
-        private ToolStripMenuItem Reload;
-        private ToolStripMenuItem CollapseAllChildNode;
-        private ToolStripMenuItem ExpandAllChildNode;
-        private ToolStripMenuItem SortAllChildViewNode, SortAllChildViewNode2;
-        private ToolStripMenuItem SortPropertiesByName;
-
-        private ToolStripMenuItem AddPropsSubMenu;
-        private ToolStripMenuItem AddDirsSubMenu;
-        private ToolStripMenuItem AddBatchMenu;
-        private ToolStripMenuItem AddSortMenu;
-        private ToolStripMenuItem AddSortMenu_WithoutPropSort;
-        private ToolStripMenuItem AddImage;
-        private ToolStripMenuItem AddDirectory;
-        private ToolStripMenuItem AddByteFloat;
-        private ToolStripMenuItem AddCanvas;
-        private ToolStripMenuItem AddLong;
-        private ToolStripMenuItem AddInt;
-        private ToolStripMenuItem AddConvex;
-        private ToolStripMenuItem AddDouble;
-        private ToolStripMenuItem AddNull;
-        private ToolStripMenuItem AddSound;
-        private ToolStripMenuItem AddString;
-        private ToolStripMenuItem AddSub;
-        private ToolStripMenuItem AddUshort;
-        private ToolStripMenuItem AddUOL;
-        private ToolStripMenuItem AddVector;
-        private ToolStripMenuItem Rename;
-        private ToolStripMenuItem Animate;
-        private ToolStripMenuItem SaveAnimation;
-        private ToolStripMenuItem FixInlink, AiUpscaleImage, AiUpscaleImageSubMenu_QualityOnly, AiUpscaleImageSubMenu_1_5x, AiUpscaleImageSubMenu_2x, AiUpscaleImageSubMenu_4x;
-
-        /*private ToolStripMenuItem ExportPropertySubMenu;
-        private ToolStripMenuItem ExportAnimationSubMenu;
-        private ToolStripMenuItem ExportDirectorySubMenu;
-        private ToolStripMenuItem ExportPServerXML;
-        private ToolStripMenuItem ExportDataXML;
-        private ToolStripMenuItem ExportImgData;
-        private ToolStripMenuItem ExportRawData;
-        private ToolStripMenuItem ExportGIF;
-        private ToolStripMenuItem ExportAPNG;
-
-        private ToolStripMenuItem ImportSubMenu;
-        private ToolStripMenuItem ImportXML;
-        private ToolStripMenuItem ImportImgData;*/
-
-        public ContextMenuManager(MainPanel haRepackerMainPanel, UndoRedoManager undoMan)
+        public ContextMenuManager(MainPanel panel, UndoRedoManager undoMan)
         {
-            this.parentPanel = haRepackerMainPanel;
-
-            SaveFile = new ToolStripMenuItem("Save", Properties.Resources.disk, new EventHandler(
-                delegate (object sender, EventArgs e)
-                {
-                    foreach (WzNode node in GetNodes(sender))
-                    {
-                        new SaveForm(parentPanel, node).ShowDialog();
-                    }
-                }));
-            SaveImg = new ToolStripMenuItem("Save to IMG", Properties.Resources.disk, new EventHandler(
-                delegate (object sender, EventArgs e)
-                {
-                    foreach (WzNode node in GetNodes(sender))
-                    {
-                        SaveImgNode(node);
-                    }
-                }));
-            CreateNewImgFile = new ToolStripMenuItem("Create New IMG File", Properties.Resources.add, new EventHandler(
-                delegate (object sender, EventArgs e)
-                {
-                    WzNode[] nodes = GetNodes(sender);
-                    if (nodes.Length != 1)
-                    {
-                        MessageBox.Show("Please select only ONE node");
-                        return;
-                    }
-                    CreateNewImgFileInDirectory(nodes[0]);
-                }));
-            DeleteImgFile = new ToolStripMenuItem("Delete IMG File", Properties.Resources.delete, new EventHandler(
-                delegate (object sender, EventArgs e)
-                {
-                    WzNode[] nodes = GetNodes(sender);
-                    if (nodes.Length != 1)
-                    {
-                        MessageBox.Show("Please select only ONE node");
-                        return;
-                    }
-                    DeleteImgFileFromDirectory(nodes[0]);
-                }));
-            Rename = new ToolStripMenuItem("Rename", Properties.Resources.rename, new EventHandler(
-                delegate (object sender, EventArgs e)
-                {
-                    WzNode currentNode = currNode;
-
-                    haRepackerMainPanel.PromptRenameWzTreeNode(currentNode);
-                }));
-            Remove = new ToolStripMenuItem("Remove", Properties.Resources.delete, new EventHandler(
-                delegate (object sender, EventArgs e)
-                {
-                    haRepackerMainPanel.PromptRemoveSelectedTreeNodes();
-                }));
-
-            Unload = new ToolStripMenuItem("Unload", Properties.Resources.delete, new EventHandler(
-                delegate (object sender, EventArgs e)
-                {
-                    if (!Warning.Warn("Are you sure you want to unload this?"))
-                        return;
-
-                    var nodesSelected = GetNodes(sender);
-                    foreach (WzNode node in nodesSelected)
-                    {
-                        if (node.Tag is VirtualWzDirectory virtualDir)
-                        {
-                            // For VirtualWzDirectory, just remove from tree and dispose
-                            virtualDir.Dispose();
-                            node.Remove();
-                        }
-                        else if (node.Tag is WzFile)
-                        {
-                            parentPanel.MainForm.UnloadWzFile(node.Tag as WzFile);
-                        }
-                        else if (node.Tag is WzImage)
-                        {
-                            parentPanel.MainForm.UnloadWzImageFile(node.Tag as WzImage);
-                        }
-                    }
-                }));
-            Reload = new ToolStripMenuItem("Reload", Properties.Resources.arrow_refresh, new EventHandler(
-                delegate (object sender, EventArgs e)
-                {
-                    if (!Warning.Warn("Are you sure you want to reload this file?"))
-                        return;
-
-                    var nodesSelected = GetNodes(sender);
-                    foreach (WzNode node in nodesSelected) // selected nodes
-                    {
-                        parentPanel.MainForm.ReloadWzFile(node.Tag as WzFile);
-                    }
-                }));
-            CollapseAllChildNode = new ToolStripMenuItem("Collapse All", Properties.Resources.collapse, new EventHandler(
-                delegate (object sender, EventArgs e)
-                {
-                    foreach (WzNode node in GetNodes(sender))
-                    {
-                        node.Collapse();
-                    }
-                }));
-            ExpandAllChildNode = new ToolStripMenuItem("Expand all", Properties.Resources.expand, new EventHandler(
-                delegate (object sender, EventArgs e)
-                {
-                    foreach (WzNode node in GetNodes(sender))
-                    {
-                        node.ExpandAll();
-                    }
-                }));
-
-            // This only sorts the view, does not affect the actual order of the 
-            // wz properties
-            SortAllChildViewNode = new ToolStripMenuItem("Sort child nodes view", null, new EventHandler( // SortAllChildViewNode cant be in 2 place at once, gotta make copies
-                delegate (object sender, EventArgs e)
-                {
-                    foreach (WzNode node in GetNodes(sender)) {
-                        parentPanel.MainForm.SortNodesRecursively(node, true);
-                    }
-                }));
-            SortAllChildViewNode2 = new ToolStripMenuItem("Sort child nodes view", null, new EventHandler( // SortAllChildViewNode cant be in 2 place at once, gotta make copies
-                delegate (object sender, EventArgs e) {
-                    foreach (WzNode node in GetNodes(sender)) {
-                        parentPanel.MainForm.SortNodesRecursively(node, true);
-                    }
-                }));
-            SortPropertiesByName = new ToolStripMenuItem("Sort properties by name", null, new EventHandler(
-                delegate (object sender, EventArgs e) {
-                    foreach (WzNode node in GetNodes(sender)) {
-                        parentPanel.MainForm.SortNodeProperties(node);
-                    }
-                }));
-
-            AddImage = new ToolStripMenuItem("Image", null, new EventHandler(
-                delegate (object sender, EventArgs e)
-                {
-                    WzNode[] nodes = GetNodes(sender);
-                    if (nodes.Length != 1)
-                    {
-                        MessageBox.Show("Please select only ONE node");
-                        return;
-                    }
-
-                    string name;
-                    if (NameInputBox.Show("Add Image", 0, out name))
-                        nodes[0].AddObject(new WzImage(name) { Changed = true }, undoMan);
-                }));
-            AddDirectory = new ToolStripMenuItem("Directory", null, new EventHandler(
-                delegate (object sender, EventArgs e)
-                {
-                    WzNode[] nodes = GetNodes(sender);
-                    if (nodes.Length != 1)
-                    {
-                        MessageBox.Show("Please select only ONE node");
-                        return;
-                    }
-                    haRepackerMainPanel.AddWzDirectoryToSelectedNode(nodes[0]);
-
-                }));
-            AddByteFloat = new ToolStripMenuItem("Float", null, new EventHandler(
-                delegate (object sender, EventArgs e)
-                {
-                    WzNode[] nodes = GetNodes(sender);
-                    if (nodes.Length != 1)
-                    {
-                        MessageBox.Show("Please select only ONE node");
-                        return;
-                    }
-
-                    haRepackerMainPanel.AddWzByteFloatToSelectedNode(nodes[0]);
-                }));
-            AddCanvas = new ToolStripMenuItem("Canvas", null, new EventHandler(
-                delegate (object sender, EventArgs e)
-                {
-                    WzNode[] nodes = GetNodes(sender);
-                    if (nodes.Length != 1)
-                    {
-                        MessageBox.Show("Please select only ONE node");
-                        return;
-                    }
-
-                    haRepackerMainPanel.AddWzCanvasToSelectedNode(nodes[0]);
-                }));
-            AddLong = new ToolStripMenuItem("Long", null, new EventHandler(
-                delegate (object sender, EventArgs e)
-                {
-                    WzNode[] nodes = GetNodes(sender);
-                    if (nodes.Length != 1)
-                    {
-                        MessageBox.Show("Please select only ONE node");
-                        return;
-                    }
-                    haRepackerMainPanel.AddWzLongToSelectedNode(nodes[0]);
-                }));
-            AddInt = new ToolStripMenuItem("Int", null, new EventHandler(
-                delegate (object sender, EventArgs e)
-                {
-                    WzNode[] nodes = GetNodes(sender);
-                    if (nodes.Length != 1)
-                    {
-                        MessageBox.Show("Please select only ONE node");
-                        return;
-                    }
-                    haRepackerMainPanel.AddWzCompressedIntToSelectedNode(nodes[0]);
-
-                }));
-            AddConvex = new ToolStripMenuItem("Convex", null, new EventHandler(
-                delegate (object sender, EventArgs e)
-                {
-                    WzNode[] nodes = GetNodes(sender);
-                    if (nodes.Length != 1)
-                    {
-                        MessageBox.Show("Please select only ONE node");
-                        return;
-                    }
-
-                    haRepackerMainPanel.AddWzConvexPropertyToSelectedNode(nodes[0]);
-                }));
-            AddDouble = new ToolStripMenuItem("Double", null, new EventHandler(
-                delegate (object sender, EventArgs e)
-                {
-                    WzNode[] nodes = GetNodes(sender);
-                    if (nodes.Length != 1)
-                    {
-                        MessageBox.Show("Please select only ONE node");
-                        return;
-                    }
-                    haRepackerMainPanel.AddWzDoublePropertyToSelectedNode(nodes[0]);
-                }));
-            AddNull = new ToolStripMenuItem("Null", null, new EventHandler(
-                delegate (object sender, EventArgs e)
-                {
-                    WzNode[] nodes = GetNodes(sender);
-                    if (nodes.Length != 1)
-                    {
-                        MessageBox.Show("Please select only ONE node");
-                        return;
-                    }
-
-                    haRepackerMainPanel.AddWzNullPropertyToSelectedNode(nodes[0]);
-                }));
-            AddSound = new ToolStripMenuItem("Sound", null, new EventHandler(
-                delegate (object sender, EventArgs e)
-                {
-                    WzNode[] nodes = GetNodes(sender);
-                    if (nodes.Length != 1)
-                    {
-                        MessageBox.Show("Please select only ONE node");
-                        return;
-                    }
-
-                    haRepackerMainPanel.AddWzSoundPropertyToSelectedNode(nodes[0]);
-                }));
-            AddString = new ToolStripMenuItem("String", null, new EventHandler(
-                delegate (object sender, EventArgs e)
-                {
-                    WzNode[] nodes = GetNodes(sender);
-                    if (nodes.Length != 1)
-                    {
-                        MessageBox.Show("Please select only ONE node");
-                        return;
-                    }
-
-                    haRepackerMainPanel.AddWzStringPropertyToSelectedIndex(nodes[0]);
-                }));
-            AddSub = new ToolStripMenuItem("Sub", null, new EventHandler(
-                delegate (object sender, EventArgs e)
-                {
-                    WzNode[] nodes = GetNodes(sender);
-                    if (nodes.Length != 1)
-                    {
-                        MessageBox.Show("Please select only ONE node");
-                        return;
-                    }
-
-                    haRepackerMainPanel.AddWzSubPropertyToSelectedIndex(nodes[0]);
-                }));
-            AddUshort = new ToolStripMenuItem("Short", null, new EventHandler(
-                delegate (object sender, EventArgs e)
-                {
-                    WzNode[] nodes = GetNodes(sender);
-                    if (nodes.Length != 1)
-                    {
-                        MessageBox.Show("Please select only ONE node");
-                        return;
-                    }
-
-                    haRepackerMainPanel.AddWzUnsignedShortPropertyToSelectedIndex(nodes[0]);
-
-                }));
-            AddUOL = new ToolStripMenuItem("UOL", null, new EventHandler(
-                delegate (object sender, EventArgs e)
-                {
-                    WzNode[] nodes = GetNodes(sender);
-                    if (nodes.Length != 1)
-                    {
-                        MessageBox.Show("Please select only ONE node");
-                        return;
-                    }
-                    haRepackerMainPanel.AddWzUOLPropertyToSelectedIndex(nodes[0]);
-                }));
-            AddVector = new ToolStripMenuItem("Vector", null, new EventHandler(
-                delegate (object sender, EventArgs e)
-                {
-                    WzNode[] nodes = GetNodes(sender);
-                    if (nodes.Length != 1)
-                    {
-                        MessageBox.Show("Please select only ONE node");
-                        return;
-                    }
-                    haRepackerMainPanel.AddWzVectorPropertyToSelectedIndex(nodes[0]);
-                }));
-            Animate = new ToolStripMenuItem(Properties.Resources.MainPanel_Animate, Properties.Resources.animate, new EventHandler(
-                delegate (object sender, EventArgs e)
-                {
-                    haRepackerMainPanel.StartAnimateSelectedCanvas(); 
-                }));
-            SaveAnimation = new ToolStripMenuItem(Properties.Resources.MainPanel_SaveAnimate, Properties.Resources.animate_save, new EventHandler(
-                delegate (object sender, EventArgs e)
-                {
-                    haRepackerMainPanel.SaveImageAnimation_Click();
-                }));
-
-            FixInlink = new ToolStripMenuItem(Properties.Resources.MainContextMenu_Batch_EditInlink, null, new EventHandler(
-                delegate (object sender, EventArgs e)
-                {
-                    haRepackerMainPanel.FixLinkForOldMapleStory_OnClick();
-                }));
-
-            // Batch edit
-            AiUpscaleImageSubMenu_QualityOnly = new ToolStripMenuItem(Properties.Resources.MainContextMenu_Batch_AIUpscaleImage_QualityOnly, null, new EventHandler(
-                delegate (object sender, EventArgs e) {
-                    haRepackerMainPanel.AiBatchImageUpscaleEdit(0.25f);
-                }));
-            AiUpscaleImageSubMenu_1_5x = new ToolStripMenuItem("1.5x", null, new EventHandler(
-                delegate (object sender, EventArgs e) {
-                    haRepackerMainPanel.AiBatchImageUpscaleEdit(0.375f);
-                }));
-            AiUpscaleImageSubMenu_2x = new ToolStripMenuItem("2x", null, new EventHandler(
-                delegate (object sender, EventArgs e) {
-                    haRepackerMainPanel.AiBatchImageUpscaleEdit(0.5f);
-                }));
-            AiUpscaleImageSubMenu_4x = new ToolStripMenuItem("4x", null, new EventHandler(
-                delegate (object sender, EventArgs e) {
-                    haRepackerMainPanel.AiBatchImageUpscaleEdit(1f);
-            }));
-            AiUpscaleImage = new ToolStripMenuItem(Properties.Resources.MainContextMenu_Batch_AIUpscaleImage, null,
-                AiUpscaleImageSubMenu_QualityOnly, AiUpscaleImageSubMenu_1_5x, AiUpscaleImageSubMenu_2x, AiUpscaleImageSubMenu_4x
-            );
-
-
-            // Menu
-            AddDirsSubMenu = new ToolStripMenuItem("Add", Properties.Resources.add, 
-                AddDirectory, AddImage);
-
-            AddPropsSubMenu = new ToolStripMenuItem("Add", Properties.Resources.add, 
-                AddCanvas, AddConvex, AddDouble, AddByteFloat, AddLong, AddInt, AddNull, AddUshort, AddSound, AddString, AddSub, AddUOL, AddVector);
-
-            AddBatchMenu = new ToolStripMenuItem(Properties.Resources.MainContextMenu_Batch, Properties.Resources.batch_edit, 
-                FixInlink, AiUpscaleImage);
-
-            AddSortMenu = new ToolStripMenuItem("Sort", Properties.Resources.sort, SortAllChildViewNode, SortPropertiesByName);
-
-            Debug.WriteLine(AddSortMenu.DropDown.Items.Count.ToString());
-            AddSortMenu_WithoutPropSort = new ToolStripMenuItem("Sort", Properties.Resources.sort, SortAllChildViewNode2);
+            _panel = panel;
+            _undoMan = undoMan;
         }
 
-        /// <summary>
-        /// Toolstrip menu when right clicking on nodes
-        /// </summary>
-        /// <param name="node"></param>
-        /// <param name="Tag"></param>
-        /// <returns></returns>
-        public ContextMenuStrip CreateMenu(WzNode node, WzObject Tag)
+        private Window? OwnerWindow =>
+            Avalonia.Application.Current?.ApplicationLifetime is
+                Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime dt
+                ? dt.MainWindow : null;
+
+        public ContextMenu CreateMenu(WzNode node, WzObject tag)
         {
-            int currentDataTreeSelectedCount = parentPanel.DataTree.SelectedNodes.Count;
+            _currNode = node;
+            var menu = new ContextMenu();
 
-            List<ToolStripItem> toolStripmenuItems = new List<ToolStripItem>();
+            void Add(MenuItem mi) => menu.Items.Add(mi);
+            void Sep() => menu.Items.Add(new Separator());
 
-            ContextMenuStrip menu = new ContextMenuStrip();
-            if (Tag is WzImage || Tag is IPropertyContainer)
+            if (tag is WzImage || tag is IPropertyContainer)
             {
-                toolStripmenuItems.Add(AddPropsSubMenu);
-                toolStripmenuItems.Add(Rename);
-                // Add SaveImg and DeleteImgFile options if from VirtualWzDirectory
-                if (IsFromVirtualWzDirectory(Tag))
+                Add(MakeAddPropsSubmenu());
+                Add(MakeItem("Rename", () => RenameAsync(node)));
+                if (IsFromVirtualWzDirectory(tag))
                 {
-                    toolStripmenuItems.Add(SaveImg);
-                    if (Tag is WzImage)
-                    {
-                        toolStripmenuItems.Add(DeleteImgFile);
-                    }
+                    Add(MakeItem("Save to IMG", () => SaveImgNodeAsync(node)));
+                    if (tag is WzImage) Add(MakeItem("Delete IMG File", () => DeleteImgFileAsync(node)));
                 }
-                else
-                {
-                    // export, import
-                    toolStripmenuItems.Add(Remove);
-                }
+                else Add(MakeItem("Remove", () => RemoveNode(node)));
             }
-            else if (Tag is WzImageProperty)
+            else if (tag is WzImageProperty)
             {
-                toolStripmenuItems.Add(Rename);
-                // Add SaveImg option if from VirtualWzDirectory
-                if (IsFromVirtualWzDirectory(Tag))
-                {
-                    toolStripmenuItems.Add(SaveImg);
-                }
-                toolStripmenuItems.Add(Remove);
+                Add(MakeItem("Rename", () => RenameAsync(node)));
+                if (IsFromVirtualWzDirectory(tag)) Add(MakeItem("Save to IMG", () => SaveImgNodeAsync(node)));
+                Add(MakeItem("Remove", () => RemoveNode(node)));
             }
-            else if (Tag is VirtualWzDirectory)
+            else if (tag is VirtualWzDirectory)
             {
-                toolStripmenuItems.Add(CreateNewImgFile);
-                toolStripmenuItems.Add(AddDirsSubMenu);
-                toolStripmenuItems.Add(Rename);
-                toolStripmenuItems.Add(SaveImg);
-                toolStripmenuItems.Add(Unload);
+                Add(MakeItem("Create New IMG File", () => CreateNewImgFileAsync(node)));
+                Add(MakeAddDirsSubmenu());
+                Add(MakeItem("Rename", () => RenameAsync(node)));
+                Add(MakeItem("Save to IMG", () => SaveImgNodeAsync(node)));
+                Add(MakeItem("Unload", () => UnloadNode(node)));
             }
-            else if (Tag is WzDirectory)
+            else if (tag is WzDirectory)
             {
-                toolStripmenuItems.Add(AddDirsSubMenu);
-                toolStripmenuItems.Add(Rename);
-                toolStripmenuItems.Add(Remove);
+                Add(MakeAddDirsSubmenu());
+                Add(MakeItem("Rename", () => RenameAsync(node)));
+                Add(MakeItem("Remove", () => RemoveNode(node)));
             }
-            else if (Tag is WzFile)
+            else if (tag is WzFile)
             {
-                toolStripmenuItems.Add(AddDirsSubMenu);
-                toolStripmenuItems.Add(Rename);
-                toolStripmenuItems.Add(SaveFile);
-                toolStripmenuItems.Add(Unload);
-                toolStripmenuItems.Add(Reload);
+                Add(MakeAddDirsSubmenu());
+                Add(MakeItem("Rename", () => RenameAsync(node)));
+                Add(MakeItem("Save", () => Warning.Error("Save file: not yet implemented.")));
+                Add(MakeItem("Unload", () => UnloadNode(node)));
+                Add(MakeItem("Reload", () => ReloadNode(node)));
             }
 
-            toolStripmenuItems.Add(ExpandAllChildNode);
-            toolStripmenuItems.Add(CollapseAllChildNode);
+            Sep();
+            Add(MakeSortSubmenu(tag));
+            Add(MakeBatchSubmenu());
 
-            toolStripmenuItems.Add(AddBatchMenu);
+            if (tag is WzCanvasProperty)
+                Add(MakeItem("Animate", () => _panel.StartAnimateSelectedCanvas()));
+            if (tag.GetType() == typeof(WzSubProperty))
+                Add(MakeItem("Save Animation", () => _panel.SaveImageAnimation_Click()));
 
-            if (Tag is WzCanvasProperty)
-            {
-                toolStripmenuItems.Add(Animate);
-            }
-
-            if (Tag.GetType() == typeof(WzSubProperty)) {
-                toolStripmenuItems.Add(SaveAnimation);
-                toolStripmenuItems.Add(AddSortMenu);
-            } else {
-                toolStripmenuItems.Add(AddSortMenu_WithoutPropSort);
-            }
-
-            // Add
-            foreach (ToolStripItem toolStripItem in toolStripmenuItems)
-            {
-                menu.Items.Add(toolStripItem);
-            }
-
-            currNode = node;
             return menu;
         }
 
-        private WzNode currNode = null;
+        // ── Item factories ────────────────────────────────────────────────
 
-        private WzNode[] GetNodes(object sender)
+        private MenuItem MakeItem(string header, Action action)
         {
-            return new WzNode[] { currNode };
+            var mi = new MenuItem { Header = header };
+            mi.Click += (_, _) => action();
+            return mi;
         }
 
-        /// <summary>
-        /// Saves a node from a VirtualWzDirectory to the IMG filesystem
-        /// </summary>
-        private void SaveImgNode(WzNode node)
+        private MenuItem MakeItem(string header, Func<Task> asyncAction)
         {
-            WzObject tag = (WzObject)node.Tag;
+            var mi = new MenuItem { Header = header };
+            mi.Click += async (_, _) => await asyncAction();
+            return mi;
+        }
 
-            // Find the parent VirtualWzDirectory
-            WzObject current = tag;
-            VirtualWzDirectory virtualDir = null;
+        private MenuItem MakeAddPropsSubmenu()
+        {
+            var sub = new MenuItem { Header = "Add" };
+            sub.Items.Add(MakeItem("Canvas",  () => AddCanvasAsync(_currNode!)));
+            sub.Items.Add(MakeItem("Convex",  () => AddNamedAsync(_currNode!, name => new WzConvexProperty(name))));
+            sub.Items.Add(MakeItem("Double",  () => AddFloatAsync(_currNode!, (n, v) => new WzDoubleProperty(n, v))));
+            sub.Items.Add(MakeItem("Float",   () => AddByteFloatAsync(_currNode!)));
+            sub.Items.Add(MakeItem("Long",    () => AddLongAsync(_currNode!)));
+            sub.Items.Add(MakeItem("Int",     () => AddIntAsync(_currNode!)));
+            sub.Items.Add(MakeItem("Null",    () => AddNamedAsync(_currNode!, name => new WzNullProperty(name))));
+            sub.Items.Add(MakeItem("Short",   () => AddShortAsync(_currNode!)));
+            sub.Items.Add(MakeItem("Sound",   () => AddSoundAsync(_currNode!)));
+            sub.Items.Add(MakeItem("String",  () => AddStringAsync(_currNode!)));
+            sub.Items.Add(MakeItem("Sub",     () => AddNamedAsync(_currNode!, name => new WzSubProperty(name))));
+            sub.Items.Add(MakeItem("UOL",     () => AddUolAsync(_currNode!)));
+            sub.Items.Add(MakeItem("Vector",  () => AddVectorAsync(_currNode!)));
+            return sub;
+        }
 
-            while (current != null)
+        private MenuItem MakeAddDirsSubmenu()
+        {
+            var sub = new MenuItem { Header = "Add" };
+            sub.Items.Add(MakeItem("Directory", () => AddDirectoryAsync(_currNode!)));
+            sub.Items.Add(MakeItem("Image",     () => AddImageAsync(_currNode!)));
+            return sub;
+        }
+
+        private MenuItem MakeSortSubmenu(WzObject tag)
+        {
+            var sub = new MenuItem { Header = "Sort" };
+            sub.Items.Add(MakeItem("Sort child nodes", () => _panel.SortNodesRecursively(_currNode!, true)));
+            if (tag.GetType() == typeof(WzSubProperty))
+                sub.Items.Add(MakeItem("Sort properties by name", () => _panel.SortNodeProperties(_currNode!)));
+            return sub;
+        }
+
+        private MenuItem MakeBatchSubmenu()
+        {
+            var aiSub = new MenuItem { Header = "AI Upscale Image" };
+            aiSub.Items.Add(MakeItem("Quality only (0.25x)", () => _panel.AiBatchImageUpscaleEdit(0.25f)));
+            aiSub.Items.Add(MakeItem("1.5x", () => _panel.AiBatchImageUpscaleEdit(0.375f)));
+            aiSub.Items.Add(MakeItem("2x",   () => _panel.AiBatchImageUpscaleEdit(0.5f)));
+            aiSub.Items.Add(MakeItem("4x",   () => _panel.AiBatchImageUpscaleEdit(1f)));
+
+            var batch = new MenuItem { Header = "Batch Edit" };
+            batch.Items.Add(MakeItem("Fix Inlink", () => _panel.FixLinkForOldMapleStory_OnClick()));
+            batch.Items.Add(aiSub);
+            return batch;
+        }
+
+        // ── Node operations ───────────────────────────────────────────────
+
+        private async Task RenameAsync(WzNode node)
+        {
+            if (OwnerWindow is not Window owner) return;
+            await _panel.PromptRenameWzTreeNode(node, owner);
+        }
+
+        private void RemoveNode(WzNode node)
+        {
+            _panel.PromptRemoveSelectedTreeNodes(_undoMan);
+        }
+
+        private void UnloadNode(WzNode node)
+        {
+            if (!Warning.Warn("Are you sure you want to unload this?")) return;
+            var obj = node.WzObject;
+            if (obj is VirtualWzDirectory vd) { vd.Dispose(); node.DeleteNode(); }
+            else if (obj is WzFile wz) _panel.UnloadWzFile(wz);
+        }
+
+        private void ReloadNode(WzNode node)
+        {
+            if (!Warning.Warn("Are you sure you want to reload this file?")) return;
+            _panel.ReloadWzFile(node.WzObject as WzFile);
+        }
+
+        // ── Add operations ────────────────────────────────────────────────
+
+        private async Task AddNamedAsync(WzNode target, Func<string, WzObject> factory)
+        {
+            if (!RequirePropertyContainer(target)) return;
+            if (OwnerWindow is not Window owner) return;
+            var (ok, name) = await InputDialogs.ShowNameAsync(owner, "Add Property");
+            if (ok && !string.IsNullOrEmpty(name)) target.AddObject(factory(name!), _undoMan);
+        }
+
+        private async Task AddByteFloatAsync(WzNode target)
+        {
+            if (!RequirePropertyContainer(target)) return;
+            if (OwnerWindow is not Window owner) return;
+            var (ok, name, val) = await InputDialogs.ShowFloatAsync(owner, "Add Float");
+            if (ok && !string.IsNullOrEmpty(name)) target.AddObject(new WzFloatProperty(name!, (float)(val ?? 0)), _undoMan);
+        }
+
+        private async Task AddFloatAsync(WzNode target, Func<string, double, WzObject> factory)
+        {
+            if (!RequirePropertyContainer(target)) return;
+            if (OwnerWindow is not Window owner) return;
+            var (ok, name, val) = await InputDialogs.ShowFloatAsync(owner, "Add Property");
+            if (ok && !string.IsNullOrEmpty(name)) target.AddObject(factory(name!, val ?? 0), _undoMan);
+        }
+
+        private async Task AddIntAsync(WzNode target)
+        {
+            if (!RequirePropertyContainer(target)) return;
+            if (OwnerWindow is not Window owner) return;
+            var (ok, name, val) = await InputDialogs.ShowIntAsync(owner, "Add Int");
+            if (ok && !string.IsNullOrEmpty(name)) target.AddObject(new WzIntProperty(name!, val ?? 0), _undoMan);
+        }
+
+        private async Task AddShortAsync(WzNode target)
+        {
+            if (!RequirePropertyContainer(target)) return;
+            if (OwnerWindow is not Window owner) return;
+            var (ok, name, val) = await InputDialogs.ShowIntAsync(owner, "Add Short");
+            if (ok && !string.IsNullOrEmpty(name)) target.AddObject(new WzShortProperty(name!, (short)(val ?? 0)), _undoMan);
+        }
+
+        private async Task AddLongAsync(WzNode target)
+        {
+            if (!RequirePropertyContainer(target)) return;
+            if (OwnerWindow is not Window owner) return;
+            var (ok, name, val) = await InputDialogs.ShowLongAsync(owner, "Add Long");
+            if (ok && !string.IsNullOrEmpty(name)) target.AddObject(new WzLongProperty(name!, val ?? 0), _undoMan);
+        }
+
+        private async Task AddSoundAsync(WzNode target)
+        {
+            if (!RequirePropertyContainer(target)) return;
+            if (OwnerWindow is not Window owner) return;
+            var (ok, name, path) = await InputDialogs.ShowSoundAsync(owner, "Add Sound");
+            if (ok && !string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(path))
+                target.AddObject(new WzBinaryProperty(name!, path!), _undoMan);
+        }
+
+        private async Task AddStringAsync(WzNode target)
+        {
+            if (!RequirePropertyContainer(target)) return;
+            if (OwnerWindow is not Window owner) return;
+            var (ok, name, val) = await InputDialogs.ShowNameValueAsync(owner, "Add String");
+            if (ok && !string.IsNullOrEmpty(name)) target.AddObject(new WzStringProperty(name!, val ?? ""), _undoMan);
+        }
+
+        private async Task AddUolAsync(WzNode target)
+        {
+            if (!RequirePropertyContainer(target)) return;
+            if (OwnerWindow is not Window owner) return;
+            var (ok, name, val) = await InputDialogs.ShowNameValueAsync(owner, "Add UOL Link");
+            if (ok && !string.IsNullOrEmpty(name)) target.AddObject(new WzUOLProperty(name!, val ?? ""), _undoMan);
+        }
+
+        private async Task AddVectorAsync(WzNode target)
+        {
+            if (!RequirePropertyContainer(target)) return;
+            if (OwnerWindow is not Window owner) return;
+            var (ok, name, pt) = await InputDialogs.ShowVectorAsync(owner, "Add Vector");
+            if (ok && !string.IsNullOrEmpty(name))
+                target.AddObject(new WzVectorProperty(name!,
+                    new WzIntProperty("X", pt?.X ?? 0),
+                    new WzIntProperty("Y", pt?.Y ?? 0)), _undoMan);
+        }
+
+        private async Task AddCanvasAsync(WzNode target)
+        {
+            if (!RequirePropertyContainer(target)) return;
+            if (OwnerWindow is not Window owner) return;
+            var (ok, name, bitmaps) = await InputDialogs.ShowBitmapAsync(owner, "Add Canvas");
+            if (!ok || bitmaps == null) return;
+            int i = 0;
+            foreach (var bm in bitmaps)
             {
-                if (current.Parent is VirtualWzDirectory vDir)
-                {
-                    virtualDir = vDir;
-                    break;
-                }
-                current = current.Parent;
+                string propName = bitmaps.Count == 1 ? (name ?? "canvas") : $"{name}{i}";
+                if (WzNode.GetChildNode(target, propName) != null) { Warning.Error($"Node '{propName}' already exists."); i++; continue; }
+                var png = new WzPngProperty { PNG = bm };
+                var canvas = new WzCanvasProperty(propName) { PngProperty = png };
+                var newNode = target.AddObject(canvas, _undoMan);
+                newNode.AddObject(new WzVectorProperty(WzCanvasProperty.OriginPropertyName,
+                    new WzIntProperty("X", 0), new WzIntProperty("Y", 0)), _undoMan);
+                i++;
             }
+        }
 
-            if (virtualDir == null)
+        private async Task AddDirectoryAsync(WzNode target)
+        {
+            if (target.WzObject is not WzDirectory && target.WzObject is not WzFile)
+            { Warning.Error("Cannot insert into this node type."); return; }
+            if (OwnerWindow is not Window owner) return;
+            var (ok, name) = await InputDialogs.ShowNameAsync(owner, "Add Directory");
+            if (!ok || string.IsNullOrEmpty(name)) return;
+            WzObject obj = target.WzObject;
+            WzFile? topFile = obj as WzFile;
+            if (topFile == null)
             {
-                // Check if tag itself is the VirtualWzDirectory
-                if (tag is VirtualWzDirectory vd)
-                {
-                    virtualDir = vd;
-                }
+                WzObject? cur = obj.Parent;
+                while (cur != null) { if (cur is WzFile f) { topFile = f; break; } cur = cur.Parent; }
             }
+            if (topFile == null) { Warning.Error("Cannot find top-level WZ file."); return; }
+            target.AddObject(new WzDirectory(name, topFile), _undoMan);
+        }
 
-            if (virtualDir == null)
-            {
-                MessageBox.Show("This item is not from an IMG filesystem directory.",
-                    "Cannot Save", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
+        private async Task AddImageAsync(WzNode target)
+        {
+            if (target.WzObject is not WzDirectory && target.WzObject is not WzFile)
+            { Warning.Error("Cannot insert into this node type."); return; }
+            if (OwnerWindow is not Window owner) return;
+            var (ok, name) = await InputDialogs.ShowNameAsync(owner, "Add Image");
+            if (ok && !string.IsNullOrEmpty(name)) target.AddObject(new WzImage(name) { Changed = true }, _undoMan);
+        }
+
+        // ── IMG filesystem operations ──────────────────────────────────────
+
+        private async Task SaveImgNodeAsync(WzNode node)
+        {
+            var tag = node.WzObject;
+            VirtualWzDirectory? vd = FindVirtualParent(tag);
+            if (vd == null && tag is VirtualWzDirectory v) vd = v;
+            if (vd == null) { Warning.Error("This item is not from an IMG filesystem directory."); return; }
 
             try
             {
                 if (tag is ImgFileWzImageReference imgRef)
                 {
-                    // Resolve to an actual WzImage so Save works as expected if the image was edited.
-                    // (If it was never loaded/changed, this will effectively be a no-op save.)
                     var resolved = imgRef.Resolve();
-                    if (resolved != null)
-                    {
-                        resolved.HRTag = node;
-                        node.Tag = resolved;
-                        tag = resolved;
-                    }
+                    if (resolved != null) tag = resolved;
                 }
-
                 if (tag is WzImage image)
                 {
-                    // Save single image
-                    if (virtualDir.SaveImage(image))
-                    {
-                        MessageBox.Show($"Saved {image.Name} successfully.",
-                            "Save Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                        node.ForeColor = System.Drawing.Color.Black; // Reset color
-                    }
-                    else
-                    {
-                        MessageBox.Show($"Failed to save {image.Name}.",
-                            "Save Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    }
+                    Warning.Error(vd.SaveImage(image)
+                        ? $"Saved {image.Name} successfully."
+                        : $"Failed to save {image.Name}.");
                 }
-                else if (tag is VirtualWzDirectory vDir)
+                else if (tag is VirtualWzDirectory vd2)
                 {
-                    // Save all changed images in directory
-                    int savedCount = vDir.SaveAllChangedImages();
-                    if (savedCount > 0)
-                    {
-                        MessageBox.Show($"Saved {savedCount} changed image(s) successfully.",
-                            "Save Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    }
-                    else
-                    {
-                        MessageBox.Show("No changed images to save.",
-                            "Save Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    }
+                    int n = vd2.SaveAllChangedImages();
+                    Warning.Error(n > 0 ? $"Saved {n} image(s)." : "No changed images.");
                 }
-                else if (tag is WzImageProperty prop)
+                else if (tag is WzImageProperty prop && prop.ParentImage != null)
                 {
-                    // Save the parent image
-                    if (prop.ParentImage != null)
-                    {
-                        if (virtualDir.SaveImage(prop.ParentImage))
-                        {
-                            MessageBox.Show($"Saved {prop.ParentImage.Name} successfully.",
-                                "Save Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                        }
-                        else
-                        {
-                            MessageBox.Show($"Failed to save {prop.ParentImage.Name}.",
-                                "Save Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        }
-                    }
+                    Warning.Error(vd.SaveImage(prop.ParentImage)
+                        ? $"Saved {prop.ParentImage.Name}." : $"Failed to save {prop.ParentImage.Name}.");
                 }
             }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error saving: {ex.Message}",
-                    "Save Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
+            catch (Exception ex) { Warning.Error($"Error saving: {ex.Message}"); }
+            await Task.CompletedTask;
         }
 
-        /// <summary>
-        /// Checks if a WzObject is from a VirtualWzDirectory
-        /// </summary>
-        private bool IsFromVirtualWzDirectory(WzObject obj)
+        private async Task CreateNewImgFileAsync(WzNode node)
         {
-            if (obj is VirtualWzDirectory)
-                return true;
-
-            WzObject current = obj;
-            while (current != null)
+            if (node.WzObject is not VirtualWzDirectory vd) { Warning.Error("Please select a VirtualWzDirectory."); return; }
+            if (OwnerWindow is not Window owner) return;
+            var (ok, name) = await InputDialogs.ShowNameAsync(owner, "Create New IMG File");
+            if (!ok || string.IsNullOrEmpty(name)) return;
+            if (!name!.EndsWith(".img", StringComparison.OrdinalIgnoreCase)) name += ".img";
+            if (vd.ImageExists(name)) { Warning.Error($"File '{name}' already exists."); return; }
+            try
             {
-                if (current.Parent is VirtualWzDirectory)
-                    return true;
-                current = current.Parent;
+                string rel = string.IsNullOrEmpty(vd.RelativePath) ? name : Path.Combine(vd.RelativePath, name);
+                var img = vd.Manager.CreateImage(vd.CategoryName, rel);
+                if (img != null) node.Nodes.Add(new WzNode(img, true));
+                else Warning.Error($"Failed to create '{name}'.");
             }
+            catch (Exception ex) { Warning.Error($"Error: {ex.Message}"); }
+        }
+
+        private async Task DeleteImgFileAsync(WzNode node)
+        {
+            var tag = node.WzObject;
+            WzImage? image = tag as WzImage ?? (tag is ImgFileWzImageReference r ? new WzImage(r.FileName) { Changed = false } : null);
+            if (image == null) { Warning.Error("Please select an IMG file."); return; }
+            var vd = FindVirtualParent(tag);
+            if (vd == null) { Warning.Error("This file is not from an IMG filesystem."); return; }
+            if (!Warning.Warn($"Delete '{image.Name}'? This permanently deletes the file from disk.")) return;
+            try
+            {
+                string rel = string.IsNullOrEmpty(vd.RelativePath) ? image.Name : Path.Combine(vd.RelativePath, image.Name);
+                if (vd.Manager.DeleteImage(vd.CategoryName, rel)) node.DeleteNode();
+                else Warning.Error($"Failed to delete '{image.Name}'.");
+            }
+            catch (Exception ex) { Warning.Error($"Error: {ex.Message}"); }
+            await Task.CompletedTask;
+        }
+
+        // ── Helpers ───────────────────────────────────────────────────────
+
+        private static bool IsFromVirtualWzDirectory(WzObject obj)
+        {
+            if (obj is VirtualWzDirectory) return true;
+            WzObject? cur = obj;
+            while (cur != null) { if (cur.Parent is VirtualWzDirectory) return true; cur = cur.Parent; }
             return false;
         }
 
-        /// <summary>
-        /// Creates a new IMG file in a VirtualWzDirectory
-        /// </summary>
-        private void CreateNewImgFileInDirectory(WzNode node)
+        private static VirtualWzDirectory? FindVirtualParent(WzObject obj)
         {
-            WzObject tag = (WzObject)node.Tag;
-
-            VirtualWzDirectory virtualDir = tag as VirtualWzDirectory;
-            if (virtualDir == null)
-            {
-                MessageBox.Show("Please select a directory from an IMG filesystem.",
-                    "Cannot Create File", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            // Prompt for new file name
-            string name;
-            if (!NameInputBox.Show("Create New IMG File", 0, out name))
-                return;
-
-            // Ensure .img extension
-            if (!name.EndsWith(".img", StringComparison.OrdinalIgnoreCase))
-                name += ".img";
-
-            // Check if file already exists
-            if (virtualDir.ImageExists(name))
-            {
-                MessageBox.Show($"A file named '{name}' already exists in this directory.",
-                    "File Exists", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            try
-            {
-                // Create the new IMG file
-                string relativePath = name;
-                if (!string.IsNullOrEmpty(virtualDir.RelativePath))
-                {
-                    relativePath = Path.Combine(virtualDir.RelativePath, name);
-                }
-
-                WzImage newImage = virtualDir.Manager.CreateImage(virtualDir.CategoryName, relativePath);
-                if (newImage != null)
-                {
-                    // Add to tree
-                    WzNode newNode = new WzNode(newImage, true);
-                    node.Nodes.Add(newNode);
-                    newNode.EnsureVisible();
-
-                    MessageBox.Show($"Created '{name}' successfully.",
-                        "File Created", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                }
-                else
-                {
-                    MessageBox.Show($"Failed to create '{name}'.",
-                        "Creation Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error creating file: {ex.Message}",
-                    "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
+            WzObject? cur = obj;
+            while (cur != null) { if (cur.Parent is VirtualWzDirectory vd) return vd; cur = cur.Parent; }
+            return null;
         }
 
-        /// <summary>
-        /// Deletes an IMG file from the filesystem
-        /// </summary>
-        private void DeleteImgFileFromDirectory(WzNode node)
+        private static bool RequirePropertyContainer(WzNode node)
         {
-            WzObject tag = (WzObject)node.Tag;
-
-            WzImage image = tag as WzImage;
-            if (image == null && tag is ImgFileWzImageReference imgRef)
-            {
-                // Keep deletion cheap: we only need a name for the prompt and relative path construction.
-                image = new WzImage(imgRef.FileName) { Changed = false };
-            }
-
-            if (image == null)
-            {
-                MessageBox.Show("Please select an IMG file to delete.",
-                    "Cannot Delete", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            // Find parent VirtualWzDirectory
-            VirtualWzDirectory virtualDir = null;
-            WzObject current = tag;
-            while (current != null)
-            {
-                if (current.Parent is VirtualWzDirectory vDir)
-                {
-                    virtualDir = vDir;
-                    break;
-                }
-                current = current.Parent;
-            }
-
-            if (virtualDir == null)
-            {
-                MessageBox.Show("This file is not from an IMG filesystem directory.",
-                    "Cannot Delete", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            // Confirm deletion
-            DialogResult result = MessageBox.Show(
-                $"Are you sure you want to delete '{image.Name}'?\n\n" +
-                "This will permanently delete the file from disk.",
-                "Confirm Delete",
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Warning);
-
-            if (result != DialogResult.Yes)
-                return;
-
-            try
-            {
-                // Build relative path
-                string relativePath = image.Name;
-                if (!string.IsNullOrEmpty(virtualDir.RelativePath))
-                {
-                    relativePath = Path.Combine(virtualDir.RelativePath, image.Name);
-                }
-
-                if (virtualDir.Manager.DeleteImage(virtualDir.CategoryName, relativePath))
-                {
-                    // Remove from tree
-                    node.Remove();
-
-                    MessageBox.Show($"Deleted '{image.Name}' successfully.",
-                        "File Deleted", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                }
-                else
-                {
-                    MessageBox.Show($"Failed to delete '{image.Name}'.",
-                        "Deletion Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error deleting file: {ex.Message}",
-                    "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
+            if (node.WzObject is IPropertyContainer || node.WzObject is WzImage) return true;
+            Warning.Error("Cannot insert property into this node type.");
+            return false;
         }
     }
 }
