@@ -25,6 +25,25 @@ namespace HaRepacker.GUI.Panels
             wzTreeView.ItemsSource = _rootNodes;
             _undoMan = new UndoRedoManager(this);
             _contextMenuManager = new ContextMenuManager(this, _undoMan);
+
+            // Wire sub-panel save events back to WzObjects
+            textEditor.SaveButtonClicked += (_, _) =>
+            {
+                if (SelectedNode?.WzObject is WzStringProperty strProp)
+                {
+                    strProp.Value = textEditor.GetText();
+                    strProp.ParentImage.Changed = true;
+                }
+            };
+            xyPanel.ButtonClicked += (_, _) =>
+            {
+                if (SelectedNode?.WzObject is WzVectorProperty vecProp)
+                {
+                    vecProp.X.Value = xyPanel.X;
+                    vecProp.Y.Value = xyPanel.Y;
+                    vecProp.ParentImage.Changed = true;
+                }
+            };
         }
 
         private void WzTreeView_PointerReleased(object? sender, Avalonia.Input.PointerReleasedEventArgs e)
