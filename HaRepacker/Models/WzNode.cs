@@ -18,6 +18,14 @@ namespace HaRepacker.Models
         public bool IsPlaceholder { get; }
         public ObservableCollection<WzNode> Nodes { get; } = new ObservableCollection<WzNode>();
 
+        private bool _isExpanded;
+
+        public bool IsExpanded
+        {
+            get => _isExpanded;
+            set { _isExpanded = value; OnPropertyChanged(nameof(IsExpanded)); }
+        }
+
         public bool IsChanged
         {
             get => _isChanged;

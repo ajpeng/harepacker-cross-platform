@@ -23,14 +23,24 @@
                 <MenuItem Header="E_xit"                       Click="OnExitClick" />
             </MenuItem>
             <MenuItem Header="_Edit">
-                <MenuItem Header="_Undo"         Click="OnUndoClick" />
-                <MenuItem Header="_Redo"         Click="OnRedoClick" />
+                <MenuItem Header="_Undo"            Click="OnUndoClick" />
+                <MenuItem Header="_Redo"            Click="OnRedoClick" />
                 <Separator />
-                <MenuItem Header="Remove Selected" Click="OnRemoveSelectedClick" />
+                <MenuItem Header="Remove Selected"  Click="OnRemoveSelectedClick" />
+                <Separator />
+                <MenuItem Header="Expand All"       Click="OnExpandAllClick" />
+                <MenuItem Header="Collapse All"     Click="OnCollapseAllClick" />
             </MenuItem>
             <MenuItem Header="E_xport">
-                <MenuItem Header="WZ Files as _XML…"  Click="OnExportXmlClick" />
-                <MenuItem Header="WZ Files as I_MG…"  Click="OnExportImgClick" />
+                <MenuItem Header="WZ Files as _XML…"             Click="OnExportXmlClick" />
+                <MenuItem Header="WZ Files as I_MG…"             Click="OnExportImgClick" />
+                <Separator />
+                <MenuItem Header="Selected Node as _New XML…"    Click="OnExportSelectedXmlClick" />
+                <MenuItem Header="Selected Node as P_NGs/MP3…"   Click="OnExportSelectedPngClick" />
+            </MenuItem>
+            <MenuItem Header="_Import">
+                <MenuItem Header="Import _XML into Selected…"    Click="OnImportXmlClick" />
+                <MenuItem Header="Import I_MG into Selected…"    Click="OnImportImgClick" />
             </MenuItem>
             <MenuItem Header="_Tools">
                 <MenuItem Header="_WZ String Search…"         Click="OnWzStringSearchClick" />

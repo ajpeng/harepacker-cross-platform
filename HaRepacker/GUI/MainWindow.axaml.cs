@@ -3,10 +3,13 @@ using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using HaRepacker.GUI.Input;
+using HaRepacker.Models;
 using MapleLib.WzLib;
 using MapleLib.WzLib.Serializer;
+using MapleLib.WzLib.Util;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -112,6 +115,12 @@ namespace HaRepacker.GUI
             mainPanel.PromptRemoveSelectedTreeNodes(mainPanel.UndoMan);
         }
 
+        private void OnExpandAllClick(object? sender, RoutedEventArgs e)
+            => mainPanel.ExpandAllNodes(true);
+
+        private void OnCollapseAllClick(object? sender, RoutedEventArgs e)
+            => mainPanel.ExpandAllNodes(false);
+
         // ── Export ───────────────────────────────────────────────────────────
 
         private async void OnExportXmlClick(object? sender, RoutedEventArgs e)
@@ -145,6 +154,53 @@ namespace HaRepacker.GUI
             SetStatus("IMG export complete.");
         }
 
+        private async void OnExportSelectedXmlClick(object? sender, RoutedEventArgs e)
+        {
+            var node = mainPanel.SelectedNode;
+            if (node?.WzObject == null)
+            { Warning.Error("Please select a node to export."); return; }
+
+            var saveResult = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = "Export Selected Node as New XML",
+                SuggestedFileName = node.Name + ".xml",
+                FileTypeChoices = new[] { new FilePickerFileType("XML Files") { Patterns = new[] { "*.xml" } } }
+            });
+            if (saveResult == null) return;
+            string outPath = saveResult.TryGetLocalPath() ?? saveResult.Path.LocalPath;
+
+            SetStatus("Exporting selected node as XML…");
+            var objs = new List<WzObject> { node.WzObject };
+            var cfg = Program.ConfigurationManager;
+            int indent = cfg?.UserSettings?.Indentation ?? 4;
+            var lineBreak = cfg?.UserSettings?.LineBreakType ?? LineBreak.None;
+            await Task.Run(() =>
+            {
+                var serializer = new WzNewXmlSerializer(indent, lineBreak);
+                WzFileExporter.RunWzXmlExtraction(objs, outPath, serializer);
+            });
+            SetStatus("XML export complete.");
+        }
+
+        private async void OnExportSelectedPngClick(object? sender, RoutedEventArgs e)
+        {
+            var node = mainPanel.SelectedNode;
+            if (node?.WzObject == null)
+            { Warning.Error("Please select a node to export."); return; }
+
+            string outDir = await SavedFolderBrowser.ShowAsync(this, "Select output directory for PNGs/MP3s");
+            if (string.IsNullOrEmpty(outDir)) return;
+
+            SetStatus("Exporting PNGs/MP3s…");
+            var wzObj = node.WzObject;
+            await Task.Run(() =>
+            {
+                var serializer = new WzPngMp3Serializer();
+                serializer.SerializeObject(wzObj, outDir);
+            });
+            SetStatus("PNG/MP3 export complete.");
+        }
+
         private async Task<(string[]? files, string dir, WzMapleVersion version)> PickFilesAndDir(string title)
         {
             var fileResults = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
@@ -163,6 +219,119 @@ namespace HaRepacker.GUI
 
             string[] paths = fileResults.Select(f => f.TryGetLocalPath() ?? f.Path.LocalPath).ToArray();
             return (paths, outDir, version);
+        }
+
+        // ── Import ────────────────────────────────────────────────────────────
+
+        private async void OnImportXmlClick(object? sender, RoutedEventArgs e)
+        {
+            var node = mainPanel.SelectedNode;
+            if (!IsValidImportTarget(node)) return;
+
+            var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = "Import XML Files into Selected Node",
+                AllowMultiple = true,
+                FileTypeFilter = new[] { new FilePickerFileType("XML Files") { Patterns = new[] { "*.xml" } } }
+            });
+            if (files.Count == 0) return;
+
+            var wzFile = node!.WzObject!.WzFileParent;
+            if (wzFile == null) return;
+            var deserializer = new WzXmlDeserializer(true, WzTool.GetIvByMapleVersion(wzFile.MapleVersion));
+            string[] paths = files.Select(f => f.TryGetLocalPath() ?? f.Path.LocalPath).ToArray();
+
+            SetStatus("Importing XML…");
+            await RunImporterAsync(node, paths, deserializer, null);
+            SetStatus("XML import complete.");
+        }
+
+        private async void OnImportImgClick(object? sender, RoutedEventArgs e)
+        {
+            var node = mainPanel.SelectedNode;
+            if (!IsValidImportTarget(node)) return;
+
+            var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = "Import IMG Files into Selected Node",
+                AllowMultiple = true,
+                FileTypeFilter = new[] { new FilePickerFileType("WZ IMG Files") { Patterns = new[] { "*.img" } } }
+            });
+            if (files.Count == 0) return;
+
+            var (ok, version) = await InputDialogs.ShowWzMapleVersionAsync(this, "Select IMG Encryption Type");
+            if (!ok) return;
+
+            var deserializer = new WzImgDeserializer(true);
+            byte[] iv = WzTool.GetIvByMapleVersion(version);
+            string[] paths = files.Select(f => f.TryGetLocalPath() ?? f.Path.LocalPath).ToArray();
+
+            SetStatus("Importing IMG…");
+            await RunImporterAsync(node, paths, deserializer, iv);
+            SetStatus("IMG import complete.");
+        }
+
+        private static bool IsValidImportTarget(WzNode? node)
+        {
+            if (node?.WzObject == null)
+            { Warning.Error("Please select a WZ directory, file, or container node first."); return false; }
+            if (node.WzObject is not WzDirectory && node.WzObject is not WzFile && node.WzObject is not IPropertyContainer)
+            { Warning.Error("Selected node must be a WZ directory, file, or property container."); return false; }
+            if (node.WzObject.WzFileParent == null)
+            { Warning.Error("Could not find the parent WZ file for the selected node."); return false; }
+            return true;
+        }
+
+        private async Task RunImporterAsync(WzNode parentNode, string[] filePaths,
+            ProgressingWzSerializer deserializer, byte[]? iv)
+        {
+            ReplaceResult replaceAll = ReplaceResult.NoneSelectedYet;
+
+            foreach (string path in filePaths)
+            {
+                List<WzObject> parsed;
+                try
+                {
+                    if (deserializer is WzXmlDeserializer xmlDs)
+                        parsed = await Task.Run(() => xmlDs.ParseXML(path));
+                    else if (deserializer is WzImgDeserializer imgDs)
+                    {
+                        var img = await Task.Run(() =>
+                            imgDs.WzImageFromIMGFile(path, iv!, Path.GetFileName(path), out bool ok));
+                        if (img == null) continue;
+                        parsed = new List<WzObject> { img };
+                    }
+                    else continue;
+                }
+                catch (Exception ex)
+                {
+                    Warning.Error($"Error reading \"{path}\":\n{ex.Message}");
+                    continue;
+                }
+
+                foreach (WzObject obj in parsed)
+                {
+                    var existing = WzNode.GetChildNode(parentNode, obj.Name);
+                    if (existing != null)
+                    {
+                        bool replace;
+                        if (replaceAll == ReplaceResult.YesToAll) replace = true;
+                        else if (replaceAll == ReplaceResult.NoToAll) replace = false;
+                        else
+                        {
+                            var (_, result) = await InputDialogs.ShowReplaceAsync(this, obj.Name);
+                            if (result == ReplaceResult.YesToAll) replaceAll = ReplaceResult.YesToAll;
+                            else if (result == ReplaceResult.NoToAll) replaceAll = ReplaceResult.NoToAll;
+                            replace = result == ReplaceResult.Yes || result == ReplaceResult.YesToAll;
+                        }
+                        if (!replace) continue;
+                        existing.DeleteNode();
+                        parentNode.Nodes.Remove(existing);
+                    }
+                    parentNode.AddObject(obj, mainPanel.UndoMan);
+                }
+            }
+            MapleLib.Helpers.ErrorLogger.SaveToFile("WzImport_Errors.txt");
         }
 
         // ── Tools ─────────────────────────────────────────────────────────────

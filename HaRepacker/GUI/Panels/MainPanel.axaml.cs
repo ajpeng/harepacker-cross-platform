@@ -188,6 +188,19 @@ namespace HaRepacker.GUI.Panels
             }
         }
 
+        public void ExpandAllNodes(bool expand)
+        {
+            foreach (var root in _rootNodes)
+                SetExpanded(root, expand);
+        }
+
+        private static void SetExpanded(WzNode node, bool expand)
+        {
+            node.IsExpanded = expand;
+            foreach (var child in node.Nodes)
+                SetExpanded(child, expand);
+        }
+
         public void SortNodesRecursively(WzNode node, bool viewOnly)
         {
             var sorted = node.Nodes.OrderBy(n => n.Name).ToList();

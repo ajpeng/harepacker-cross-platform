@@ -35,6 +35,11 @@
             <TreeView x:Name="wzTreeView" Grid.Row="1"
                       SelectionChanged="WzTreeView_SelectionChanged"
                       PointerReleased="WzTreeView_PointerReleased">
+                <TreeView.Styles>
+                    <Style Selector="TreeViewItem">
+                        <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+                    </Style>
+                </TreeView.Styles>
                 <TreeView.ItemTemplate>
                     <TreeDataTemplate DataType="{x:Type models:WzNode}" ItemsSource="{Binding Nodes}">
                         <TextBlock Text="{Binding Name}" />
