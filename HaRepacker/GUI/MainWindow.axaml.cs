@@ -23,11 +23,40 @@ namespace HaRepacker.GUI
         {
             InitializeComponent();
 
+            // Restore saved window size/state
+            var appSettings = Program.ConfigurationManager?.ApplicationSettings;
+            if (appSettings != null)
+            {
+                Width = appSettings.Width > 0 ? appSettings.Width : 1280;
+                Height = appSettings.Height > 0 ? appSettings.Height : 800;
+                if (appSettings.WindowMaximized)
+                    WindowState = Avalonia.Controls.WindowState.Maximized;
+            }
+
             if (wzToLoad != null)
                 mainPanel.OpenFile(wzToLoad);
 
             if (firstRun)
                 _ = FirstRunFormWindow.ShowAsync(this);
+
+            // Persist window size/state changes
+            this.PropertyChanged += (_, args) =>
+            {
+                if (Program.ConfigurationManager == null) return;
+                if (args.Property == ClientSizeProperty)
+                {
+                    if (WindowState != Avalonia.Controls.WindowState.Maximized)
+                    {
+                        Program.ConfigurationManager.ApplicationSettings.Width = (int)ClientSize.Width;
+                        Program.ConfigurationManager.ApplicationSettings.Height = (int)ClientSize.Height;
+                    }
+                }
+                else if (args.Property == WindowStateProperty)
+                {
+                    Program.ConfigurationManager.ApplicationSettings.WindowMaximized =
+                        WindowState == Avalonia.Controls.WindowState.Maximized;
+                }
+            };
         }
 
         // ── File ──────────────────────────────────────────────────────────────
