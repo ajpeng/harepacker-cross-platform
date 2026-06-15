@@ -1,0 +1,18 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="HaRepacker.GUI.ListEditorWindow"
+        Title="List Editor"
+        Width="620" Height="520"
+        WindowStartupLocation="CenterOwner">
+    <Grid RowDefinitions="*,Auto">
+        <TextBox x:Name="textBox" Grid.Row="0"
+                 AcceptsReturn="True" TextWrapping="NoWrap"
+                 FontFamily="Courier New,Courier,monospace"
+                 Margin="8,8,8,4" />
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right"
+                    Spacing="8" Margin="8,4,8,8">
+            <Button Content="Save…" Width="80" Click="OnSaveClick" />
+            <Button Content="Close" Width="80" Click="OnCloseClick" />
+        </StackPanel>
+    </Grid>
+</Window>

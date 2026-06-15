@@ -1,0 +1,53 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="HaRepacker.GUI.CustomWZEncryptionWindow"
+        Title="Custom WZ Encryption Key"
+        Width="560" Height="490"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+    <Border Padding="14">
+        <StackPanel Spacing="10">
+
+            <!-- Key selector row -->
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                <TextBlock Grid.Column="0" Text="Saved Key:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <ComboBox x:Name="keyListBox" Grid.Column="1" HorizontalAlignment="Stretch"
+                          SelectionChanged="OnKeyListSelectionChanged" />
+                <Button Grid.Column="2" Content="New" Width="56" Margin="6,0,0,0" Click="OnCreateClick" />
+                <Button Grid.Column="3" Content="Delete" Width="56" Margin="6,0,0,0" Click="OnDeleteClick" />
+            </Grid>
+
+            <!-- Key name -->
+            <Grid ColumnDefinitions="Auto,*">
+                <TextBlock Grid.Column="0" Text="Key Name:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <TextBox x:Name="nameBox" Grid.Column="1" Watermark="Enter a name for this key" />
+            </Grid>
+
+            <!-- AES IV -->
+            <StackPanel Spacing="4">
+                <TextBlock Text="AES IV (4 bytes — hex, e.g. 4D 23 C7 2B):" FontWeight="SemiBold" />
+                <StackPanel Orientation="Horizontal" Spacing="6" Margin="8,0,0,0">
+                    <TextBox x:Name="ivBox0" Width="50" MaxLength="2" />
+                    <TextBox x:Name="ivBox1" Width="50" MaxLength="2" />
+                    <TextBox x:Name="ivBox2" Width="50" MaxLength="2" />
+                    <TextBox x:Name="ivBox3" Width="50" MaxLength="2" />
+                </StackPanel>
+            </StackPanel>
+
+            <!-- AES User Key -->
+            <StackPanel Spacing="4">
+                <TextBlock Text="AES User Key (32 bytes — hex, every 4th byte):" FontWeight="SemiBold" />
+                <WrapPanel x:Name="aesKeyPanel" Margin="8,0,0,0" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6">
+                    <Button Content="Reset to Default" Click="OnResetAESClick" />
+                </StackPanel>
+            </StackPanel>
+
+            <!-- Buttons -->
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                <Button Content="Save" Width="80" Click="OnSaveClick" />
+                <Button Content="Cancel" Width="80" Click="OnCancelClick" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</Window>
