@@ -4,12 +4,9 @@
 * License, v. 2.0. If a copy of the MPL was not distributed with this
 * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+using SkiaSharp;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
-using System.Text;
-using System.Runtime.InteropServices;
-using System.Drawing.Imaging;
 
 namespace HaSharedLibrary.SharpApng
 {
@@ -47,40 +44,26 @@ namespace HaSharedLibrary.SharpApng
             m_frames.Add(frame);
         }
 
-        public void AddFrame(Bitmap bmp, int num, int den)
+        public void AddFrame(SKBitmap bmp, int num, int den)
         {
             m_frames.Add(new SharpApngFrame(bmp, num, den));
         }
 
-        private Bitmap ExtendImage(Bitmap source, Size newSize)
+        private SKBitmap ExtendImage(SKBitmap source, int newWidth, int newHeight)
         {
-            Bitmap result = new Bitmap(newSize.Width, newSize.Height);
-            using (Graphics g = Graphics.FromImage(result))
-            {
-                g.DrawImageUnscaled(source, 0, 0);
-            }
+            SKBitmap result = new SKBitmap(newWidth, newHeight, SKColorType.Bgra8888, SKAlphaType.Unpremul);
+            using SKCanvas canvas = new SKCanvas(result);
+            canvas.Clear(SKColors.Transparent);
+            canvas.DrawBitmap(source, 0, 0);
             return result;
         }
 
+        // TODO: implement cross-platform APNG encoding (SharpApngBasicWrapper requires apng64/apng32.dll).
         public void WriteApng(string path, bool firstFrameHidden, bool disposeAfter)
         {
-            Size maxSize = new Size();
-            foreach (SharpApngFrame frame in m_frames)
-            {
-                if (frame.Bitmap.Width > maxSize.Width) maxSize.Width = frame.Bitmap.Width;
-                if (frame.Bitmap.Height > maxSize.Height) maxSize.Height = frame.Bitmap.Height;
-            }
-            for (int i = 0; i < m_frames.Count; i++)
-            {
-                SharpApngFrame frame = m_frames[i];
-                if (frame.Bitmap.Width != maxSize.Width || frame.Bitmap.Height != maxSize.Height)
-                    frame.Bitmap = ExtendImage(frame.Bitmap, maxSize);
-                SharpApngBasicWrapper.CreateFrameManaged(frame.Bitmap, frame.DelayNum, frame.DelayDen, i);
-            }
-            SharpApngBasicWrapper.SaveApngManaged(path, m_frames.Count, maxSize.Width, maxSize.Height, firstFrameHidden);
-
-            if (disposeAfter) 
-                Dispose();
+            throw new PlatformNotSupportedException(
+                "APNG export requires the Windows-only apng64/apng32.dll native library. " +
+                "Cross-platform APNG encoding is not yet implemented.");
         }
     }
 }

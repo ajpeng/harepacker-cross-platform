@@ -4,13 +4,8 @@
 * License, v. 2.0. If a copy of the MPL was not distributed with this
 * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+using SkiaSharp;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Drawing.Imaging;
-using System.Drawing;
 
 namespace HaSharedLibrary.SharpApng
 {
@@ -18,10 +13,10 @@ namespace HaSharedLibrary.SharpApng
     {
         public void Dispose()
         {
-            Bitmap.Dispose();
+            Bitmap?.Dispose();
         }
 
-        public SharpApngFrame(Bitmap bmp, int num, int den)
+        public SharpApngFrame(SKBitmap bmp, int num, int den)
         {
             this.DelayNum = num;
             this.DelayDen = den;
@@ -29,10 +24,7 @@ namespace HaSharedLibrary.SharpApng
         }
 
         public int DelayNum { get; set; }
-
         public int DelayDen { get; set; }
-
-        public Bitmap Bitmap { get; set; }
+        public SKBitmap Bitmap { get; set; }
     }
-
 }

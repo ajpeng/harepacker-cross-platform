@@ -9,7 +9,6 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Spine;
 using System.Runtime.CompilerServices;
-using System.Windows;
 
 namespace HaSharedLibrary.Render.DX
 {
