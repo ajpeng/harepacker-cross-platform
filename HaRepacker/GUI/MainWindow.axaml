@@ -1,0 +1,36 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:panels="clr-namespace:HaRepacker.GUI.Panels"
+        x:Class="HaRepacker.GUI.MainWindow"
+        Title="HaRepacker - Resurrected (Cross-Platform)"
+        Width="1280" Height="800"
+        WindowStartupLocation="CenterScreen"
+        MinWidth="800" MinHeight="500">
+    <DockPanel>
+        <!-- Top menu bar -->
+        <Menu DockPanel.Dock="Top">
+            <MenuItem Header="_File">
+                <MenuItem Header="_Open" x:Name="menu_Open" />
+                <MenuItem Header="_Save" x:Name="menu_Save" />
+                <MenuItem Header="_Close" x:Name="menu_Close" />
+                <Separator />
+                <MenuItem Header="E_xit" x:Name="menu_Exit" Click="OnExitClick" />
+            </MenuItem>
+            <MenuItem Header="_Edit">
+                <MenuItem Header="_Undo" x:Name="menu_Undo" />
+                <MenuItem Header="_Redo" x:Name="menu_Redo" />
+            </MenuItem>
+            <MenuItem Header="_Help">
+                <MenuItem Header="_About" x:Name="menu_About" />
+            </MenuItem>
+        </Menu>
+
+        <!-- Status bar -->
+        <Panel DockPanel.Dock="Bottom" Height="22" Background="#DDDDDD">
+            <TextBlock x:Name="statusLabel" Text="Ready" Margin="5,2,0,0" FontSize="11" />
+        </Panel>
+
+        <!-- Main content panel -->
+        <panels:MainPanel x:Name="mainPanel" />
+    </DockPanel>
+</Window>

@@ -1,99 +1,147 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <OutputType>WinExe</OutputType>
     <RootNamespace>HaRepacker</RootNamespace>
     <AssemblyName>HaRepackerResurrected</AssemblyName>
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
-
-    <UseWindowsForms>True</UseWindowsForms>
-    <UseWPF>true</UseWPF>
-    <ImportWindowsDesktopTargets>true</ImportWindowsDesktopTargets>
-    
-    <!-- AOT and Trimming Configuration -->
-    <RuntimeIdentifiers>win-x64;win-x86;win-arm64</RuntimeIdentifiers>
-    <PublishAot>false</PublishAot>
-    <_SuppressWinFormsTrimError>true</_SuppressWinFormsTrimError>
-    <_SuppressWpfTrimError>true</_SuppressWpfTrimError>
-
-    <!-- Required for WinForms -->
-    <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-  </PropertyGroup>
-
-  <!-- x64-specific configuration -->
-  <PropertyGroup Condition="'$(RuntimeIdentifier)' == 'win-x64'">
-    <PublishAot>false</PublishAot>
-  </PropertyGroup>
-  <!-- x86-specific configuration -->
-  <PropertyGroup Condition="'$(RuntimeIdentifier)' == 'win-x86'">
-    <PublishAot>false</PublishAot>
-  </PropertyGroup>
-
-  <PropertyGroup>
+    <Nullable>enable</Nullable>
     <StartupObject>HaRepacker.Program</StartupObject>
     <ApplicationIcon>logo.ico</ApplicationIcon>
-    <PackageIcon>logo.png</PackageIcon>
+    <PublishAot>false</PublishAot>
   </PropertyGroup>
-  
+
+  <!-- Exclude old WinForms Designer and resource stubs -->
   <ItemGroup>
     <Compile Remove="Resources\OrangeMushroom\**" />
     <EmbeddedResource Remove="Resources\OrangeMushroom\**" />
     <None Remove="Resources\OrangeMushroom\**" />
-    <Page Remove="Resources\OrangeMushroom\**" />
   </ItemGroup>
+
+  <!-- Exclude WinForms-derived files until Avalonia port is complete -->
   <ItemGroup>
-    <Compile Update="GUI\Input\DoubleInput.cs">
-      <SubType>Component</SubType>
-    </Compile>
-    <Compile Update="GUI\Input\IntegerInput.cs">
-      <SubType>Component</SubType>
-    </Compile>
-    <Compile Update="GUI\WzKeyBruteforceForm.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Update="TreeViewMS.cs">
-      <SubType>Component</SubType>
-    </Compile>
+    <!-- Root-level WinForms files -->
+    <Compile Remove="WzNode.cs" />
+    <Compile Remove="TreeViewMS.cs" />
+    <Compile Remove="TreeViewMS.resx" />
+    <Compile Remove="UndoRedoManager.cs" />
+    <Compile Remove="ContextMenuManager.cs" />
+    <Compile Remove="SavedFolderBrowser.cs" />
+    <Compile Remove="AnimationBuilder.cs" />
+
+    <!-- Root-level WinForms-coupled files -->
+    <Compile Remove="Warning.cs" />
+
+    <!-- GUI root forms -->
+    <Compile Remove="GUI\AboutForm.cs" />
+    <Compile Remove="GUI\AboutForm.Designer.cs" />
+    <Compile Remove="GUI\CustomWZEncryptionInputBox.cs" />
+    <Compile Remove="GUI\CustomWZEncryptionInputBox.designer.cs" />
+    <Compile Remove="GUI\FirstRunForm.cs" />
+    <Compile Remove="GUI\FirstRunForm.Designer.cs" />
+    <Compile Remove="GUI\ListEditor.cs" />
+    <Compile Remove="GUI\ListEditor.Designer.cs" />
+    <Compile Remove="GUI\MainForm.cs" />
+    <Compile Remove="GUI\MainForm.Designer.cs" />
+    <Compile Remove="GUI\NewForm.cs" />
+    <Compile Remove="GUI\NewForm.Designer.cs" />
+    <Compile Remove="GUI\OptionsForm.cs" />
+    <Compile Remove="GUI\OptionsForm.Designer.cs" />
+    <Compile Remove="GUI\PackToWzForm.cs" />
+    <Compile Remove="GUI\SaveForm.cs" />
+    <Compile Remove="GUI\SaveForm.designer.cs" />
+    <Compile Remove="GUI\WzKeyBruteforceForm.cs" />
+    <Compile Remove="GUI\WzKeyBruteforceForm.designer.cs" />
+    <Compile Remove="GUI\WzStringSearchForm.cs" />
+    <Compile Remove="GUI\WzStringSearchForm.Designer.cs" />
+    <Compile Remove="GUI\WzStringSearchFormDataCache.cs" />
+    <Compile Remove="GUI\ZLZPacketEncryptionKeyForm.cs" />
+    <Compile Remove="GUI\ZLZPacketEncryptionKeyForm.designer.cs" />
+    <Compile Remove="GUI\ContextMenuManager.cs" />
+    <Compile Remove="GUI\Resources.Designer.cs" />
+
+    <!-- HotSwap (depends on MainForm) -->
+    <Compile Remove="GUI\HotSwap\**" />
+
+    <!-- Input and Interaction dialogs (WinForms) -->
+    <Compile Remove="GUI\Input\**" />
+    <Compile Remove="GUI\Interaction\**" />
+
+    <!-- Controls (WPF-specific) -->
+    <Compile Remove="GUI\Controls\**" />
+
+    <!-- WPF XAML code-behinds (replaced by .axaml.cs files) -->
+    <Compile Remove="GUI\Panels\MainPanel.xaml.cs" />
+    <Compile Remove="GUI\Panels\MainPanelPropertyItems.cs" />
+    <Compile Remove="GUI\Panels\ImageAnimationPreviewWindow.cs" />
+    <Compile Remove="GUI\Panels\SubPanels\ImageRenderViewer.xaml.cs" />
+    <Compile Remove="GUI\Panels\SubPanels\ImageRenderViewerItem.cs" />
+    <Compile Remove="GUI\Panels\SubPanels\AvalonTextEditor.xaml.cs" />
+    <Compile Remove="GUI\Panels\SubPanels\LoadingPanel.xaml.cs" />
+    <Compile Remove="GUI\Panels\SubPanels\XYPanel.xaml.cs" />
+    <Compile Remove="GUI\Panels\SubPanels\NotifyPointF.cs" />
+    <Compile Remove="GUI\Panels\SubPanels\PointFEditor.cs" />
+    <Compile Remove="GUI\Panels\SubPanels\PointFEditorControl.cs" />
+
+    <!-- FHMapper WinForms -->
+    <Compile Remove="FHMapper\**" />
+
+    <!-- Comparer/WinForms -->
+    <Compile Remove="Comparer\TreeViewNodeSorter.cs" />
+
+    <!-- WPF converters (replaced by Avalonia converters in Converters/) -->
+    <Compile Remove="Converter\**" />
+
+    <!-- Properties (WinForms-generated resource designer) -->
+    <Compile Remove="Properties\Resources.Designer.cs" />
   </ItemGroup>
+
+  <!-- Exclude WPF XAML pages (replaced by .axaml) and all WinForms resource files -->
   <ItemGroup>
-    <ProjectReference Include="..\HaSharedLibrary\HaSharedLibrary.csproj" />
-    <ProjectReference Include="..\MapleLib\MapleLib\MapleLib.csproj" />
-    <ProjectReference Include="..\MapleLib\spine-runtimes-2.1.25\spine-csharp\spine-csharp 2.1.25.csproj" />
-    <ProjectReference Include="..\RealESRGAN_AI_Upscale\RealESRGAN_AI_Upscale.csproj" />
+    <Page Remove="GUI\Panels\MainPanel.xaml" />
+    <Page Remove="GUI\Panels\SubPanels\ImageRenderViewer.xaml" />
+    <Page Remove="GUI\Panels\SubPanels\AvalonTextEditor.xaml" />
+    <Page Remove="GUI\Panels\SubPanels\LoadingPanel.xaml" />
+    <Page Remove="GUI\Panels\SubPanels\XYPanel.xaml" />
+    <!-- Exclude ALL WinForms .resx files to avoid MSB3822 non-string resource error -->
+    <EmbeddedResource Remove="GUI\**" />
+    <EmbeddedResource Remove="FHMapper\**" />
+    <EmbeddedResource Remove="Properties\**" />
+    <EmbeddedResource Remove="TreeViewMS.resx" />
   </ItemGroup>
+
   <ItemGroup>
     <Content Include="logo.ico" />
     <Content Include="Resources\arrow_left.png" />
     <Content Include="Resources\arrow_right.png" />
     <Content Include="Resources\Pause.png" />
   </ItemGroup>
-  <ItemGroup>
-    <PackageReference Include="System.ComponentModel.Composition" Version="10.0.0" />
-    <PackageReference Include="AvalonEdit" Version="6.3.1.120" />
-    <PackageReference Include="Extended.Wpf.Toolkit" Version="5.0.0" />
-    <PackageReference Include="MonoGame.Framework.WindowsDX" Version="3.8.4.1" />
-    <PackageReference Include="SharpDX" Version="4.2.0" />
-    <PackageReference Include="SharpDX.Direct2D1" Version="4.2.0" />
-    <PackageReference Include="SharpDX.Direct3D11" Version="4.2.0" />
-    <PackageReference Include="SharpDX.Direct3D9" Version="4.2.0" />
-    <PackageReference Include="SharpDX.DXGI" Version="4.2.0" />
-    <PackageReference Include="SharpDX.Mathematics" Version="4.2.0" />
-    <PackageReference Include="SharpDX.MediaFoundation" Version="4.2.0" />
-    <PackageReference Include="SharpDX.XAudio2" Version="4.2.0" />
-    <PackageReference Include="SharpDX.XInput" Version="4.2.0" />
-  </ItemGroup>
-  <ItemGroup>
-    <Compile Remove="GUI\Resources.Designer.cs" />
-    <EmbeddedResource Remove="GUI\Input\DoubleInput.resx" />
-    <EmbeddedResource Remove="GUI\Input\FindInputBox.resx" />
-    <EmbeddedResource Remove="GUI\Input\IntegerInput.resx" />
-    <EmbeddedResource Remove="GUI\Resources.resx" />
-  </ItemGroup>
+
   <ItemGroup>
     <None Include="..\logo.png">
       <Pack>True</Pack>
       <PackagePath>\</PackagePath>
     </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\HaSharedLibrary\HaSharedLibrary.csproj" />
+    <ProjectReference Include="..\MapleLib\MapleLib\MapleLib.csproj" />
+    <ProjectReference Include="..\MapleLib\spine-runtimes-2.1.25\spine-csharp\spine-csharp 2.1.25.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Cross-platform UI framework -->
+    <PackageReference Include="Avalonia" Version="11.2.3" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.2.3" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.3" />
+    <!-- Avalonia port of AvalonEdit for syntax-highlighted text editing -->
+    <PackageReference Include="Avalonia.AvaloniaEdit" Version="11.2.0" />
+    <!-- Cross-platform imaging -->
+    <PackageReference Include="SkiaSharp" Version="3.116.1" />
+    <PackageReference Include="SkiaSharp.NativeAssets.macOS" Version="3.116.1" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="3.116.1" />
+    <PackageReference Include="System.ComponentModel.Composition" Version="10.0.0" />
   </ItemGroup>
 </Project>

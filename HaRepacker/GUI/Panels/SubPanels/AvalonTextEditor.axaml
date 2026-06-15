@@ -1,0 +1,37 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:avalonEdit="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
+             x:Class="HaRepacker.GUI.Panels.SubPanels.AvalonTextEditor">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="26" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0" Background="Gray">
+            <StackPanel Orientation="Horizontal" Margin="5,0,0,0">
+                <TextBlock Text="Syntax highlighting: " Foreground="White" VerticalAlignment="Center" />
+                <ComboBox x:Name="comboBox_SyntaxHighlighting"
+                          MinWidth="50" Width="150"
+                          VerticalAlignment="Center" HorizontalAlignment="Left"
+                          SelectionChanged="comboBox_SyntaxHighlighting_SelectionChanged" />
+            </StackPanel>
+
+            <Button x:Name="button_saveApply"
+                    Background="#D1D1D1" Foreground="Black" Margin="0,0,5,0"
+                    Content="Save" Width="150"
+                    HorizontalAlignment="Right" VerticalAlignment="Center"
+                    IsEnabled="False"
+                    Click="button_saveApply_Click" />
+        </Grid>
+
+        <avalonEdit:TextEditor x:Name="textEditor"
+                               Grid.Row="1"
+                               FontFamily="Consolas,Courier New,monospace"
+                               FontSize="12"
+                               WordWrap="True"
+                               ShowLineNumbers="True"
+                               TextChanged="textEditor_TextChanged" />
+    </Grid>
+</UserControl>

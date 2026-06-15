@@ -1,0 +1,106 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="HaRepacker.GUI.Panels.SubPanels.ImageRenderViewer">
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="220" />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="30" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Zoom slider -->
+        <Slider x:Name="ZoomSlider"
+                Grid.Row="0" Grid.Column="0"
+                Minimum="0.1" Maximum="20" Value="3"
+                SmallChange="0.05" LargeChange="0.5"
+                Margin="10,0"
+                ValueChanged="ZoomSlider_ValueChanged" />
+        <TextBlock x:Name="zoomLabel" Grid.Row="0" Grid.Column="0"
+                   Text="Zoom: 3x" VerticalAlignment="Center"
+                   HorizontalAlignment="Right" Margin="0,0,15,0" />
+
+        <!-- Image scroll area -->
+        <ScrollViewer Grid.Row="1" Grid.Column="0"
+                      HorizontalScrollBarVisibility="Auto"
+                      VerticalScrollBarVisibility="Auto"
+                      Margin="0,0,10,0">
+            <Panel Width="4000" Height="4000">
+                <Border x:Name="imageBorder"
+                        BorderBrush="Gray" BorderThickness="1"
+                        HorizontalAlignment="Left" VerticalAlignment="Top"
+                        Margin="80,50,0,0">
+                    <Image x:Name="canvasPropBox"
+                           Stretch="None"
+                           RenderOptions.BitmapInterpolationMode="None" />
+                </Border>
+            </Panel>
+        </ScrollViewer>
+
+        <!-- Right panel: color filter + properties -->
+        <Grid Grid.Column="1" Grid.RowSpan="2" Margin="5,0,5,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!-- Color filter controls -->
+            <StackPanel Grid.Row="0">
+                <TextBlock Text="Color Filter" FontWeight="Bold" Margin="0,5,0,5" />
+
+                <StackPanel Orientation="Horizontal" Margin="0,2">
+                    <TextBlock Text="R:" Width="20" VerticalAlignment="Center" />
+                    <Slider x:Name="sliderR" Minimum="0" Maximum="255" Value="255" Width="120" />
+                    <NumericUpDown x:Name="numR" Minimum="0" Maximum="255" Value="255" Width="60" FormatString="0" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,2">
+                    <TextBlock Text="G:" Width="20" VerticalAlignment="Center" />
+                    <Slider x:Name="sliderG" Minimum="0" Maximum="255" Value="255" Width="120" />
+                    <NumericUpDown x:Name="numG" Minimum="0" Maximum="255" Value="255" Width="60" FormatString="0" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,2">
+                    <TextBlock Text="B:" Width="20" VerticalAlignment="Center" />
+                    <Slider x:Name="sliderB" Minimum="0" Maximum="255" Value="255" Width="120" />
+                    <NumericUpDown x:Name="numB" Minimum="0" Maximum="255" Value="255" Width="60" FormatString="0" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,2">
+                    <TextBlock Text="A:" Width="20" VerticalAlignment="Center" />
+                    <Slider x:Name="sliderA" Minimum="0" Maximum="255" Value="255" Width="120" />
+                    <NumericUpDown x:Name="numA" Minimum="0" Maximum="255" Value="255" Width="60" FormatString="0" />
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal" Margin="0,5">
+                    <Button Content="Apply" x:Name="button_filter_apply"
+                            Width="95" Margin="0,0,5,0"
+                            Click="button_filter_apply_Click" />
+                    <Button Content="Reset" x:Name="button_filter_reset"
+                            Width="95"
+                            Click="button_filter_reset_Click" />
+                </StackPanel>
+            </StackPanel>
+
+            <!-- Properties list -->
+            <ScrollViewer Grid.Row="1">
+                <ItemsControl x:Name="propertyList">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="2">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="80" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding Key}" FontWeight="Bold"
+                                           Grid.Column="0" Margin="2" />
+                                <TextBlock Text="{Binding Value}"
+                                           Grid.Column="1" Margin="2" TextWrapping="Wrap" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Grid>
+    </Grid>
+</UserControl>

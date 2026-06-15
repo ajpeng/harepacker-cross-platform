@@ -1,0 +1,67 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:subpanels="clr-namespace:HaRepacker.GUI.Panels.SubPanels"
+             xmlns:models="clr-namespace:HaRepacker.Models"
+             x:Class="HaRepacker.GUI.Panels.MainPanel">
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="280" MinWidth="150" />
+            <ColumnDefinition Width="5" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- Left: WZ tree view -->
+        <Grid Grid.Column="0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="30" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- Search bar -->
+            <Grid Grid.Row="0" Background="#EEEEEE">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBox x:Name="searchBox" Grid.Column="0" Watermark="Search..." Margin="3"
+                         KeyDown="SearchBox_KeyDown" />
+                <Button Grid.Column="1" Content="X" Width="24" Margin="0,3,3,3"
+                        Click="ClearSearch_Click" />
+            </Grid>
+
+            <!-- Tree view of loaded WZ files -->
+            <TreeView x:Name="wzTreeView" Grid.Row="1"
+                      SelectionChanged="WzTreeView_SelectionChanged">
+                <TreeView.ItemTemplate>
+                    <TreeDataTemplate DataType="{x:Type models:WzNode}" ItemsSource="{Binding Nodes}">
+                        <TextBlock Text="{Binding Name}" />
+                    </TreeDataTemplate>
+                </TreeView.ItemTemplate>
+            </TreeView>
+
+            <!-- Loading indicator -->
+            <subpanels:LoadingPanel x:Name="loadingPanel" Grid.Row="2"
+                                    IsVisible="False" Height="60" />
+        </Grid>
+
+        <!-- Splitter -->
+        <GridSplitter Grid.Column="1" ResizeDirection="Columns"
+                      Background="#CCCCCC" Width="5" />
+
+        <!-- Right: Property / image viewer -->
+        <Grid Grid.Column="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!-- Content panels - one visible at a time -->
+            <Panel x:Name="contentHost" Grid.Row="0">
+                <subpanels:ImageRenderViewer x:Name="imageViewer" IsVisible="False" />
+                <subpanels:AvalonTextEditor x:Name="textEditor" IsVisible="False" />
+                <subpanels:XYPanel x:Name="xyPanel" IsVisible="False" />
+            </Panel>
+        </Grid>
+    </Grid>
+</UserControl>
