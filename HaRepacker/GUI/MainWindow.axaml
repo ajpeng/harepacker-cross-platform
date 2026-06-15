@@ -17,6 +17,9 @@
                 <MenuItem Header="_New WZ File…"              Click="OnNewClick"           HotKey="Ctrl+N" />
                 <MenuItem Header="_Save Selected…"            Click="OnSaveClick"          HotKey="Ctrl+S" />
                 <Separator />
+                <MenuItem Header="New _Tab"                   Click="OnNewTabClick"        HotKey="Ctrl+T" />
+                <MenuItem Header="Close Tab"                  Click="OnCloseTabClick"      HotKey="Ctrl+W" />
+                <Separator />
                 <MenuItem Header="Reload All"                 Click="OnReloadAllClick"     HotKey="F5" />
                 <MenuItem Header="Unload All"                 Click="OnUnloadAllClick" />
                 <Separator />
@@ -69,7 +72,7 @@
             <TextBlock x:Name="statusLabel" Text="Ready" Margin="5,2,0,0" FontSize="11" />
         </Panel>
 
-        <!-- Main content panel -->
-        <panels:MainPanel x:Name="mainPanel" />
+        <!-- Tab bar with one MainPanel per tab -->
+        <TabControl x:Name="tabControl" />
     </DockPanel>
 </Window>

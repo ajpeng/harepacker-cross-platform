@@ -1,9 +1,12 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Layout;
+using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using HaRepacker.GUI.Input;
+using HaRepacker.GUI.Panels;
 using HaRepacker.Models;
 using MapleLib.Configuration;
 using MapleLib.WzLib;
@@ -33,8 +36,14 @@ namespace HaRepacker.GUI
                     WindowState = Avalonia.Controls.WindowState.Maximized;
             }
 
+            // Create initial tab
+            var initialPanel = CreateNewTab("New Tab");
+
             if (wzToLoad != null)
-                mainPanel.OpenFile(wzToLoad);
+            {
+                initialPanel.OpenFile(wzToLoad);
+                UpdateActiveTabTitle(Path.GetFileName(wzToLoad));
+            }
 
             if (firstRun)
                 Opened += async (_, _) => await FirstRunFormWindow.ShowAsync(this);
@@ -59,6 +68,75 @@ namespace HaRepacker.GUI
             };
         }
 
+        // ── Tab management ────────────────────────────────────────────────────
+
+        private MainPanel? ActivePanel =>
+            (tabControl.SelectedItem as TabItem)?.Content as MainPanel;
+
+        private MainPanel CreateNewTab(string title = "New Tab")
+        {
+            var panel = new MainPanel();
+
+            var titleBlock = new TextBlock
+            {
+                Text = title,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            var closeBtn = new Button
+            {
+                Content = "×",
+                Padding = new Avalonia.Thickness(3, 0),
+                Margin = new Avalonia.Thickness(6, 0, 0, 0),
+                Background = Brushes.Transparent,
+                BorderThickness = new Avalonia.Thickness(0),
+                FontSize = 12
+            };
+            var header = new StackPanel { Orientation = Orientation.Horizontal };
+            header.Children.Add(titleBlock);
+            header.Children.Add(closeBtn);
+
+            var tab = new TabItem { Header = header, Content = panel, Tag = titleBlock };
+            closeBtn.Click += (_, _) => CloseTab(tab);
+
+            tabControl.Items.Add(tab);
+            tabControl.SelectedItem = tab;
+            return panel;
+        }
+
+        private void CloseTab(TabItem tab)
+        {
+            // Unload all WZ files in this tab's panel
+            if (tab.Content is MainPanel panel)
+            {
+                foreach (var node in panel.GetRootNodes().ToList())
+                    if (node.WzObject is WzFile wz)
+                        panel.UnloadWzFile(wz);
+            }
+
+            int idx = tabControl.Items.IndexOf(tab);
+            tabControl.Items.Remove(tab);
+
+            if (tabControl.Items.Count == 0)
+                CreateNewTab();
+            else
+                tabControl.SelectedIndex = Math.Min(idx, tabControl.Items.Count - 1);
+        }
+
+        private void UpdateActiveTabTitle(string name)
+        {
+            if (tabControl.SelectedItem is TabItem tab && tab.Tag is TextBlock tb)
+                tb.Text = name;
+        }
+
+        private void OnNewTabClick(object? sender, RoutedEventArgs e)
+            => CreateNewTab();
+
+        private void OnCloseTabClick(object? sender, RoutedEventArgs e)
+        {
+            if (tabControl.SelectedItem is TabItem tab)
+                CloseTab(tab);
+        }
+
         // ── File ──────────────────────────────────────────────────────────────
 
         private async void OnOpenClick(object? sender, RoutedEventArgs e)
@@ -78,8 +156,13 @@ namespace HaRepacker.GUI
             var (ok, version) = await InputDialogs.ShowWzMapleVersionAsync(this, "Select Encryption Type");
             if (!ok) return;
 
+            var panel = ActivePanel ?? CreateNewTab();
             foreach (var file in files)
-                mainPanel.OpenFile(file.TryGetLocalPath() ?? file.Path.LocalPath, version);
+            {
+                string path = file.TryGetLocalPath() ?? file.Path.LocalPath;
+                panel.OpenFile(path, version);
+                UpdateActiveTabTitle(Path.GetFileName(path));
+            }
         }
 
         private async void OnOpenVersionDirClick(object? sender, RoutedEventArgs e)
@@ -95,36 +178,40 @@ namespace HaRepacker.GUI
         }
 
         private async void OnNewClick(object? sender, RoutedEventArgs e)
-            => await NewFormWindow.ShowAsync(this, mainPanel);
+        {
+            var panel = ActivePanel ?? CreateNewTab();
+            await NewFormWindow.ShowAsync(this, panel);
+        }
 
         private async void OnSaveClick(object? sender, RoutedEventArgs e)
         {
-            if (mainPanel.SelectedNode is not Models.WzNode node)
+            var panel = ActivePanel;
+            if (panel == null) return;
+            if (panel.SelectedNode is not WzNode node)
             { Warning.Error("Please select a WZ file or image node first."); return; }
             if (node.WzObject is not WzFile && node.WzObject is not WzImage)
             { Warning.Error("Please select a root WZ file or WZ image node to save."); return; }
-            await SaveFormWindow.ShowAsync(this, mainPanel, node);
+            await SaveFormWindow.ShowAsync(this, panel, node);
         }
 
         private void OnReloadAllClick(object? sender, RoutedEventArgs e)
         {
-            var nodes = mainPanel.GetRootNodes().ToList();
-            foreach (var node in nodes)
-            {
+            var panel = ActivePanel;
+            if (panel == null) return;
+            foreach (var node in panel.GetRootNodes().ToList())
                 if (node.WzObject is WzFile wz)
-                    mainPanel.ReloadWzFile(wz);
-            }
+                    panel.ReloadWzFile(wz);
         }
 
         private void OnUnloadAllClick(object? sender, RoutedEventArgs e)
         {
-            if (!Warning.Warn("Unload all WZ files?")) return;
-            var nodes = mainPanel.GetRootNodes().ToList();
-            foreach (var node in nodes)
-            {
+            var panel = ActivePanel;
+            if (panel == null) return;
+            if (!Warning.Warn("Unload all WZ files in this tab?")) return;
+            foreach (var node in panel.GetRootNodes().ToList())
                 if (node.WzObject is WzFile wz)
-                    mainPanel.UnloadWzFile(wz);
-            }
+                    panel.UnloadWzFile(wz);
+            UpdateActiveTabTitle("New Tab");
         }
 
         private async void OnOptionsClick(object? sender, RoutedEventArgs e)
@@ -135,28 +222,32 @@ namespace HaRepacker.GUI
         // ── Edit ─────────────────────────────────────────────────────────────
 
         private void OnUndoClick(object? sender, RoutedEventArgs e)
-            => mainPanel.UndoMan?.Undo();
+            => ActivePanel?.UndoMan?.Undo();
 
         private void OnRedoClick(object? sender, RoutedEventArgs e)
-            => mainPanel.UndoMan?.Redo();
+            => ActivePanel?.UndoMan?.Redo();
 
         private void OnRemoveSelectedClick(object? sender, RoutedEventArgs e)
         {
-            if (mainPanel.UndoMan == null) return;
-            mainPanel.PromptRemoveSelectedTreeNodes(mainPanel.UndoMan);
+            var panel = ActivePanel;
+            if (panel?.UndoMan == null) return;
+            panel.PromptRemoveSelectedTreeNodes(panel.UndoMan);
         }
 
         private void OnCopyClick(object? sender, RoutedEventArgs e)
-            => mainPanel.DoCopy();
+            => ActivePanel?.DoCopy();
 
         private async void OnPasteClick(object? sender, RoutedEventArgs e)
-            => await mainPanel.DoPasteAsync(this);
+        {
+            if (ActivePanel is { } panel)
+                await panel.DoPasteAsync(this);
+        }
 
         private void OnExpandAllClick(object? sender, RoutedEventArgs e)
-            => mainPanel.ExpandAllNodes(true);
+            => ActivePanel?.ExpandAllNodes(true);
 
         private void OnCollapseAllClick(object? sender, RoutedEventArgs e)
-            => mainPanel.ExpandAllNodes(false);
+            => ActivePanel?.ExpandAllNodes(false);
 
         // ── Drag and drop ─────────────────────────────────────────────────────
 
@@ -182,13 +273,15 @@ namespace HaRepacker.GUI
             var (ok, version) = await InputDialogs.ShowWzMapleVersionAsync(this, "Select Encryption Type");
             if (!ok) return;
 
+            var panel = ActivePanel ?? CreateNewTab();
             foreach (var path in paths)
-                mainPanel.OpenFile(path, version);
+            {
+                panel.OpenFile(path, version);
+                UpdateActiveTabTitle(Path.GetFileName(path));
+            }
         }
 
         // ── Export ───────────────────────────────────────────────────────────
-
-        // ── Export from WZ files on disk ─────────────────────────────────────
 
         private async void OnExportXmlClick(object? sender, RoutedEventArgs e)
         {
@@ -221,11 +314,9 @@ namespace HaRepacker.GUI
             SetStatus("PNG/MP3 export complete.");
         }
 
-        // ── Export selected node ──────────────────────────────────────────────
-
         private async void OnExportSelectedXmlClick(object? sender, RoutedEventArgs e)
         {
-            var node = mainPanel.SelectedNode;
+            var node = ActivePanel?.SelectedNode;
             if (node?.WzObject == null) { Warning.Error("Please select a node to export."); return; }
 
             var saveResult = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
@@ -259,7 +350,7 @@ namespace HaRepacker.GUI
 
         private async void OnExportSelectedPngClick(object? sender, RoutedEventArgs e)
         {
-            var node = mainPanel.SelectedNode;
+            var node = ActivePanel?.SelectedNode;
             if (node?.WzObject == null) { Warning.Error("Please select a node to export."); return; }
             string outDir = await SavedFolderBrowser.ShowAsync(this, "Select output directory for PNGs/MP3s");
             if (string.IsNullOrEmpty(outDir)) return;
@@ -300,7 +391,7 @@ namespace HaRepacker.GUI
         }
 
         private async Task ExportSelectedDirsImgs(string title,
-            Func<MapleLib.Configuration.UserSettings, IWzImageSerializer> makeSerializer)
+            Func<UserSettings, IWzImageSerializer> makeSerializer)
         {
             string outDir = await SavedFolderBrowser.ShowAsync(this, title);
             if (string.IsNullOrEmpty(outDir)) return;
@@ -308,8 +399,8 @@ namespace HaRepacker.GUI
             var (dirs, imgs) = GetSelectedDirsAndImgs();
             if (dirs.Count == 0 && imgs.Count == 0) { Warning.Error("Please select WZ file, directory, or image nodes."); return; }
 
-            SetStatus($"Exporting…");
-            var cfg = Program.ConfigurationManager?.UserSettings ?? new MapleLib.Configuration.UserSettings();
+            SetStatus("Exporting…");
+            var cfg = Program.ConfigurationManager?.UserSettings ?? new UserSettings();
             var serializer = makeSerializer(cfg);
             await Task.Run(() => WzFileExporter.RunWzImgDirsExtraction(dirs, imgs, outDir, serializer));
             SetStatus("Export complete.");
@@ -319,7 +410,7 @@ namespace HaRepacker.GUI
         {
             var dirs = new List<WzDirectory>();
             var imgs = new List<WzImage>();
-            var node = mainPanel.SelectedNode;
+            var node = ActivePanel?.SelectedNode;
             if (node?.WzObject == null) return (dirs, imgs);
             if (node.WzObject is WzDirectory dir) dirs.Add(dir);
             else if (node.WzObject is WzImage img) imgs.Add(img);
@@ -351,7 +442,8 @@ namespace HaRepacker.GUI
 
         private async void OnImportXmlClick(object? sender, RoutedEventArgs e)
         {
-            var node = mainPanel.SelectedNode;
+            var panel = ActivePanel;
+            var node = panel?.SelectedNode;
             if (!IsValidImportTarget(node)) return;
 
             var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
@@ -368,13 +460,14 @@ namespace HaRepacker.GUI
             string[] paths = files.Select(f => f.TryGetLocalPath() ?? f.Path.LocalPath).ToArray();
 
             SetStatus("Importing XML…");
-            await RunImporterAsync(node, paths, deserializer, null);
+            await RunImporterAsync(panel!, node, paths, deserializer, null);
             SetStatus("XML import complete.");
         }
 
         private async void OnImportImgClick(object? sender, RoutedEventArgs e)
         {
-            var node = mainPanel.SelectedNode;
+            var panel = ActivePanel;
+            var node = panel?.SelectedNode;
             if (!IsValidImportTarget(node)) return;
 
             var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
@@ -393,7 +486,7 @@ namespace HaRepacker.GUI
             string[] paths = files.Select(f => f.TryGetLocalPath() ?? f.Path.LocalPath).ToArray();
 
             SetStatus("Importing IMG…");
-            await RunImporterAsync(node, paths, deserializer, iv);
+            await RunImporterAsync(panel!, node, paths, deserializer, iv);
             SetStatus("IMG import complete.");
         }
 
@@ -408,7 +501,7 @@ namespace HaRepacker.GUI
             return true;
         }
 
-        private async Task RunImporterAsync(WzNode parentNode, string[] filePaths,
+        private async Task RunImporterAsync(MainPanel panel, WzNode parentNode, string[] filePaths,
             ProgressingWzSerializer deserializer, byte[]? iv)
         {
             ReplaceResult replaceAll = ReplaceResult.NoneSelectedYet;
@@ -454,7 +547,7 @@ namespace HaRepacker.GUI
                         existing.DeleteNode();
                         parentNode.Nodes.Remove(existing);
                     }
-                    parentNode.AddObject(obj, mainPanel.UndoMan);
+                    parentNode.AddObject(obj, panel.UndoMan);
                 }
             }
             MapleLib.Helpers.ErrorLogger.SaveToFile("WzImport_Errors.txt");
