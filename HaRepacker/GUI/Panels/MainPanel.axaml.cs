@@ -194,7 +194,51 @@ namespace HaRepacker.GUI.Panels
 
         private void SearchBox_KeyDown(object? sender, KeyEventArgs e)
         {
-            // TODO: implement search
+            if (e.Key != Key.Enter) return;
+            string query = searchBox.Text?.Trim() ?? "";
+            if (string.IsNullOrEmpty(query)) return;
+            // Find first node whose name contains the query (case-insensitive, depth-first)
+            var found = FindNodeByName(_rootNodes, query);
+            if (found != null)
+                ExpandToNode(found);
+            else
+                Warning.Error($"No node matching \"{query}\" found.");
+        }
+
+        private static WzNode? FindNodeByName(IEnumerable<WzNode> nodes, string query)
+        {
+            foreach (var node in nodes)
+            {
+                if (node.Name.Contains(query, StringComparison.OrdinalIgnoreCase))
+                    return node;
+                var found = FindNodeByName(node.Nodes, query);
+                if (found != null) return found;
+            }
+            return null;
+        }
+
+        private void ExpandToNode(WzNode target)
+        {
+            // Expand the path from root to target so it's visible in the tree
+            var path = new List<WzNode>();
+            BuildPath(target, _rootNodes, path);
+            foreach (var n in path) n.IsExpanded = true;
+            // Select the target
+            wzTreeView.SelectedItem = target;
+        }
+
+        private bool BuildPath(WzNode target, IEnumerable<WzNode> nodes, List<WzNode> path)
+        {
+            foreach (var node in nodes)
+            {
+                if (node == target) return true;
+                if (BuildPath(target, node.Nodes, path))
+                {
+                    path.Insert(0, node);
+                    return true;
+                }
+            }
+            return false;
         }
 
         private void ClearSearch_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
