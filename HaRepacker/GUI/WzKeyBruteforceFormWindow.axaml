@@ -1,0 +1,31 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="HaRepacker.GUI.WzKeyBruteforceFormWindow"
+        Title="WZ Key Brute-forcer"
+        Width="460" Height="200"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+    <Border Padding="14">
+        <StackPanel Spacing="10">
+            <TextBlock Text="Select a WZ file (use smallest possible, e.g. TamingMob.wz) to find its IV encryption key via brute-force."
+                       TextWrapping="Wrap" />
+
+            <Grid ColumnDefinitions="Auto,*">
+                <TextBlock Grid.Column="0" Text="IV Tries:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <TextBlock x:Name="label_ivTries" Grid.Column="1" Text="0" />
+            </Grid>
+            <Grid ColumnDefinitions="Auto,*">
+                <TextBlock Grid.Column="0" Text="Duration:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <TextBlock x:Name="label_duration" Grid.Column="1" Text="—" />
+            </Grid>
+            <Grid ColumnDefinitions="Auto,*">
+                <TextBlock Grid.Column="0" Text="Found Key:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <TextBlock x:Name="label_key" Grid.Column="1" Text="(not found yet)" />
+            </Grid>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                <Button x:Name="button_startStop" Content="Start brute-forcing" Width="160" Click="OnStartStopClick" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</Window>
