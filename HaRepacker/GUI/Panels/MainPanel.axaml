@@ -33,7 +33,8 @@
 
             <!-- Tree view of loaded WZ files -->
             <TreeView x:Name="wzTreeView" Grid.Row="1"
-                      SelectionChanged="WzTreeView_SelectionChanged">
+                      SelectionChanged="WzTreeView_SelectionChanged"
+                      PointerReleased="WzTreeView_PointerReleased">
                 <TreeView.ItemTemplate>
                     <TreeDataTemplate DataType="{x:Type models:WzNode}" ItemsSource="{Binding Nodes}">
                         <TextBlock Text="{Binding Name}" />

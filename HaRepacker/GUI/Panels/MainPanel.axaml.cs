@@ -12,11 +12,24 @@ namespace HaRepacker.GUI.Panels
     public partial class MainPanel : UserControl
     {
         private readonly ObservableCollection<WzNode> _rootNodes = new ObservableCollection<WzNode>();
+        public UndoRedoManager? UndoMan => _undoMan;
+        private UndoRedoManager? _undoMan;
+        private ContextMenuManager? _contextMenuManager;
 
         public MainPanel()
         {
             InitializeComponent();
             wzTreeView.ItemsSource = _rootNodes;
+            _undoMan = new UndoRedoManager(this);
+            _contextMenuManager = new ContextMenuManager(this, _undoMan);
+        }
+
+        private void WzTreeView_PointerReleased(object? sender, Avalonia.Input.PointerReleasedEventArgs e)
+        {
+            if (e.InitialPressMouseButton != Avalonia.Input.MouseButton.Right) return;
+            if (SelectedNode is not WzNode node || node.WzObject == null) return;
+            var menu = _contextMenuManager!.CreateMenu(node, node.WzObject);
+            menu.Open(wzTreeView);
         }
 
         public void OpenFile(string path)

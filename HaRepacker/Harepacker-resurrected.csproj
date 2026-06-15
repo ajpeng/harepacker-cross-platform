@@ -27,8 +27,8 @@
     <Compile Remove="TreeViewMS.resx" />
     <!-- UndoRedoManager.cs: ported to use HaRepacker.Models.WzNode -->
     <Compile Remove="ContextMenuManager.cs" />
-    <Compile Remove="SavedFolderBrowser.cs" />
-    <Compile Remove="AnimationBuilder.cs" />
+    <!-- SavedFolderBrowser.cs: ported to Avalonia StorageProvider async API -->
+    <Compile Remove="AnimationBuilder.cs" /><!-- excluded until APNG export is implemented cross-platform -->
 
     <!-- Root-level WinForms-coupled files (Warning.cs is now cross-platform, kept) -->
 

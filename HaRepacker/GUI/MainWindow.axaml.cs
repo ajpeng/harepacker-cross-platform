@@ -1,5 +1,8 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Platform.Storage;
+using HaRepacker.GUI.Input;
+using System.Threading.Tasks;
 
 namespace HaRepacker.GUI
 {
@@ -13,9 +16,37 @@ namespace HaRepacker.GUI
                 mainPanel.OpenFile(wzToLoad);
         }
 
-        private void OnExitClick(object? sender, RoutedEventArgs e)
+        private async void OnOpenClick(object? sender, RoutedEventArgs e)
         {
-            Close();
+            var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = "Open WZ File",
+                AllowMultiple = true,
+                FileTypeFilter = new[]
+                {
+                    new FilePickerFileType("WZ Files") { Patterns = new[] { "*.wz" } },
+                    new FilePickerFileType("All Files") { Patterns = new[] { "*.*" } }
+                }
+            });
+
+            if (files.Count == 0) return;
+
+            var (ok, version) = await InputDialogs.ShowWzMapleVersionAsync(this, "Select Encryption Type");
+            if (!ok) return;
+
+            foreach (var file in files)
+            {
+                string path = file.TryGetLocalPath() ?? file.Path.LocalPath;
+                mainPanel.OpenFile(path, version);
+            }
         }
+
+        private void OnUndoClick(object? sender, RoutedEventArgs e)
+            => mainPanel.UndoMan?.Undo();
+
+        private void OnRedoClick(object? sender, RoutedEventArgs e)
+            => mainPanel.UndoMan?.Redo();
+
+        private void OnExitClick(object? sender, RoutedEventArgs e) => Close();
     }
 }

@@ -10,15 +10,15 @@
         <!-- Top menu bar -->
         <Menu DockPanel.Dock="Top">
             <MenuItem Header="_File">
-                <MenuItem Header="_Open" x:Name="menu_Open" />
+                <MenuItem Header="_Open WZ File…" x:Name="menu_Open" Click="OnOpenClick" />
                 <MenuItem Header="_Save" x:Name="menu_Save" />
                 <MenuItem Header="_Close" x:Name="menu_Close" />
                 <Separator />
                 <MenuItem Header="E_xit" x:Name="menu_Exit" Click="OnExitClick" />
             </MenuItem>
             <MenuItem Header="_Edit">
-                <MenuItem Header="_Undo" x:Name="menu_Undo" />
-                <MenuItem Header="_Redo" x:Name="menu_Redo" />
+                <MenuItem Header="_Undo" x:Name="menu_Undo" Click="OnUndoClick" />
+                <MenuItem Header="_Redo" x:Name="menu_Redo" Click="OnRedoClick" />
             </MenuItem>
             <MenuItem Header="_Help">
                 <MenuItem Header="_About" x:Name="menu_About" />

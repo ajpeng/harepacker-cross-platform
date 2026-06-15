@@ -1,21 +1,34 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Windows.Forms;
+using Avalonia.Controls;
+using Avalonia.Platform.Storage;
+using System.Threading.Tasks;
 
 namespace HaRepacker
 {
     public static class SavedFolderBrowser
     {
-        public static string Show(string description)
+        public static async Task<string> ShowAsync(Window owner, string description)
         {
-            FolderBrowserDialog dialog = new FolderBrowserDialog() { Description = description };
-            if (Program.ConfigurationManager.ApplicationSettings.LastBrowserPath != "")
-                dialog.SelectedPath = Program.ConfigurationManager.ApplicationSettings.LastBrowserPath;
-            if (dialog.ShowDialog() != DialogResult.OK)
-                return "";
-            return Program.ConfigurationManager.ApplicationSettings.LastBrowserPath = dialog.SelectedPath;
+            var folders = await owner.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+            {
+                Title = description,
+                AllowMultiple = false,
+                SuggestedStartLocation = await TryGetSuggestedFolder(owner)
+            });
+
+            if (folders.Count == 0) return "";
+
+            string path = folders[0].TryGetLocalPath() ?? folders[0].Path.LocalPath;
+            if (Program.ConfigurationManager != null)
+                Program.ConfigurationManager.ApplicationSettings.LastBrowserPath = path;
+            return path;
+        }
+
+        private static async Task<IStorageFolder?> TryGetSuggestedFolder(Window owner)
+        {
+            string? last = Program.ConfigurationManager?.ApplicationSettings?.LastBrowserPath;
+            if (string.IsNullOrEmpty(last)) return null;
+            try { return await owner.StorageProvider.TryGetFolderFromPathAsync(last); }
+            catch { return null; }
         }
     }
 }
