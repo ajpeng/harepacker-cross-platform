@@ -12,26 +12,26 @@
         <!-- Top menu bar -->
         <Menu DockPanel.Dock="Top">
             <MenuItem Header="_File">
-                <MenuItem Header="_Open WZ File…"             Click="OnOpenClick" />
+                <MenuItem Header="_Open WZ File…"             Click="OnOpenClick"         HotKey="Ctrl+O" />
                 <MenuItem Header="Open _Version Directory…"   Click="OnOpenVersionDirClick" />
-                <MenuItem Header="_New WZ File…"              Click="OnNewClick" />
-                <MenuItem Header="_Save Selected…"            Click="OnSaveClick" />
+                <MenuItem Header="_New WZ File…"              Click="OnNewClick"           HotKey="Ctrl+N" />
+                <MenuItem Header="_Save Selected…"            Click="OnSaveClick"          HotKey="Ctrl+S" />
                 <Separator />
-                <MenuItem Header="Reload All"                  Click="OnReloadAllClick" />
-                <MenuItem Header="Unload All"                  Click="OnUnloadAllClick" />
+                <MenuItem Header="Reload All"                 Click="OnReloadAllClick"     HotKey="F5" />
+                <MenuItem Header="Unload All"                 Click="OnUnloadAllClick" />
                 <Separator />
                 <MenuItem Header="_Options…"                  Click="OnOptionsClick" />
                 <Separator />
-                <MenuItem Header="E_xit"                       Click="OnExitClick" />
+                <MenuItem Header="E_xit"                      Click="OnExitClick" />
             </MenuItem>
             <MenuItem Header="_Edit">
-                <MenuItem Header="_Undo"            Click="OnUndoClick" />
-                <MenuItem Header="_Redo"            Click="OnRedoClick" />
+                <MenuItem Header="_Undo"            Click="OnUndoClick"         HotKey="Ctrl+Z" />
+                <MenuItem Header="_Redo"            Click="OnRedoClick"         HotKey="Ctrl+Y" />
                 <Separator />
-                <MenuItem Header="_Copy"            Click="OnCopyClick" />
-                <MenuItem Header="_Paste"           Click="OnPasteClick" />
+                <MenuItem Header="_Copy"            Click="OnCopyClick"         HotKey="Ctrl+C" />
+                <MenuItem Header="_Paste"           Click="OnPasteClick"        HotKey="Ctrl+V" />
                 <Separator />
-                <MenuItem Header="Remove Selected"  Click="OnRemoveSelectedClick" />
+                <MenuItem Header="Remove Selected"  Click="OnRemoveSelectedClick" HotKey="Delete" />
                 <Separator />
                 <MenuItem Header="Expand All"       Click="OnExpandAllClick" />
                 <MenuItem Header="Collapse All"     Click="OnCollapseAllClick" />
