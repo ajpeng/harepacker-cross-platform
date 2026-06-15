@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
@@ -116,11 +117,45 @@ namespace HaRepacker.GUI
             mainPanel.PromptRemoveSelectedTreeNodes(mainPanel.UndoMan);
         }
 
+        private void OnCopyClick(object? sender, RoutedEventArgs e)
+            => mainPanel.DoCopy();
+
+        private async void OnPasteClick(object? sender, RoutedEventArgs e)
+            => await mainPanel.DoPasteAsync(this);
+
         private void OnExpandAllClick(object? sender, RoutedEventArgs e)
             => mainPanel.ExpandAllNodes(true);
 
         private void OnCollapseAllClick(object? sender, RoutedEventArgs e)
             => mainPanel.ExpandAllNodes(false);
+
+        // ── Drag and drop ─────────────────────────────────────────────────────
+
+        private void OnDragEnter(object? sender, DragEventArgs e)
+        {
+            e.DragEffects = e.Data.Contains(DataFormats.Files)
+                ? DragDropEffects.Copy
+                : DragDropEffects.None;
+        }
+
+        private async void OnFileDrop(object? sender, DragEventArgs e)
+        {
+            var files = e.Data.GetFiles();
+            if (files == null) return;
+
+            var paths = files
+                .Select(f => f.TryGetLocalPath())
+                .Where(p => p != null && p.EndsWith(".wz", StringComparison.OrdinalIgnoreCase))
+                .Cast<string>()
+                .ToList();
+            if (paths.Count == 0) return;
+
+            var (ok, version) = await InputDialogs.ShowWzMapleVersionAsync(this, "Select Encryption Type");
+            if (!ok) return;
+
+            foreach (var path in paths)
+                mainPanel.OpenFile(path, version);
+        }
 
         // ── Export ───────────────────────────────────────────────────────────
 

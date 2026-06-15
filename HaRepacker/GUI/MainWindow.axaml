@@ -6,7 +6,9 @@
         Width="1280" Height="800"
         WindowStartupLocation="CenterScreen"
         MinWidth="800" MinHeight="500">
-    <DockPanel>
+    <DockPanel DragDrop.AllowDrop="True"
+               DragDrop.Drop="OnFileDrop"
+               DragDrop.DragEnter="OnDragEnter">
         <!-- Top menu bar -->
         <Menu DockPanel.Dock="Top">
             <MenuItem Header="_File">
@@ -25,6 +27,9 @@
             <MenuItem Header="_Edit">
                 <MenuItem Header="_Undo"            Click="OnUndoClick" />
                 <MenuItem Header="_Redo"            Click="OnRedoClick" />
+                <Separator />
+                <MenuItem Header="_Copy"            Click="OnCopyClick" />
+                <MenuItem Header="_Paste"           Click="OnPasteClick" />
                 <Separator />
                 <MenuItem Header="Remove Selected"  Click="OnRemoveSelectedClick" />
                 <Separator />

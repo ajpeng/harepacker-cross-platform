@@ -1,6 +1,8 @@
 using Avalonia.Controls;
 using Avalonia.Input;
+using HaRepacker.GUI.Input;
 using HaRepacker.Models;
+using MapleLib.Helpers;
 using MapleLib.WzLib;
 using MapleLib.WzLib.WzProperties;
 using System.Collections.Generic;
@@ -199,6 +201,81 @@ namespace HaRepacker.GUI.Panels
             node.IsExpanded = expand;
             foreach (var child in node.Nodes)
                 SetExpanded(child, expand);
+        }
+
+        // ── Copy / Paste ─────────────────────────────────────────────────────
+
+        private static readonly List<WzObject> _clipboard = new();
+        private bool _pasteTaskActive = false;
+
+        public void DoCopy()
+        {
+            if (!Warning.Warn("Copy the selected node(s) to the clipboard?")) return;
+            if (_pasteTaskActive) return;
+
+            foreach (var obj in _clipboard) obj.Dispose();
+            _clipboard.Clear();
+
+            if (SelectedNode?.WzObject is WzObject wzObj)
+            {
+                var clone = CloneWzObject(wzObj);
+                if (clone != null) _clipboard.Add(clone);
+            }
+        }
+
+        public async System.Threading.Tasks.Task DoPasteAsync(Avalonia.Controls.Window owner)
+        {
+            if (!Warning.Warn("Paste clipboard contents into the selected node?")) return;
+            if (_pasteTaskActive || _clipboard.Count == 0) return;
+
+            var parentNode = SelectedNode;
+            if (parentNode == null) return;
+            var parentObj = parentNode.WzObject is WzFile wf ? wf.WzDirectory : parentNode.WzObject;
+
+            _pasteTaskActive = true;
+            var replaceAll = ReplaceResult.NoneSelectedYet;
+            try
+            {
+                foreach (var obj in _clipboard)
+                {
+                    if (!((obj is WzDirectory || obj is WzImage) && parentObj is WzDirectory)
+                        && !(obj is WzImageProperty && parentObj is IPropertyContainer))
+                        continue;
+
+                    var clone = CloneWzObject(obj);
+                    if (clone == null) continue;
+
+                    var existing = WzNode.GetChildNode(parentNode, clone.Name);
+                    if (existing != null)
+                    {
+                        bool replace;
+                        if (replaceAll == ReplaceResult.YesToAll) replace = true;
+                        else if (replaceAll == ReplaceResult.NoToAll) break;
+                        else
+                        {
+                            var (_, result) = await InputDialogs.ShowReplaceAsync(owner, clone.Name);
+                            if (result == ReplaceResult.YesToAll) replaceAll = ReplaceResult.YesToAll;
+                            else if (result == ReplaceResult.NoToAll) { replaceAll = ReplaceResult.NoToAll; break; }
+                            replace = result == ReplaceResult.Yes || result == ReplaceResult.YesToAll;
+                        }
+                        if (!replace) continue;
+                        existing.DeleteNode();
+                        parentNode.Nodes.Remove(existing);
+                    }
+                    parentNode.AddObject(clone, _undoMan);
+                }
+            }
+            finally { _pasteTaskActive = false; }
+        }
+
+        private static WzObject? CloneWzObject(WzObject obj)
+        {
+            if (obj is WzDirectory)
+            { Warning.Error("WZ directories cannot be copied."); return null; }
+            if (obj is WzImage img) return img.DeepClone();
+            if (obj is WzImageProperty prop) return prop.DeepClone();
+            ErrorLogger.Log(ErrorLevel.MissingFeature, $"Cannot clone WzObject type: {obj.GetType().Name}");
+            return null;
         }
 
         public void SortNodesRecursively(WzNode node, bool viewOnly)
