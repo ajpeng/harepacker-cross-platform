@@ -1,0 +1,61 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="HaRepacker.GUI.WzStringSearchFormWindow"
+        Title="WZ String Search"
+        Width="900" Height="640"
+        WindowStartupLocation="CenterOwner">
+    <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="8">
+
+        <!-- Load data row -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8" Margin="0,0,0,6">
+            <Button Content="Load Base.wz directory…" Click="OnLoadClick" />
+            <TextBlock x:Name="versionLabel" VerticalAlignment="Center" Foreground="Gray"
+                       Text="No WZ data loaded" />
+        </StackPanel>
+
+        <!-- Search + categories -->
+        <StackPanel Grid.Row="1" Spacing="6">
+            <Grid ColumnDefinitions="Auto,*">
+                <TextBlock Grid.Column="0" Text="Search:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <TextBox x:Name="textBox_itemidFind" Grid.Column="1" Watermark="Enter item name, map name, NPC, quest, skill…"
+                         TextChanged="OnSearchTextChanged" />
+            </Grid>
+            <WrapPanel>
+                <CheckBox x:Name="checkBox_searcheq"    Content="Equip"  IsChecked="True" Margin="0,0,12,0" />
+                <CheckBox x:Name="checkBox_searchuse"   Content="Use"    IsChecked="True" Margin="0,0,12,0" />
+                <CheckBox x:Name="checkBox_searchsetup" Content="Setup"  IsChecked="True" Margin="0,0,12,0" />
+                <CheckBox x:Name="checkBox_searchetc"   Content="Etc"    IsChecked="True" Margin="0,0,12,0" />
+                <CheckBox x:Name="checkBox_searchcash"  Content="Cash"   IsChecked="True" Margin="0,0,12,0" />
+                <CheckBox x:Name="checkBox_searchquest" Content="Quests" IsChecked="True" Margin="0,0,12,0" />
+                <CheckBox x:Name="checkBox_searchNPC"   Content="NPCs"   IsChecked="True" Margin="0,0,12,0" />
+                <CheckBox x:Name="checkBox_searchMaps"  Content="Maps"   IsChecked="True" Margin="0,0,12,0" />
+                <CheckBox x:Name="checkbox_searchSkill" Content="Skills" IsChecked="True" Margin="0,0,12,0" />
+                <CheckBox x:Name="checkBox_searchJobs"  Content="Jobs"   IsChecked="True" Margin="0,0,12,0" />
+            </WrapPanel>
+            <ComboBox x:Name="comboBox_hexlist" HorizontalAlignment="Stretch"
+                      SelectionChanged="OnHexListSelectionChanged" />
+        </StackPanel>
+
+        <!-- Result display -->
+        <Grid Grid.Row="2" RowDefinitions="Auto,*,Auto,*" Margin="0,6,0,0">
+            <TextBlock Grid.Row="0" Text="Name:" FontWeight="SemiBold" />
+            <TextBox Grid.Row="1" x:Name="label_itemname" IsReadOnly="True"
+                     AcceptsReturn="True" TextWrapping="Wrap" />
+            <TextBlock Grid.Row="2" Text="Description:" FontWeight="SemiBold" Margin="0,4,0,0" />
+            <TextBox Grid.Row="3" x:Name="label_itemdesc" IsReadOnly="True"
+                     AcceptsReturn="True" TextWrapping="Wrap" Foreground="DarkRed" />
+        </Grid>
+
+        <!-- ID to Hex converter -->
+        <StackPanel Grid.Row="3" Spacing="6" Margin="0,8,0,0">
+            <TextBlock Text="Integer → Little-Endian Hex (auto-copies to clipboard):" FontWeight="SemiBold" />
+            <Grid ColumnDefinitions="Auto,*,Auto,*">
+                <TextBlock Grid.Column="0" Text="Integer:" VerticalAlignment="Center" Margin="0,0,6,0" />
+                <TextBox x:Name="textBox6" Grid.Column="1" Watermark="e.g. 2000000"
+                         TextChanged="OnIntegerTextChanged" />
+                <TextBlock Grid.Column="2" Text="Hex:" VerticalAlignment="Center" Margin="12,0,6,0" />
+                <TextBox x:Name="textBox5" Grid.Column="3" IsReadOnly="True" />
+            </Grid>
+        </StackPanel>
+    </Grid>
+</Window>

@@ -54,7 +54,7 @@
     <Compile Remove="GUI\WzKeyBruteforceForm.designer.cs" />
     <Compile Remove="GUI\WzStringSearchForm.cs" />
     <Compile Remove="GUI\WzStringSearchForm.Designer.cs" />
-    <Compile Remove="GUI\WzStringSearchFormDataCache.cs" />
+    <!-- WzStringSearchFormDataCache.cs: ported (WinForms deps removed) -->
     <Compile Remove="GUI\ZLZPacketEncryptionKeyForm.cs" />
     <Compile Remove="GUI\ZLZPacketEncryptionKeyForm.designer.cs" />
     <!-- GUI\ContextMenuManager.cs: ported to Avalonia MenuItem/ContextMenu -->
