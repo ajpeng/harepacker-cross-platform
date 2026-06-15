@@ -30,8 +30,7 @@
     <Compile Remove="SavedFolderBrowser.cs" />
     <Compile Remove="AnimationBuilder.cs" />
 
-    <!-- Root-level WinForms-coupled files -->
-    <Compile Remove="Warning.cs" />
+    <!-- Root-level WinForms-coupled files (Warning.cs is now cross-platform, kept) -->
 
     <!-- GUI root forms -->
     <Compile Remove="GUI\AboutForm.cs" />
