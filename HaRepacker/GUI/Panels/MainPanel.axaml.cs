@@ -93,6 +93,7 @@ namespace HaRepacker.GUI.Panels
             textEditor.IsVisible = false;
             xyPanel.IsVisible = false;
             valuePanel.IsVisible = false;
+            valueBox.IsEnabled = true;
             if (obj == null) return;
 
             if (obj is WzCanvasProperty canvas)
