@@ -10,17 +10,33 @@
         <!-- Top menu bar -->
         <Menu DockPanel.Dock="Top">
             <MenuItem Header="_File">
-                <MenuItem Header="_Open WZ File…" Click="OnOpenClick" />
-                <MenuItem Header="_New WZ File…" Click="OnNewClick" />
-                <MenuItem Header="_Save Selected…" Click="OnSaveClick" />
+                <MenuItem Header="_Open WZ File…"             Click="OnOpenClick" />
+                <MenuItem Header="Open _Version Directory…"   Click="OnOpenVersionDirClick" />
+                <MenuItem Header="_New WZ File…"              Click="OnNewClick" />
+                <MenuItem Header="_Save Selected…"            Click="OnSaveClick" />
                 <Separator />
-                <MenuItem Header="_Options…" Click="OnOptionsClick" />
+                <MenuItem Header="Reload All"                  Click="OnReloadAllClick" />
+                <MenuItem Header="Unload All"                  Click="OnUnloadAllClick" />
                 <Separator />
-                <MenuItem Header="E_xit" Click="OnExitClick" />
+                <MenuItem Header="_Options…"                  Click="OnOptionsClick" />
+                <Separator />
+                <MenuItem Header="E_xit"                       Click="OnExitClick" />
             </MenuItem>
             <MenuItem Header="_Edit">
-                <MenuItem Header="_Undo" Click="OnUndoClick" />
-                <MenuItem Header="_Redo" Click="OnRedoClick" />
+                <MenuItem Header="_Undo"         Click="OnUndoClick" />
+                <MenuItem Header="_Redo"         Click="OnRedoClick" />
+                <Separator />
+                <MenuItem Header="Remove Selected" Click="OnRemoveSelectedClick" />
+            </MenuItem>
+            <MenuItem Header="E_xport">
+                <MenuItem Header="WZ Files as _XML…"  Click="OnExportXmlClick" />
+                <MenuItem Header="WZ Files as I_MG…"  Click="OnExportImgClick" />
+            </MenuItem>
+            <MenuItem Header="_Tools">
+                <MenuItem Header="_WZ String Search…"         Click="OnWzStringSearchClick" />
+                <MenuItem Header="WZ _Key Brute-force…"       Click="OnWzKeyBruteforceClick" />
+                <MenuItem Header="_Custom WZ Encryption…"     Click="OnCustomEncryptionClick" />
+                <MenuItem Header="_Pack IMG Files to WZ…"     Click="OnPackToWzClick" />
             </MenuItem>
             <MenuItem Header="_Help">
                 <MenuItem Header="_About…" Click="OnAboutClick" />

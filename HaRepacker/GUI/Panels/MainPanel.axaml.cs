@@ -3,6 +3,7 @@ using Avalonia.Input;
 using HaRepacker.Models;
 using MapleLib.WzLib;
 using MapleLib.WzLib.WzProperties;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
@@ -99,6 +100,8 @@ namespace HaRepacker.GUI.Panels
         }
 
         public WzNode? SelectedNode => wzTreeView.SelectedItem as WzNode;
+
+        public IEnumerable<WzNode> GetRootNodes() => _rootNodes;
 
         public void AddRootNode(WzObject wzObject)
         {
