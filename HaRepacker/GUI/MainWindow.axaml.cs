@@ -37,7 +37,7 @@ namespace HaRepacker.GUI
                 mainPanel.OpenFile(wzToLoad);
 
             if (firstRun)
-                _ = FirstRunFormWindow.ShowAsync(this);
+                Opened += async (_, _) => await FirstRunFormWindow.ShowAsync(this);
 
             // Persist window size/state changes
             this.PropertyChanged += (_, args) =>
