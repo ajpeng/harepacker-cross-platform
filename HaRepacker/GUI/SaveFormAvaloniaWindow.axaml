@@ -1,0 +1,53 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="HaRepacker.GUI.SaveFormWindow"
+        Title="Save WZ File"
+        Width="420" Height="300"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+    <Border Padding="14">
+        <StackPanel Spacing="10">
+            <!-- Format selection -->
+            <TextBlock Text="Save As:" FontWeight="SemiBold" />
+            <StackPanel Spacing="6" Margin="8,0,0,0">
+                <RadioButton x:Name="radioWzFile" Content="WZ File (.wz)" IsChecked="True"
+                             GroupName="format" IsCheckedChanged="OnFormatChanged" />
+                <RadioButton x:Name="radioMsFile" Content="MS File (.ms)"
+                             GroupName="format" IsCheckedChanged="OnFormatChanged" />
+            </StackPanel>
+
+            <!-- WZ options panel -->
+            <StackPanel x:Name="panelWzOptions" Spacing="8">
+                <TextBlock Text="WZ Options:" FontWeight="SemiBold" />
+                <Grid Margin="8,0,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Encryption:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <ComboBox x:Name="encryptionBox" Grid.Row="0" Grid.Column="1"
+                              HorizontalAlignment="Stretch" SelectionChanged="OnEncryptionChanged" />
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Version:" VerticalAlignment="Center" Margin="0,6,8,0" />
+                    <NumericUpDown x:Name="versionBox" Grid.Row="1" Grid.Column="1"
+                                   Minimum="1" Maximum="9999" Value="1"
+                                   FormatString="0" Margin="0,6,0,0" />
+                    <CheckBox x:Name="check64Bit" Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2"
+                              Content="64-bit WZ file (version forced to 777)"
+                              Margin="0,6,0,0"
+                              IsCheckedChanged="On64BitChanged" />
+                </Grid>
+            </StackPanel>
+
+            <!-- Buttons -->
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                <Button Content="Save…" Width="100" Click="OnSaveClick" />
+                <Button Content="Cancel" Width="80" Click="OnCancelClick" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</Window>

@@ -1,0 +1,25 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="HaRepacker.GUI.AboutFormWindow"
+        Title="About HaRepacker"
+        Width="400" Height="220"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+    <Border Padding="20">
+        <StackPanel Spacing="12">
+            <TextBlock Text="HaRepacker — Resurrected (Cross-Platform)"
+                       FontSize="16" FontWeight="Bold" TextWrapping="Wrap" />
+            <TextBlock Text="A MapleStory .wz file and map editor suite."
+                       TextWrapping="Wrap" />
+            <TextBlock Text="Original: lastbattle/Harepacker-resurrected"
+                       Foreground="Blue" Cursor="Hand"
+                       PointerPressed="OnLinkClick"
+                       TextWrapping="Wrap" />
+            <TextBlock Text="Cross-platform port targeting net10.0 (macOS/Linux/Windows)."
+                       TextWrapping="Wrap" FontSize="11" Foreground="Gray" />
+            <Button Content="Close" Width="80"
+                    HorizontalAlignment="Right"
+                    Click="OnCloseClick" />
+        </StackPanel>
+    </Border>
+</Window>

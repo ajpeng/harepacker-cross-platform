@@ -1,0 +1,58 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="HaRepacker.GUI.OptionsFormWindow"
+        Title="Options"
+        Width="440" Height="370"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+    <Border Padding="14">
+        <StackPanel Spacing="10">
+            <CheckBox x:Name="sortBox" Content="Sort nodes automatically" />
+            <CheckBox x:Name="loadRelated" Content="Auto-load related WZ files" />
+            <CheckBox x:Name="suppressWarnings" Content="Suppress confirmation warnings" />
+
+            <!-- XML export folder -->
+            <StackPanel Spacing="6">
+                <CheckBox x:Name="defXmlFolderEnable" Content="Use default XML export folder:"
+                          IsCheckedChanged="OnDefXmlFolderToggle" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="defXmlFolderBox" Grid.Column="0" IsEnabled="False" Watermark="Folder path" />
+                    <Button x:Name="browseBtn" Grid.Column="1" Content="Browse…" Margin="6,0,0,0"
+                            IsEnabled="False" Click="OnBrowseClick" />
+                </Grid>
+            </StackPanel>
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="Indentation:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <NumericUpDown x:Name="indentBox" Grid.Column="1" Minimum="0" Maximum="20"
+                               Value="4" FormatString="0" />
+            </Grid>
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="Line breaks:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <ComboBox x:Name="lineBreakBox" Grid.Column="1" HorizontalAlignment="Stretch">
+                    <ComboBoxItem>None</ComboBoxItem>
+                    <ComboBoxItem>Windows (CRLF)</ComboBoxItem>
+                    <ComboBoxItem>Unix (LF)</ComboBoxItem>
+                </ComboBox>
+            </Grid>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                <Button Content="OK" Width="80" Click="OnOkClick" />
+                <Button Content="Cancel" Width="80" Click="OnCancelClick" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</Window>

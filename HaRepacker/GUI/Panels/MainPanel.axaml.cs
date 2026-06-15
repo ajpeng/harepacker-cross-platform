@@ -100,6 +100,17 @@ namespace HaRepacker.GUI.Panels
 
         public WzNode? SelectedNode => wzTreeView.SelectedItem as WzNode;
 
+        public void AddRootNode(WzObject wzObject)
+        {
+            _rootNodes.Add(new WzNode(wzObject));
+        }
+
+        public void RemoveRootNode(WzObject wzObject)
+        {
+            var node = _rootNodes.FirstOrDefault(n => n.WzObject == wzObject);
+            if (node != null) _rootNodes.Remove(node);
+        }
+
         public async System.Threading.Tasks.Task PromptRenameWzTreeNode(WzNode node, Avalonia.Controls.Window owner)
         {
             var (ok, newName) = await GUI.Input.InputDialogs.ShowRenameAsync(owner, "Rename", node.Name);

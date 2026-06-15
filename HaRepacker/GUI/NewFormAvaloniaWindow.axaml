@@ -1,0 +1,51 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="HaRepacker.GUI.NewFormWindow"
+        Title="New WZ File"
+        Width="380" Height="260"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+    <Border Padding="14">
+        <StackPanel Spacing="10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="Name:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <TextBox x:Name="nameBox" Grid.Column="1" Watermark="File name (without .wz)" />
+            </Grid>
+
+            <TextBlock Text="File Type:" FontWeight="SemiBold" />
+            <StackPanel Spacing="6" Margin="8,0,0,0">
+                <RadioButton x:Name="radioRegular" Content="Regular WZ File" IsChecked="True"
+                             GroupName="type" IsCheckedChanged="OnTypeChanged" />
+                <RadioButton x:Name="radioHotfix" Content="Hotfix / Data.wz Image"
+                             GroupName="type" IsCheckedChanged="OnTypeChanged" />
+            </StackPanel>
+
+            <StackPanel x:Name="panelOptions" Spacing="8">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Encryption:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <ComboBox x:Name="encryptionBox" Grid.Row="0" Grid.Column="1" HorizontalAlignment="Stretch" />
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Version:" VerticalAlignment="Center" Margin="0,6,8,0" />
+                    <NumericUpDown x:Name="versionBox" Grid.Row="1" Grid.Column="1"
+                                   Minimum="1" Maximum="9999" Value="1" FormatString="0" Margin="0,6,0,0" />
+                </Grid>
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                <Button Content="OK" Width="80" Click="OnOkClick" />
+                <Button Content="Cancel" Width="80" Click="OnCancelClick" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</Window>

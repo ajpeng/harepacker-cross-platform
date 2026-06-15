@@ -41,6 +41,24 @@ namespace HaRepacker.GUI
             }
         }
 
+        private async void OnNewClick(object? sender, RoutedEventArgs e)
+            => await NewFormWindow.ShowAsync(this, mainPanel);
+
+        private async void OnSaveClick(object? sender, RoutedEventArgs e)
+        {
+            if (mainPanel.SelectedNode is not Models.WzNode node)
+            { Warning.Error("Please select a WZ file or image node first."); return; }
+            if (node.WzObject is not MapleLib.WzLib.WzFile && node.WzObject is not MapleLib.WzLib.WzImage)
+            { Warning.Error("Please select a root WZ file or WZ image node to save."); return; }
+            await SaveFormWindow.ShowAsync(this, mainPanel, node);
+        }
+
+        private async void OnOptionsClick(object? sender, RoutedEventArgs e)
+            => await OptionsFormWindow.ShowAsync(this);
+
+        private async void OnAboutClick(object? sender, RoutedEventArgs e)
+            => await AboutFormWindow.ShowAsync(this);
+
         private void OnUndoClick(object? sender, RoutedEventArgs e)
             => mainPanel.UndoMan?.Undo();
 
