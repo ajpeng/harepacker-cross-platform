@@ -32,11 +32,17 @@
                 <MenuItem Header="Collapse All"     Click="OnCollapseAllClick" />
             </MenuItem>
             <MenuItem Header="E_xport">
-                <MenuItem Header="WZ Files as _XML…"             Click="OnExportXmlClick" />
-                <MenuItem Header="WZ Files as I_MG…"             Click="OnExportImgClick" />
+                <MenuItem Header="WZ _Files as Classic XML…"           Click="OnExportXmlClick" />
+                <MenuItem Header="WZ Files as I_MG…"                   Click="OnExportImgClick" />
+                <MenuItem Header="WZ Files as P_NGs/MP3…"             Click="OnExportWzPngClick" />
                 <Separator />
-                <MenuItem Header="Selected Node as _New XML…"    Click="OnExportSelectedXmlClick" />
-                <MenuItem Header="Selected Node as P_NGs/MP3…"   Click="OnExportSelectedPngClick" />
+                <MenuItem Header="Selected Node as _New XML…"          Click="OnExportSelectedXmlClick" />
+                <MenuItem Header="Selected Node as Classic _XML…"      Click="OnExportSelectedClassicXmlClick" />
+                <MenuItem Header="Selected Node as Private Server XML…" Click="OnExportSelectedPrivateSrvXmlClick" />
+                <MenuItem Header="Selected Node as IM_G…"              Click="OnExportSelectedImgClick" />
+                <MenuItem Header="Selected Node as PNGs/M_P3…"         Click="OnExportSelectedPngClick" />
+                <MenuItem Header="Selected Node as _JSON…"             Click="OnExportSelectedJsonClick" />
+                <MenuItem Header="Selected Node as _BSON…"             Click="OnExportSelectedBsonClick" />
             </MenuItem>
             <MenuItem Header="_Import">
                 <MenuItem Header="Import _XML into Selected…"    Click="OnImportXmlClick" />

@@ -101,6 +101,36 @@ namespace HaRepacker
             await dlg.ShowDialog(GetMainWindow());
         }
 
+        public static async Task<(bool ok, bool answer)> AskYesNo(Window? owner, string text, string title = "Question")
+        {
+            var dlg = new Window
+            {
+                Title = title,
+                Width = 420,
+                Height = 160,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                CanResize = false,
+            };
+            bool? answer = null;
+            var panel = new StackPanel { Margin = new Avalonia.Thickness(15), Spacing = 15 };
+            panel.Children.Add(new TextBlock { Text = text, TextWrapping = Avalonia.Media.TextWrapping.Wrap });
+            var buttons = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right, Spacing = 8 };
+            var yes = new Button { Content = "Yes", Width = 80 };
+            var no = new Button { Content = "No", Width = 80 };
+            var cancel = new Button { Content = "Cancel", Width = 80 };
+            yes.Click += (_, _) => { answer = true; dlg.Close(); };
+            no.Click += (_, _) => { answer = false; dlg.Close(); };
+            cancel.Click += (_, _) => dlg.Close();
+            buttons.Children.Add(yes);
+            buttons.Children.Add(no);
+            buttons.Children.Add(cancel);
+            panel.Children.Add(buttons);
+            dlg.Content = panel;
+            await dlg.ShowDialog(owner ?? GetMainWindow());
+            if (answer == null) return (false, false);
+            return (true, answer.Value);
+        }
+
         private static Window? GetMainWindow()
         {
             if (Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
