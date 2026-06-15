@@ -25,7 +25,7 @@
     <Compile Remove="WzNode.cs" />
     <Compile Remove="TreeViewMS.cs" />
     <Compile Remove="TreeViewMS.resx" />
-    <Compile Remove="UndoRedoManager.cs" />
+    <!-- UndoRedoManager.cs: ported to use HaRepacker.Models.WzNode -->
     <Compile Remove="ContextMenuManager.cs" />
     <Compile Remove="SavedFolderBrowser.cs" />
     <Compile Remove="AnimationBuilder.cs" />
@@ -63,8 +63,9 @@
     <!-- HotSwap (depends on MainForm) -->
     <Compile Remove="GUI\HotSwap\**" />
 
-    <!-- Input and Interaction dialogs (WinForms) -->
+    <!-- Input and Interaction dialogs (WinForms) — replaced by InputDialogs.cs -->
     <Compile Remove="GUI\Input\**" />
+    <Compile Include="GUI\Input\InputDialogs.cs" />
     <Compile Remove="GUI\Interaction\**" />
 
     <!-- Controls (WPF-specific) -->

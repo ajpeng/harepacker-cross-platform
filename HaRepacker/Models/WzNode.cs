@@ -135,6 +135,24 @@ namespace HaRepacker.Models
 
         public string GetTypeName() => WzObject.GetType().Name;
 
+        public void AddChildNode(WzNode child)
+        {
+            if (child.WzObject != null && WzObject != null)
+            {
+                WzObject target = WzObject is WzFile wf ? wf.WzDirectory : WzObject;
+                if (target is WzDirectory dir)
+                {
+                    if (child.WzObject is WzImage img) dir.AddImage(img);
+                    else if (child.WzObject is WzDirectory childDir) dir.AddDirectory(childDir);
+                }
+                else if (target is WzImage image && child.WzObject is WzImageProperty imgProp)
+                    image.AddProperty(imgProp);
+                else if (target is IPropertyContainer container && child.WzObject is WzImageProperty prop)
+                    container.AddProperty(prop);
+            }
+            Nodes.Add(child);
+        }
+
         public event PropertyChangedEventHandler? PropertyChanged;
         protected virtual void OnPropertyChanged(string propertyName)
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));

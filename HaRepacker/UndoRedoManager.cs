@@ -1,8 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using HaRepacker.GUI.Panels;
+using HaRepacker.Models;
+using System.Collections.Generic;
 
 namespace HaRepacker
 {
@@ -10,7 +8,7 @@ namespace HaRepacker
     {
         public List<UndoRedoBatch> UndoList = new List<UndoRedoBatch>();
         public List<UndoRedoBatch> RedoList = new List<UndoRedoBatch>();
-        private MainPanel parentPanel;
+        private readonly MainPanel parentPanel;
 
         public UndoRedoManager(MainPanel parentPanel)
         {
@@ -19,44 +17,37 @@ namespace HaRepacker
 
         public void AddUndoBatch(List<UndoRedoAction> actions)
         {
-            UndoRedoBatch batch = new UndoRedoBatch() { Actions = actions };
-            UndoList.Add(batch);
+            UndoList.Add(new UndoRedoBatch { Actions = actions });
             RedoList.Clear();
         }
 
-        #region Undo Actions Creation
         public static UndoRedoAction ObjectAdded(WzNode parent, WzNode item)
-        {
-            return new UndoRedoAction(item, parent, UndoRedoType.ObjectAdded);
-        }
+            => new UndoRedoAction(item, parent, UndoRedoType.ObjectAdded);
 
         public static UndoRedoAction ObjectRemoved(WzNode parent, WzNode item)
-        {
-            return new UndoRedoAction(item, parent, UndoRedoType.ObjectRemoved);
-        }
+            => new UndoRedoAction(item, parent, UndoRedoType.ObjectRemoved);
 
         public static UndoRedoAction ObjectRenamed(WzNode parent, WzNode item)
-        {
-            return new UndoRedoAction(item, parent, UndoRedoType.ObjectRemoved);
-        }
-        #endregion
+            => new UndoRedoAction(item, parent, UndoRedoType.ObjectRenamed);
 
         public void Undo()
         {
-            UndoRedoBatch action = UndoList[UndoList.Count - 1];
-            action.UndoRedo();
-            action.SwitchActions();
+            if (UndoList.Count == 0) return;
+            var batch = UndoList[UndoList.Count - 1];
+            batch.UndoRedo();
+            batch.SwitchActions();
             UndoList.RemoveAt(UndoList.Count - 1);
-            RedoList.Add(action);
+            RedoList.Add(batch);
         }
 
         public void Redo()
         {
-            UndoRedoBatch action = RedoList[RedoList.Count - 1];
-            action.UndoRedo();
-            action.SwitchActions();
+            if (RedoList.Count == 0) return;
+            var batch = RedoList[RedoList.Count - 1];
+            batch.UndoRedo();
+            batch.SwitchActions();
             RedoList.RemoveAt(RedoList.Count - 1);
-            UndoList.Add(action);
+            UndoList.Add(batch);
         }
     }
 
@@ -66,12 +57,12 @@ namespace HaRepacker
 
         public void UndoRedo()
         {
-            foreach (UndoRedoAction action in Actions) action.UndoRedo();
+            foreach (var action in Actions) action.UndoRedo();
         }
 
         public void SwitchActions()
         {
-            foreach (UndoRedoAction action in Actions) action.SwitchAction();
+            foreach (var action in Actions) action.SwitchAction();
         }
     }
 
@@ -93,16 +84,16 @@ namespace HaRepacker
             switch (type)
             {
                 case UndoRedoType.ObjectAdded:
-                    item.DeleteWzNode();
+                    item.DeleteNode();
+                    parent.Nodes.Remove(item);
                     break;
                 case UndoRedoType.ObjectRemoved:
-                    parent.AddNode(item, true);
+                    parent.AddChildNode(item);
                     break;
             }
         }
 
-
-        public unsafe void SwitchAction()
+        public void SwitchAction()
         {
             switch (type)
             {
@@ -112,7 +103,6 @@ namespace HaRepacker
                 case UndoRedoType.ObjectRemoved:
                     type = UndoRedoType.ObjectAdded;
                     break;
-
             }
         }
     }
