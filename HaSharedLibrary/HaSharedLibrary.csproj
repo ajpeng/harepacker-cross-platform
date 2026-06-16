@@ -21,7 +21,7 @@
     <Compile Remove="Converter\**" />
     <!-- Windows-only utilities excluded from cross-platform build -->
     <Compile Remove="Util\ScreenDPIUtil.cs" />
-    <Compile Remove="Util\MemoryScannerHelper.cs" />
+    <!-- MemoryScannerHelper: Windows-only at runtime ([SupportedOSPlatform("windows")]), compiles cross-platform -->
     <!-- apng64/apng32.dll Windows-only native wrapper -->
     <Compile Remove="SharpApng\SharpApngBasicWrapper.cs" />
   </ItemGroup>

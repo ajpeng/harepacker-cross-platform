@@ -148,16 +148,37 @@ namespace HaRepacker.GUI
                 FileTypeFilter = new[]
                 {
                     new FilePickerFileType("WZ Files") { Patterns = new[] { "*.wz" } },
+                    new FilePickerFileType("ZLZ Encryption DLL") { Patterns = new[] { "ZLZ.dll", "ZLZ64.dll" } },
                     new FilePickerFileType("All Files") { Patterns = new[] { "*.*" } }
                 }
             });
             if (files.Count == 0) return;
 
+            // Handle ZLZ.dll / ZLZ64.dll separately
+            var zlzFiles = files.Where(f =>
+            {
+                string n = Path.GetFileName(f.TryGetLocalPath() ?? f.Path.LocalPath);
+                return n.Equals("ZLZ.dll", StringComparison.OrdinalIgnoreCase) ||
+                       n.Equals("ZLZ64.dll", StringComparison.OrdinalIgnoreCase);
+            }).ToList();
+
+            var wzFiles = files.Except(zlzFiles).ToList();
+
+            foreach (var zlz in zlzFiles)
+            {
+                string path = zlz.TryGetLocalPath() ?? zlz.Path.LocalPath;
+                var win = new ZLZPacketEncryptionKeyWindow();
+                win.LoadZLZ(path);
+                await win.ShowDialog(this);
+            }
+
+            if (wzFiles.Count == 0) return;
+
             var (ok, version) = await InputDialogs.ShowWzMapleVersionAsync(this, "Select Encryption Type");
             if (!ok) return;
 
             var panel = ActivePanel ?? CreateNewTab();
-            foreach (var file in files)
+            foreach (var file in wzFiles)
             {
                 string path = file.TryGetLocalPath() ?? file.Path.LocalPath;
                 panel.OpenFile(path, version);

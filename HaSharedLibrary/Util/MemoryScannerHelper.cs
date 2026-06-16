@@ -21,16 +21,14 @@ SOFTWARE.
 
 using HaSharedLibrary.SystemInterop;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows;
+using System.Runtime.Versioning;
 
 namespace HaSharedLibrary.Util {
 
+    [SupportedOSPlatform("windows")]
     public class MemoryScannerHelper {
 
 

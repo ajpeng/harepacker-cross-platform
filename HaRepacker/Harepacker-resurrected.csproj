@@ -57,6 +57,7 @@
     <!-- WzStringSearchFormDataCache.cs: ported (WinForms deps removed) -->
     <Compile Remove="GUI\ZLZPacketEncryptionKeyForm.cs" />
     <Compile Remove="GUI\ZLZPacketEncryptionKeyForm.designer.cs" />
+    <!-- ZLZPacketEncryptionKeyWindow.cs: ported to Avalonia -->
     <!-- GUI\ContextMenuManager.cs: ported to Avalonia MenuItem/ContextMenu -->
     <Compile Remove="GUI\Resources.Designer.cs" />
 
