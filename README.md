@@ -132,8 +132,8 @@ Want to support the development?  **BTC**: [3AEEJKaTNuw8KoafKNevpMsP2tVmaip4Fx](
 MIT
 
 ```
-Copyright (c) 2018~2025, LastBattle https://github.com/lastbattle
-Copyright (c) 2024~2025, Alex Peng (cross-platform port) https://github.com/alexpeng
+Copyright (c) 2026~2026, ajpeng https://github.com/ajpeng
+Copyright (c) 2018~2024, LastBattle https://github.com/lastbattle
 Copyright (c) 2010~2013, haha01haha http://forum.ragezone.com/f701/release-universal-harepacker-version-892005/
  
 Permission is hereby granted, free of charge, to any person obtaining a copy
