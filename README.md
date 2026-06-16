@@ -1,8 +1,8 @@
 
-## HaSuite / Harepacker resurrected
-[![Github total downloads](https://img.shields.io/github/downloads/lastbattle/Harepacker-resurrected/total.svg)]()
-[![Github All Releases](https://img.shields.io/github/release/lastbattle/Harepacker-resurrected.svg)](https://github.com/lastbattle/Harepacker-resurrected/releases)
-[![Github All Issues](https://img.shields.io/github/issues/lastbattle/Harepacker-resurrected.svg)](https://github.com/lastbattle/Harepacker-resurrected/issues)
+## HaSuite / Harepacker resurrected (cross-platform)
+[![Github total downloads](https://img.shields.io/github/downloads/ajpeng/harepacker-cross-platform/total.svg)](https://github.com/ajpeng/harepacker-cross-platform/releases)
+[![Github All Releases](https://img.shields.io/github/release/ajpeng/harepacker-cross-platform.svg)](https://github.com/ajpeng/harepacker-cross-platform/releases)
+[![Github All Issues](https://img.shields.io/github/issues/ajpeng/harepacker-cross-platform.svg)](https://github.com/ajpeng/harepacker-cross-platform/issues)
 
 
 A collection of tools for MapleStory, including a .wz file and level/field/map editor.
@@ -40,8 +40,7 @@ A collection of tools for MapleStory, including a .wz file and level/field/map e
 
 ### Cloning
 ```
-git clone https://github.com/lastbattle/Harepacker-resurrected.git
-git checkout cross-platform
+git clone https://github.com/ajpeng/harepacker-cross-platform.git
 git submodule update --init --recursive
 ```
 
