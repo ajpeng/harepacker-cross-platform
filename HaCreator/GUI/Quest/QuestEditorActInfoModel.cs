@@ -6,7 +6,7 @@ using System.ComponentModel;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.Windows.Threading;
+using Avalonia.Threading;
 
 namespace HaCreator.GUI.Quest
 {
@@ -269,7 +269,7 @@ namespace HaCreator.GUI.Quest
                     if (lastItem.IsYesNoConversation) // last time is YesNo, disallow more items to be added
                     {
                         // Remove the newly added item
-                        Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() =>
+                        Dispatcher.UIThread.Post(() =>
                         {
                             collection.Remove(newItemAdded);
 
@@ -277,7 +277,7 @@ namespace HaCreator.GUI.Quest
                                 OnPropertyChanged(nameof(ActConversationStart));
                             else if (sender == _actConversationStop)
                                 OnPropertyChanged(nameof(ActConversationStop));*/
-                        }));
+                        });
                     }
                 }
             }

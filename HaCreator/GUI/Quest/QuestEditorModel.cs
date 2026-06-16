@@ -2,7 +2,7 @@
 using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Windows.Threading;
+using Avalonia.Threading;
 
 namespace HaCreator.GUI.Quest
 {
@@ -448,7 +448,7 @@ namespace HaCreator.GUI.Quest
                     if (lastItem.IsYesNoConversation) // last time is YesNo, disallow more items to be added
                     {
                         // Remove the newly added item
-                        Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() =>
+                        Dispatcher.UIThread.Post(() =>
                         {
                             collection.Remove(newItemAdded);
 
@@ -456,7 +456,7 @@ namespace HaCreator.GUI.Quest
                                 OnPropertyChanged(nameof(SayInfoStop_StartQuest));
                             else if (sender == _sayInfoStop_EndQuest)
                                 OnPropertyChanged(nameof(SayInfoStop_EndQuest));*/
-                        }));
+                        });
                     }
                 }
             }

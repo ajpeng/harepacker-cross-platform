@@ -1,0 +1,131 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="HaCreator.GUI.HaEditorWindow"
+        Title="HaCreator"
+        Width="1280" Height="800"
+        WindowStartupLocation="CenterScreen">
+
+  <DockPanel>
+
+    <!-- ── Menu bar ── -->
+    <Menu DockPanel.Dock="Top">
+      <MenuItem Header="_File">
+        <MenuItem Header="_New Map…"      Click="MenuNew_Click"/>
+        <MenuItem Header="_Open Map…"     Click="MenuOpen_Click"/>
+        <Separator/>
+        <MenuItem Header="_Save"          Click="MenuSave_Click"/>
+        <MenuItem Header="Save _As…"      Click="MenuSaveAs_Click"/>
+        <Separator/>
+        <MenuItem Header="E_xit"          Click="MenuExit_Click"/>
+      </MenuItem>
+      <MenuItem Header="_Edit">
+        <MenuItem Header="_Undo"          Click="MenuUndo_Click"/>
+        <MenuItem Header="_Redo"          Click="MenuRedo_Click"/>
+      </MenuItem>
+      <MenuItem Header="_View">
+        <MenuItem Header="Show _Minimap"  IsChecked="False" x:Name="menuMinimap"
+                  Click="MenuMinimap_Click"/>
+        <MenuItem Header="Emulate _Parallax" IsChecked="False" x:Name="menuParallax"
+                  Click="MenuParallax_Click"/>
+        <MenuItem Header="Show _All Layers" IsChecked="False" x:Name="menuAllLayers"
+                  Click="MenuAllLayers_Click"/>
+      </MenuItem>
+      <MenuItem Header="_Map">
+        <MenuItem Header="_Map Info…"     Click="MenuMapInfo_Click"/>
+        <MenuItem Header="Regenerate _Minimap" Click="MenuRegenMinimap_Click"/>
+        <MenuItem Header="_Map Physics…"  Click="MenuMapPhysics_Click"/>
+      </MenuItem>
+      <MenuItem Header="_Tools">
+        <MenuItem Header="User _Settings…" Click="MenuSettings_Click"/>
+      </MenuItem>
+      <MenuItem Header="_Help">
+        <MenuItem Header="_About…"        Click="MenuAbout_Click"/>
+      </MenuItem>
+    </Menu>
+
+    <!-- ── Status bar ── -->
+    <Border DockPanel.Dock="Bottom" Background="#F0F0F0"
+            BorderBrush="LightGray" BorderThickness="0,1,0,0" Height="24">
+      <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto">
+        <TextBlock Grid.Column="0" Margin="8,0" VerticalAlignment="Center"
+                   Text="X:"/>
+        <TextBlock Grid.Column="1" x:Name="txtCursorX" Width="48"
+                   VerticalAlignment="Center" Text="0"/>
+        <TextBlock Grid.Column="2" Margin="8,0,0,0" VerticalAlignment="Center"
+                   Text="Y:"/>
+        <TextBlock Grid.Column="3" x:Name="txtCursorY" Width="48"
+                   VerticalAlignment="Center" Text="0"/>
+        <TextBlock Grid.Column="4" x:Name="txtSelectedItem" Margin="16,0,0,0"
+                   VerticalAlignment="Center" Text=""/>
+        <TextBlock Grid.Column="5" x:Name="txtZoom" Margin="8,0"
+                   VerticalAlignment="Center" Text="100%"/>
+      </Grid>
+    </Border>
+
+    <!-- ── Main layout: left panels + center canvas + map tabs ── -->
+    <Grid ColumnDefinitions="220,*">
+
+      <!-- Left: editor panels in a ScrollViewer -->
+      <Border Grid.Column="0" BorderBrush="LightGray" BorderThickness="0,0,1,0">
+        <ScrollViewer x:Name="leftPanelScroll" HorizontalScrollBarVisibility="Disabled">
+          <StackPanel>
+
+            <Expander Header="Tiles"       IsExpanded="False" x:Name="expTile">
+              <Border Height="200" Background="#F8F8F8">
+                <TextBlock Text="(tile panel – pending)" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="Gray"/>
+              </Border>
+            </Expander>
+
+            <Expander Header="Objects"     IsExpanded="False" x:Name="expObj">
+              <Border Height="200" Background="#F8F8F8">
+                <TextBlock Text="(object panel – pending)" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="Gray"/>
+              </Border>
+            </Expander>
+
+            <Expander Header="Life"        IsExpanded="False" x:Name="expLife">
+              <Border Height="200" Background="#F8F8F8">
+                <TextBlock Text="(life panel – pending)" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="Gray"/>
+              </Border>
+            </Expander>
+
+            <Expander Header="Portals"     IsExpanded="False" x:Name="expPortal">
+              <Border Height="200" Background="#F8F8F8">
+                <TextBlock Text="(portal panel – pending)" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="Gray"/>
+              </Border>
+            </Expander>
+
+            <Expander Header="Backgrounds" IsExpanded="False" x:Name="expBg">
+              <Border Height="200" Background="#F8F8F8">
+                <TextBlock Text="(background panel – pending)" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="Gray"/>
+              </Border>
+            </Expander>
+
+            <Expander Header="Black Border" IsExpanded="False" x:Name="expBb">
+              <Border Height="120" Background="#F8F8F8">
+                <TextBlock Text="(black border panel – pending)" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="Gray"/>
+              </Border>
+            </Expander>
+
+          </StackPanel>
+        </ScrollViewer>
+      </Border>
+
+      <!-- Right: map tabs + canvas -->
+      <Grid Grid.Column="1" RowDefinitions="Auto,*">
+
+        <!-- Map tab strip -->
+        <TabControl x:Name="tabMaps" Grid.Row="0" Height="32"
+                    SelectionChanged="TabMaps_SelectionChanged"/>
+
+        <!-- Map canvas placeholder (will host MonoGame MultiBoard) -->
+        <Border Grid.Row="1" x:Name="canvasHost"
+                Background="#3C3C3C" ClipToBounds="True">
+          <TextBlock Text="Map canvas — MultiBoard pending"
+                     Foreground="Gray" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+        </Border>
+
+      </Grid>
+    </Grid>
+
+  </DockPanel>
+</Window>

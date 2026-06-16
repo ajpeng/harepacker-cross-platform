@@ -1,0 +1,70 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="HaCreator.GUI.InitializationWindow"
+        Title="HaCreator - Select Data Source"
+        Width="520" Height="480"
+        CanResize="False"
+        WindowStartupLocation="CenterScreen">
+
+  <DockPanel Margin="10">
+
+    <!-- Bottom: progress + OK/Cancel -->
+    <StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0" Spacing="6">
+      <TextBlock x:Name="txtStatus" Text="Ready." TextWrapping="Wrap" FontSize="11" Foreground="Gray"/>
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+        <Button x:Name="btnInitialize" Content="Initialize" Width="110" Click="BtnInitialize_Click"/>
+        <Button Content="Cancel" Width="80" Click="BtnCancel_Click"/>
+      </StackPanel>
+    </StackPanel>
+
+    <!-- Main tab control -->
+    <TabControl x:Name="tabControl" Margin="0,0,0,0">
+
+      <!-- Tab 1: WZ Files -->
+      <TabItem Header="WZ Files">
+        <StackPanel Margin="8" Spacing="8">
+
+          <TextBlock Text="MapleStory Folder:" FontWeight="Bold"/>
+          <Grid ColumnDefinitions="*,Auto">
+            <ComboBox x:Name="cmbPath" HorizontalAlignment="Stretch" Grid.Column="0"/>
+            <Button Content="Browse…" Grid.Column="1" Margin="4,0,0,0" Click="BtnBrowseWz_Click"/>
+          </Grid>
+
+          <TextBlock Text="Encryption Version:" FontWeight="Bold"/>
+          <ComboBox x:Name="cmbVersion" HorizontalAlignment="Stretch"/>
+
+          <TextBlock Text="Localisation:" FontWeight="Bold"/>
+          <ComboBox x:Name="cmbLocalisation" HorizontalAlignment="Stretch"
+                    DisplayMemberBinding="{Binding Text}"/>
+
+        </StackPanel>
+      </TabItem>
+
+      <!-- Tab 2: IMG Versions -->
+      <TabItem Header="IMG Versions">
+        <Grid RowDefinitions="*,Auto" Margin="8">
+
+          <ListBox x:Name="lstVersions" Grid.Row="0"
+                   SelectionChanged="LstVersions_SelectionChanged"/>
+
+          <!-- Version details panel -->
+          <Border x:Name="pnlVersionDetails" Grid.Row="1" Margin="0,6,0,0"
+                  BorderBrush="LightGray" BorderThickness="1" Padding="6"
+                  IsVisible="False">
+            <StackPanel Spacing="2">
+              <TextBlock x:Name="lblVersionName"   FontWeight="Bold"/>
+              <TextBlock x:Name="lblExtractedDate" FontSize="11"/>
+              <TextBlock x:Name="lblEncryption"    FontSize="11"/>
+              <TextBlock x:Name="lblFormat"        FontSize="11"/>
+              <TextBlock x:Name="lblImageCount"    FontSize="11"/>
+              <TextBlock x:Name="lblCategoryCount" FontSize="11"/>
+              <TextBlock x:Name="lblFeatures"      FontSize="11"/>
+              <TextBlock x:Name="lblValidation"    FontSize="11"/>
+            </StackPanel>
+          </Border>
+        </Grid>
+      </TabItem>
+
+    </TabControl>
+  </DockPanel>
+</Window>

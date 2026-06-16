@@ -16,6 +16,45 @@
     <Compile Remove="GUI\**" />
     <!-- Re-include pure data classes with no WinForms/WPF deps -->
     <Compile Include="GUI\InstanceEditor\BackgroundStateBackup.cs" />
+    <!-- Re-include Avalonia UI files -->
+    <Compile Include="GUI\InitializationWindow.axaml.cs" />
+    <Compile Include="GUI\HaEditorWindow.axaml.cs" />
+    <!-- Re-include ported GUI support classes -->
+    <Compile Include="GUI\HaRibbon.cs" />
+    <Compile Include="GUI\TabItemContainer.cs" />
+    <!-- Quest editor data models (no WinForms/WPF deps after Dispatcher fix) -->
+    <Compile Include="GUI\Quest\QuestEditorActInfoModel.cs" />
+    <Compile Include="GUI\Quest\QuestEditorActInfoPotentialType.cs" />
+    <Compile Include="GUI\Quest\QuestEditorActInfoRewardModel.cs" />
+    <Compile Include="GUI\Quest\QuestEditorActInfoRewardPropTypeModel.cs" />
+    <Compile Include="GUI\Quest\QuestEditorActSkillModel.cs" />
+    <Compile Include="GUI\Quest\QuestEditorActSpModel.cs" />
+    <Compile Include="GUI\Quest\QuestEditorActType.cs" />
+    <Compile Include="GUI\Quest\QuestEditorCheckDayOfWeekModel.cs" />
+    <Compile Include="GUI\Quest\QuestEditorCheckDayOfWeekType.cs" />
+    <Compile Include="GUI\Quest\QuestEditorCheckInfoModel.cs" />
+    <Compile Include="GUI\Quest\QuestEditorCheckItemReqModel.cs" />
+    <Compile Include="GUI\Quest\QuestEditorCheckMobModel.cs" />
+    <Compile Include="GUI\Quest\QuestEditorCheckQuestInfoExModel.cs" />
+    <Compile Include="GUI\Quest\QuestEditorCheckQuestInfoModel.cs" />
+    <Compile Include="GUI\Quest\QuestEditorCheckSkillCondType.cs" />
+    <Compile Include="GUI\Quest\QuestEditorCheckSkillModel.cs" />
+    <Compile Include="GUI\Quest\QuestEditorCheckType.cs" />
+    <Compile Include="GUI\Quest\QuestEditorConversationType.cs" />
+    <Compile Include="GUI\Quest\QuestEditorModel.cs" />
+    <Compile Include="GUI\Quest\QuestEditorQuestReqModel.cs" />
+    <Compile Include="GUI\Quest\QuestEditorSayEndQuestModel.cs" />
+    <Compile Include="GUI\Quest\QuestEditorSayModel.cs" />
+    <Compile Include="GUI\Quest\QuestEditorSkillModelJobIdWrapper.cs" />
+    <Compile Include="GUI\Quest\QuestEditorStopConversationType.cs" />
+
+    <!-- Ported Avalonia dialogs -->
+    <Compile Include="GUI\NewMapDialog.cs" />
+    <Compile Include="GUI\SaveMapDialog.cs" />
+    <Compile Include="GUI\FieldSelectorDialog.cs" />
+    <Compile Include="GUI\UserSettingsDialog.cs" />
+    <Compile Include="GUI\EditorPanels\AISettingsDialog.cs" />
+    <Compile Include="GUI\EditorPanels\AIMapEditWindow.cs" />
 
     <!-- WinForms custom controls -->
     <Compile Remove="CustomControls\**" />
@@ -29,16 +68,13 @@
 
     <!-- MapEditor files with WinForms/WPF/dockpanelsuite dependencies -->
     <Compile Remove="MapEditor\AI\MarkdownToFlowDocumentConverter.cs" />
-    <Compile Remove="MapEditor\BackupManager.cs" />
-    <Compile Remove="MapEditor\BoardItemContextMenu.cs" />
-    <Compile Remove="MapEditor\HaCreatorStateManager.cs" />
-    <Compile Remove="MapEditor\Input\InputHandler.cs" />
+    <!-- BackupManager, HaCreatorStateManager, and InputHandler are now ported -->
+    <Compile Remove="MapEditor\Input\InputHandlerStubs.cs" />
 
     <!-- Auto-generated WinForms resource file — replaced by cross-platform Properties\Resources.cs -->
     <Compile Remove="Properties\Resources.Designer.cs" />
 
-    <!-- WPF/WinForms-heavy Wz loader — pending Avalonia port -->
-    <Compile Remove="Wz\MapLoader.cs" />
+    <!-- MapLoader is ported to Avalonia -->
 
     <!-- MapSimulator: pending full SkiaSharp + NAudio.Core + Avalonia port -->
     <Compile Remove="MapSimulator\**\*.cs" />

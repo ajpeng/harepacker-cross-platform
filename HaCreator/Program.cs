@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Avalonia;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using HaCreator.MapEditor;
@@ -170,13 +171,9 @@ namespace HaCreator
         }
         #endregion
 
-        /// <summary>
-        /// The main entry point for the application — replaced by Avalonia App in cross-platform port.
-        /// </summary>
         [STAThread]
-        static void Main()
+        static void Main(string[] args)
         {
-            // Localisation
             CultureInfo ci = GetMainCulture(CultureInfo.CurrentCulture);
             Thread.CurrentThread.CurrentCulture = ci;
             Thread.CurrentThread.CurrentUICulture = ci;
@@ -192,9 +189,18 @@ namespace HaCreator
             StartupManager = new StartupManager();
             StartupManager.ScanVersions();
 
-            // TODO: launch Avalonia HaCreator window
-            throw new NotImplementedException("HaCreator Avalonia entry point not yet implemented");
+            BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+
+            SettingsManager.SaveSettings();
+            StartupManager?.SaveConfig();
+            DataSource?.Dispose();
+            WzManager?.Dispose();
         }
+
+        public static AppBuilder BuildAvaloniaApp()
+            => AppBuilder.Configure<App>()
+                .UsePlatformDetect()
+                .LogToTrace();
 
         /// <summary>
         /// Allows customisation of display text during runtime..

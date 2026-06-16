@@ -1,17 +1,14 @@
-﻿using HaCreator.CustomControls;
+/* Copyright (c) 2026, ajpeng https://github.com/ajpeng/harepacker-cross-platform */
+using Avalonia.Controls;
+using Avalonia.Threading;
 using HaCreator.Exceptions;
 using HaCreator.GUI;
-using HaCreator.GUI.EditorPanels;
-using HaCreator.GUI.InstanceEditor;
-using HaCreator.GUI.Quest;
 using HaCreator.MapEditor.Info;
-using HaCreator.MapEditor.Input;
 using HaCreator.MapEditor.Instance;
 using HaCreator.MapEditor.Instance.Misc;
 using HaCreator.MapEditor.Instance.Shapes;
 using HaCreator.MapEditor.UndoRedo;
 using HaCreator.Wz;
-using HaSharedLibrary;
 using MapleLib;
 using MapleLib.Helpers;
 using MapleLib.WzLib;
@@ -23,116 +20,110 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Security.Claims;
 using System.Text;
-using System.Threading.Tasks;
-using System.Windows.Forms;
-using System.Windows.Forms.Integration;
-using SystemWinCtl = System.Windows.Controls;
 
 namespace HaCreator.MapEditor
 {
     public class HaCreatorStateManager
     {
-        private readonly MultiBoard multiBoard;
-        private readonly HaRibbon ribbon;
-        private readonly System.Windows.Controls.TabControl tabs;
+        private readonly MultiBoard _multiBoard;
+        private readonly HaRibbon _ribbon;
+        private readonly TabControl _tabs;
+        private readonly ScrollViewer _editorPanel;
 
-        // StatusBar (bottom)
-        private readonly SystemWinCtl.TextBlock textblock_CursorX;
-        private readonly SystemWinCtl.TextBlock textblock_CursorY;
-        private readonly SystemWinCtl.TextBlock textblock_RCursorX;
-        private readonly SystemWinCtl.TextBlock textblock_RCursorY;
-        private readonly SystemWinCtl.TextBlock textblock_selectedItem;
+        private readonly TextBlock _tbCursorX;
+        private readonly TextBlock _tbCursorY;
+        private readonly TextBlock _tbRCursorX;
+        private readonly TextBlock _tbRCursorY;
+        private readonly TextBlock _tbSelectedItem;
 
-        private readonly InputHandler input;
         private TilePanel tilePanel;
         private ObjPanel objPanel;
         private BackgroundPanel backgroundPanel;
         private LifePanel lifePanel;
         private BlackBorderPanel blackBorderPanel;
         private ObjectViewerPanel objectViewerPanel;
-        private System.Windows.Controls.ScrollViewer editorPanel;
+
         public readonly BackupManager backupMan;
 
-        // Hot swap
+        // Set by the host window so dialogs can use it as owner
+        public Window? OwnerWindow { get; set; }
+
         private HotSwapRefreshService _hotSwapService;
         private AssetUsageTracker _assetUsageTracker;
 
-        public HaCreatorStateManager(MultiBoard multiBoard, HaRibbon ribbon, System.Windows.Controls.TabControl tabs, InputHandler input, System.Windows.Controls.ScrollViewer editorPanel,
-            SystemWinCtl.TextBlock textblock_CursorX, SystemWinCtl.TextBlock textblock_CursorY, SystemWinCtl.TextBlock textblock_RCursorX, SystemWinCtl.TextBlock textblock_RCursorY, SystemWinCtl.TextBlock textblock_selectedItem)
+        public HaCreatorStateManager(
+            MultiBoard multiBoard,
+            HaRibbon ribbon,
+            TabControl tabs,
+            ScrollViewer editorPanel,
+            TextBlock tbCursorX, TextBlock tbCursorY,
+            TextBlock tbRCursorX, TextBlock tbRCursorY,
+            TextBlock tbSelectedItem)
         {
-            this.multiBoard = multiBoard;
-            multiBoard.HaCreatorStateManager = this;
+            _multiBoard = multiBoard;
+            _multiBoard.HaCreatorStateManager = this;
 
-            this.ribbon = ribbon;
-            this.tabs = tabs;
-            this.input = input;
-            this.editorPanel = editorPanel;
+            _ribbon = ribbon;
+            _tabs = tabs;
+            _editorPanel = editorPanel;
 
-            // Status bar
-            this.textblock_CursorX = textblock_CursorX;
-            this.textblock_CursorY = textblock_CursorY;
-            this.textblock_RCursorX = textblock_RCursorX;
-            this.textblock_RCursorY = textblock_RCursorY;
-            this.textblock_selectedItem = textblock_selectedItem;
+            _tbCursorX = tbCursorX;
+            _tbCursorY = tbCursorY;
+            _tbRCursorX = tbRCursorX;
+            _tbRCursorY = tbRCursorY;
+            _tbSelectedItem = tbSelectedItem;
 
-            this.backupMan = new BackupManager(multiBoard, input, this, tabs);
+            backupMan = new BackupManager(multiBoard, this, tabs);
 
-            this.ribbon.NewClicked += Ribbon_NewClicked;
-            this.ribbon.OpenClicked += Ribbon_OpenClicked;
-            this.ribbon.SaveClicked += Ribbon_SaveClicked;
-            this.ribbon.RepackClicked += Ribbon_RepackClicked;
-            this.ribbon.AboutClicked += Ribbon_AboutClicked;
-            this.ribbon.HelpClicked += Ribbon_HelpClicked;
-            this.ribbon.SettingsClicked += Ribbon_SettingsClicked;
-            this.ribbon.ExitClicked += Ribbon_ExitClicked;
-            this.ribbon.ViewToggled += Ribbon_ViewToggled;
-            this.ribbon.ShowMinimapToggled += Ribbon_ShowMinimapToggled;
-            this.ribbon.ParallaxToggled += Ribbon_ParallaxToggled;
-            this.ribbon.LayerViewChanged += ribbon_LayerViewChanged;
-            this.ribbon.MapSimulationClicked += Ribbon_MapSimulationClicked;
-            this.ribbon.RegenerateMinimapClicked += Ribbon_RegenerateMinimapClicked;
-            this.ribbon.SnappingToggled += Ribbon_SnappingToggled;
-            this.ribbon.RandomTilesToggled += Ribbon_RandomTilesToggled;
-            this.ribbon.InfoModeToggled += Ribbon_InfoModeToggled;
-            this.ribbon.HaRepackerClicked += Ribbon_HaRepackerClicked;
-            this.ribbon.FinalizeClicked += Ribbon_FinalizeClicked;
-            this.ribbon.NewPlatformClicked += ribbon_NewPlatformClicked;
-            this.ribbon.UserObjsClicked += Ribbon_UserObjsClicked;
-            this.ribbon.ExportClicked += Ribbon_ExportClicked;
-            this.ribbon.RibbonKeyDown += multiBoard.DxContainer_KeyDown;
-            this.ribbon.MapPhysicsClicked += Ribbon_EditMapPhysicsClicked;
+            _ribbon.NewClicked              += Ribbon_NewClicked;
+            _ribbon.OpenClicked             += Ribbon_OpenClicked;
+            _ribbon.SaveClicked             += Ribbon_SaveClicked;
+            _ribbon.RepackClicked           += Ribbon_RepackClicked;
+            _ribbon.AboutClicked            += Ribbon_AboutClicked;
+            _ribbon.HelpClicked             += Ribbon_HelpClicked;
+            _ribbon.SettingsClicked         += Ribbon_SettingsClicked;
+            _ribbon.ExitClicked             += Ribbon_ExitClicked;
+            _ribbon.ViewToggled             += Ribbon_ViewToggled;
+            _ribbon.ShowMinimapToggled      += Ribbon_ShowMinimapToggled;
+            _ribbon.ParallaxToggled         += Ribbon_ParallaxToggled;
+            _ribbon.LayerViewChanged        += Ribbon_LayerViewChanged;
+            _ribbon.MapSimulationClicked    += Ribbon_MapSimulationClicked;
+            _ribbon.RegenerateMinimapClicked+= Ribbon_RegenerateMinimapClicked;
+            _ribbon.SnappingToggled         += Ribbon_SnappingToggled;
+            _ribbon.RandomTilesToggled      += Ribbon_RandomTilesToggled;
+            _ribbon.InfoModeToggled         += Ribbon_InfoModeToggled;
+            _ribbon.HaRepackerClicked       += Ribbon_HaRepackerClicked;
+            _ribbon.FinalizeClicked         += Ribbon_FinalizeClicked;
+            _ribbon.NewPlatformClicked      += Ribbon_NewPlatformClicked;
+            _ribbon.UserObjsClicked         += Ribbon_UserObjsClicked;
+            _ribbon.ExportClicked           += Ribbon_ExportClicked;
+            _ribbon.MapPhysicsClicked       += Ribbon_MapPhysicsClicked;
+            _ribbon.ShowQuestEditorWindowClicked += Ribbon_ShowQuestEditorWindowClicked;
+            _ribbon.ShowMapPropertiesClicked += Ribbon_ShowMapPropertiesClicked;
+            _ribbon.RibbonKeyDown           += (s, e) => { }; // key input forwarding — pending InputHandler port
 
-            // Etc
-            this.ribbon.ShowQuestEditorWindowClicked += Ribbon_ShowQuestEditorWindowClicked;
-            //
+            _tabs.SelectionChanged += Tabs_SelectionChanged;
 
-            // Debug
-            this.ribbon.ShowMapPropertiesClicked += Ribbon_ShowMapPropertiesClicked;
-            //
+            _multiBoard.OnBringToFrontClicked  += MultiBoard_OnBringToFrontClicked;
+            _multiBoard.OnEditBaseClicked      += MultiBoard_OnEditBaseClicked;
+            _multiBoard.OnEditInstanceClicked  += MultiBoard_OnEditInstanceClicked;
+            _multiBoard.OnLayerTSChanged2      += MultiBoard_OnLayerTSChanged;
+            _multiBoard.OnSendToBackClicked    += MultiBoard_OnSendToBackClicked;
+            _multiBoard.ReturnToSelectionState += MultiBoard_ReturnToSelectionState;
+            _multiBoard.SelectedItemChanged    += MultiBoard_SelectedItemChanged;
+            _multiBoard.MouseMoved             += MultiBoard_MouseMoved;
+            _multiBoard.ImageDropped           += MultiBoard_ImageDropped;
+            _multiBoard.ExportRequested        += Ribbon_ExportClicked;
+            _multiBoard.LoadRequested          += Ribbon_OpenClicked;
+            _multiBoard.CloseTabRequested      += MultiBoard_CloseTabRequested;
+            _multiBoard.SwitchTabRequested     += MultiBoard_SwitchTabRequested;
+            _multiBoard.BackupCheck            += MultiBoard_BackupCheck;
+            _multiBoard.BoardRemoved           += MultiBoard_BoardRemoved;
+            _multiBoard.MinimapStateChanged    += MultiBoard_MinimapStateChanged;
 
-            this.tabs.SelectionChanged += Tabs_SelectionChanged;
-
-            this.multiBoard.OnBringToFrontClicked += MultiBoard_OnBringToFrontClicked;
-            this.multiBoard.OnEditBaseClicked += MultiBoard_OnEditBaseClicked;
-            this.multiBoard.OnEditInstanceClicked += MultiBoard_OnEditInstanceClicked;
-            this.multiBoard.OnLayerTSChanged += MultiBoard_OnLayerTSChanged;
-            this.multiBoard.OnSendToBackClicked += MultiBoard_OnSendToBackClicked;
-            this.multiBoard.ReturnToSelectionState += MultiBoard_ReturnToSelectionState;
-            this.multiBoard.SelectedItemChanged += MultiBoard_SelectedItemChanged;
-            this.multiBoard.MouseMoved += MultiBoard_MouseMoved;
-            this.multiBoard.ImageDropped += MultiBoard_ImageDropped;
-            this.multiBoard.ExportRequested += Ribbon_ExportClicked;
-            this.multiBoard.LoadRequested += Ribbon_OpenClicked;
-            this.multiBoard.CloseTabRequested += MultiBoard_CloseTabRequested;
-            this.multiBoard.SwitchTabRequested += MultiBoard_SwitchTabRequested;
-            this.multiBoard.BackupCheck += MultiBoard_BackupCheck;
-            this.multiBoard.BoardRemoved += MultiBoard_BoardRemoved;
-            this.multiBoard.MinimapStateChanged += MultiBoard_MinimapStateChanged;
-
-            multiBoard.Visibility = System.Windows.Visibility.Collapsed;
-            ribbon.SetEnabled(false);
+            _multiBoard.IsVisible = false;
+            _ribbon.SetEnabled(false);
         }
 
         public static int PositiveMod(int x, int m)
@@ -141,1079 +132,607 @@ namespace HaCreator.MapEditor
             return r < 0 ? r + m : r;
         }
 
+        // ── MultiBoard event handlers ─────────────────────────────────
+
         void MultiBoard_SwitchTabRequested(object sender, bool reverse)
         {
-            tabs.SelectedItem = tabs.Items[PositiveMod(tabs.Items.IndexOf(tabs.SelectedItem) + (reverse ? -1 : 1), tabs.Items.Count)];
+            int idx = _tabs.Items.IndexOf(_tabs.SelectedItem);
+            int next = PositiveMod(idx + (reverse ? -1 : 1), _tabs.Items.Count);
+            _tabs.SelectedItem = _tabs.Items[next];
         }
 
-        void MultiBoard_CloseTabRequested()
-        {
-            tabs.Items.Remove(tabs.SelectedItem);
-        }
+        void MultiBoard_CloseTabRequested() => _tabs.Items.Remove(_tabs.SelectedItem);
 
-        #region MultiBoard Events
-        void MultiBoard_MinimapStateChanged(object sender, bool hasMm)
-        {
-            ribbon.SetHasMinimap(hasMm);
-        }
+        void MultiBoard_MinimapStateChanged(object sender, bool hasMm) => _ribbon.SetHasMinimap(hasMm);
 
         void MultiBoard_BoardRemoved(object sender, EventArgs e)
         {
-            Board board = (Board)sender;
-            backupMan.DeleteBackup(board.UniqueID);
+            if (sender is Board board)
+                backupMan.DeleteBackup(board.UniqueID);
         }
 
         void MultiBoard_BackupCheck()
         {
-            try
-            {
-                backupMan.BackupCheck();
-            }
-            catch (Exception e)
-            {
-                MessageBox.Show(string.Format("Backup failed! Error:{0}\r\n{1}", e.Message, e.StackTrace));
-            }
+            try { backupMan.BackupCheck(); }
+            catch (Exception e) { Debug.WriteLine($"Backup failed: {e.Message}"); }
         }
 
-        void MultiBoard_ImageDropped(Board selectedBoard, System.Drawing.Bitmap bmp, string name, Microsoft.Xna.Framework.Point pos)
+        void MultiBoard_ImageDropped(Board selectedBoard, SkiaSharp.SKBitmap bmp, string name,
+            Microsoft.Xna.Framework.Point pos)
         {
-            WaitWindow ww = new WaitWindow("Processing \"" + name + "\"...");
-            ww.Show();
-            Application.DoEvents();
-            ObjectInfo oi = null;
+            // TODO: show WaitWindow (Avalonia progress dialog) then add user object
+            if (_multiBoard.UserObjects == null) return;
             try
             {
-                oi = multiBoard.UserObjects.Add(bmp, name);
+                ObjectInfo oi = _multiBoard.UserObjects.Add(bmp, name);
+                selectedBoard.BoardItems.Add(
+                    oi.CreateInstance(selectedBoard.SelectedLayer, selectedBoard, pos.X, pos.Y, 0, false), true);
+                objPanel?.OnL1Changed(UserObjectsManager.l1);
             }
             catch (NameAlreadyUsedException)
             {
-                MessageBox.Show("\"" + name + "\" could not be added because an object with the same name already exists.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return;
+                Debug.WriteLine($"User object '{name}' already exists.");
             }
-            finally
-            {
-                ww.EndWait();
-            }
-            selectedBoard.BoardItems.Add(oi.CreateInstance(selectedBoard.SelectedLayer, selectedBoard, pos.X, pos.Y, 0, false), true);
-            objPanel.OnL1Changed(UserObjectsManager.l1);
         }
 
-        /// <summary>
-        /// Mouse move event
-        /// </summary>
-        /// <param name="selectedBoard"></param>
-        /// <param name="oldPos"></param>
-        /// <param name="newPos"></param>
-        /// <param name="currPhysicalPos"></param>
-        void MultiBoard_MouseMoved(Board selectedBoard, Microsoft.Xna.Framework.Point oldPos, Microsoft.Xna.Framework.Point newPos, Microsoft.Xna.Framework.Point currPhysicalPos)
+        void MultiBoard_MouseMoved(Board selectedBoard,
+            Microsoft.Xna.Framework.Point oldPos,
+            Microsoft.Xna.Framework.Point newPos,
+            Microsoft.Xna.Framework.Point currPhysicalPos)
         {
-            textblock_CursorX.Text = currPhysicalPos.X.ToString();
-            textblock_CursorY.Text = currPhysicalPos.Y.ToString();
-
-            textblock_RCursorX.Text = newPos.X.ToString();
-            textblock_RCursorY.Text = newPos.Y.ToString();
+            Dispatcher.UIThread.Post(() =>
+            {
+                _tbCursorX.Text = currPhysicalPos.X.ToString();
+                _tbCursorY.Text = currPhysicalPos.Y.ToString();
+                _tbRCursorX.Text = newPos.X.ToString();
+                _tbRCursorY.Text = newPos.Y.ToString();
+            });
         }
 
-        /// <summary>
-        /// Selected item event
-        /// </summary>
-        /// <param name="selectedItem"></param>
         void MultiBoard_SelectedItemChanged(BoardItem selectedItem)
         {
-            if (selectedItem != null)
-            {
-                textblock_selectedItem.Text = (CreateItemDescription(selectedItem).Replace(Environment.NewLine, " - "));
-            }
-            else
-            {
-                textblock_selectedItem.Text = string.Empty;
-            }
+            Dispatcher.UIThread.Post(() =>
+                _tbSelectedItem.Text = selectedItem != null
+                    ? CreateItemDescription(selectedItem).Replace(Environment.NewLine, " - ")
+                    : string.Empty);
         }
 
         void MultiBoard_ReturnToSelectionState()
         {
-            // No need to lock because SelectionMode() and ExitEditMode() are both thread-safe
-            if (multiBoard.SelectedBoard == null)
-                return;
-
-            multiBoard.SelectedBoard.Mouse.SelectionMode();
+            if (_multiBoard.SelectedBoard == null) return;
+            _multiBoard.SelectedBoard.Mouse.SelectionMode();
             ExitEditMode();
-            multiBoard.Focus();
+            _multiBoard.Focus();
         }
 
         void MultiBoard_OnSendToBackClicked(BoardItem boardRefItem)
         {
-            lock (multiBoard)
+            lock (_multiBoard)
             {
                 foreach (BoardItem item in boardRefItem.Board.SelectedItems)
                 {
                     if (item.Z > 0)
                     {
-                        item.Board.UndoRedoMan.AddUndoBatch(new List<UndoRedoAction> { UndoRedoManager.ItemZChanged(item, item.Z, 0) });
+                        item.Board.UndoRedoMan.AddUndoBatch(
+                            new List<UndoRedoAction> { UndoRedoManager.ItemZChanged(item, item.Z, 0) });
                         item.Z = 0;
                     }
                 }
                 boardRefItem.Board.BoardItems.Sort();
             }
-            multiBoard.Focus();
+            _multiBoard.Focus();
         }
 
-        void MultiBoard_OnLayerTSChanged(Layer layer)
-        {
-            ribbon.SetLayer(layer);
-        }
+        void MultiBoard_OnLayerTSChanged(Layer layer) => _ribbon.SetLayer(layer);
 
         void MultiBoard_OnEditInstanceClicked(BoardItem item)
         {
-            InputHandler.ClearBoundItems(multiBoard.SelectedBoard);
+            MultiBoard.ClearBoundItems(_multiBoard.SelectedBoard);
             try
             {
-                if (item is ObjectInstance)
-                {
-                    new ObjectInstanceEditor((ObjectInstance)item).ShowDialog();
-                }
-                else if (item is TileInstance)
-                {
-                    new TileInstanceEditor((TileInstance)item).ShowDialog();
-                }
-                else if (item is Chair)
-                {
-                    new GeneralInstanceEditor(item).ShowDialog();
-                }
-                else if (item is FootholdAnchor)
-                {
-                    FootholdLine[] selectedFootholds = FootholdLine.GetSelectedFootholds(item.Board);
-                    if (selectedFootholds.Length > 0)
-                    {
-                        new FootholdEditor(selectedFootholds).ShowDialog();
-                    }
-                    else
-                    {
-                        new GeneralInstanceEditor(item).ShowDialog();
-                    }
-                }
-                else if (item is RopeAnchor ropeItem)
-                {
-                    new RopeInstanceEditor(ropeItem).ShowDialog();
-                }
-                else if (item is LifeInstance lifeItem)
-                {
-                    new LifeInstanceEditor(lifeItem).ShowDialog();
-                }
-                else if (item is ReactorInstance reactorItem)
-                {
-                    new ReactorInstanceEditor(reactorItem).ShowDialog();
-                }
-                else if (item is BackgroundInstance backgroundItem)
-                {
-                    var editor = new BackgroundInstanceEditor(backgroundItem);
-                    editor.ShowInTaskbar = true;
-                    editor.Show();
-                }
-                else if (item is PortalInstance portal)
-                {
-                    new PortalInstanceEditor(portal).ShowDialog();
-                }
-                else if (item is ToolTipInstance tooltipItem)
-                {
-                    new TooltipInstanceEditor(tooltipItem).ShowDialog();
-                } 
-                else if (item is MirrorFieldData mirrorFieldItem)
-                {
-                    new MirrorFieldEditor(mirrorFieldItem).ShowDialog();
-                }
+                // TODO: port instance editor dialogs to Avalonia
+                // For now, log and no-op
+                Debug.WriteLine($"Edit instance: {item.GetType().Name}");
             }
             catch (Exception e)
             {
-                MessageBox.Show(string.Format("An error occurred while presenting the instance editor for {0}:\r\n{1}", item.GetType().Name, e.ToString()));
+                Debug.WriteLine($"Error presenting instance editor for {item.GetType().Name}: {e}");
             }
         }
 
-        void MultiBoard_OnEditBaseClicked(BoardItem item)
-        {
-            //TODO
-        }
+        void MultiBoard_OnEditBaseClicked(BoardItem item) { /* TODO */ }
 
         void MultiBoard_OnBringToFrontClicked(BoardItem boardRefItem)
         {
-            lock (multiBoard)
+            lock (_multiBoard)
             {
                 foreach (BoardItem item in boardRefItem.Board.SelectedItems)
                 {
                     int oldZ = item.Z;
-                    if (item is BackgroundInstance)
+                    if (item is BackgroundInstance bg)
                     {
-                        IList list = ((BackgroundInstance)item).front ? multiBoard.SelectedBoard.BoardItems.FrontBackgrounds : multiBoard.SelectedBoard.BoardItems.BackBackgrounds;
+                        IList list = bg.front
+                            ? _multiBoard.SelectedBoard.BoardItems.FrontBackgrounds
+                            : _multiBoard.SelectedBoard.BoardItems.BackBackgrounds;
                         int highestZ = 0;
-                        foreach (BackgroundInstance bg in list)
-                            if (bg.Z > highestZ)
-                                highestZ = bg.Z;
+                        foreach (BackgroundInstance b in list)
+                            if (b.Z > highestZ) highestZ = b.Z;
                         item.Z = highestZ + 1;
                     }
                     else
                     {
                         int highestZ = 0;
-                        foreach (LayeredItem layeredItem in multiBoard.SelectedBoard.BoardItems.TileObjs)
-                            if (layeredItem.Z > highestZ) highestZ = layeredItem.Z;
+                        foreach (LayeredItem li in _multiBoard.SelectedBoard.BoardItems.TileObjs)
+                            if (li.Z > highestZ) highestZ = li.Z;
                         item.Z = highestZ + 1;
                     }
                     if (item.Z != oldZ)
-                        item.Board.UndoRedoMan.AddUndoBatch(new List<UndoRedoAction> { UndoRedoManager.ItemZChanged(item, oldZ, item.Z) });
+                        item.Board.UndoRedoMan.AddUndoBatch(
+                            new List<UndoRedoAction> { UndoRedoManager.ItemZChanged(item, oldZ, item.Z) });
                 }
             }
             boardRefItem.Board.BoardItems.Sort();
         }
-        #endregion
 
-        #region Tab Events
-        /// <summary>
-        /// Context menu for editing map info (right clicking)
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void MapEditInfo(object sender, EventArgs e)
+        // ── Tab events ────────────────────────────────────────────────
+
+        private void MapEditInfo(TabItem tabItem)
         {
-            System.Windows.Controls.MenuItem item = (System.Windows.Controls.MenuItem)sender;
-            if (item == null)
-                return;
-
-            System.Windows.Controls.TabItem tabItem = (System.Windows.Controls.TabItem)item.Tag;
-            TabItemContainer container = (TabItemContainer)tabItem.Tag;
-
+            if (tabItem?.Tag is not TabItemContainer container) return;
             Board selectedBoard = container.Board;
             lock (selectedBoard.ParentControl)
             {
-                InfoEditor infoEditor = new InfoEditor(selectedBoard, selectedBoard.MapInfo, multiBoard, tabItem);
-                infoEditor.ShowDialog();
-                if (selectedBoard.ParentControl.SelectedBoard == selectedBoard)
-                    selectedBoard.ParentControl.AdjustScrollBars();
+                // TODO: port InfoEditor to Avalonia
+                Debug.WriteLine("MapEditInfo stub");
+                selectedBoard.ParentControl.AdjustScrollBars();
             }
         }
 
-        /// <summary>
-        /// Context menu for adding map VR
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void MapAddVR(object sender, EventArgs e)
+        private void MapAddVR(TabItem tabItem)
         {
-            System.Windows.Controls.MenuItem item = (System.Windows.Controls.MenuItem)sender;
-            if (item == null)
-                return;
-
-            System.Windows.Controls.TabItem tabItem = (System.Windows.Controls.TabItem)item.Tag;
-            TabItemContainer container = (TabItemContainer)tabItem.Tag;
+            if (tabItem?.Tag is not TabItemContainer container) return;
             Board selectedBoard = container.Board;
             lock (selectedBoard.ParentControl)
             {
-                if (selectedBoard.MapInfo.Image != null)
-                {
-                    Microsoft.Xna.Framework.Rectangle VR;
-                    Microsoft.Xna.Framework.Point mapCenter, mapSize, minimapCenter, minimapSize;
-                    bool hasVR, hasMinimap;
-                    MapLoader.GetMapDimensions(selectedBoard.MapInfo.Image, out VR, out mapCenter, out mapSize, out minimapCenter, out minimapSize, out hasVR, out hasMinimap);
-                    selectedBoard.VRRectangle = new VRRectangle(selectedBoard, VR);
-                }
-                else
-                {
-                    selectedBoard.VRRectangle = new VRRectangle(selectedBoard, new Microsoft.Xna.Framework.Rectangle(-selectedBoard.CenterPoint.X + 100, -selectedBoard.CenterPoint.Y + 100, selectedBoard.MapSize.X - 200, selectedBoard.MapSize.Y - 200));
-                }
+                selectedBoard.VRRectangle = new VRRectangle(selectedBoard,
+                    new Microsoft.Xna.Framework.Rectangle(
+                        -selectedBoard.CenterPoint.X + 100, -selectedBoard.CenterPoint.Y + 100,
+                        selectedBoard.MapSize.X - 200, selectedBoard.MapSize.Y - 200));
             }
         }
 
-        /// <summary>
-        /// Context menu for adding mini map
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void MapAddMinimap(object sender, EventArgs e)
+        private void MapAddMinimap(TabItem tabItem)
         {
-            System.Windows.Controls.MenuItem item = (System.Windows.Controls.MenuItem)sender;
-            if (item == null)
-                return;
-
-            System.Windows.Controls.TabItem tabItem = (System.Windows.Controls.TabItem)item.Tag;
-            TabItemContainer container = (TabItemContainer)tabItem.Tag;
+            if (tabItem?.Tag is not TabItemContainer container) return;
             Board selectedBoard = container.Board;
             lock (selectedBoard.ParentControl)
             {
-                if (selectedBoard.MapInfo.Image != null)
-                {
-                    Microsoft.Xna.Framework.Rectangle VR;
-                    Microsoft.Xna.Framework.Point mapCenter, mapSize, minimapCenter, minimapSize;
-                    bool hasVR, hasMinimap;
-                    MapLoader.GetMapDimensions(selectedBoard.MapInfo.Image, out VR, out mapCenter, out mapSize, out minimapCenter, out minimapSize, out hasVR, out hasMinimap);
-                    selectedBoard.MinimapRectangle = new MinimapRectangle(selectedBoard, new Microsoft.Xna.Framework.Rectangle(-minimapCenter.X, -minimapCenter.Y, minimapSize.X, minimapSize.Y));
-                }
-                else
-                {
-                    selectedBoard.MinimapRectangle = new MinimapRectangle(selectedBoard, new Microsoft.Xna.Framework.Rectangle(-selectedBoard.CenterPoint.X + 100, -selectedBoard.CenterPoint.Y + 100, selectedBoard.MapSize.X - 200, selectedBoard.MapSize.Y - 200));
-                }
+                selectedBoard.MinimapRectangle = new MinimapRectangle(selectedBoard,
+                    new Microsoft.Xna.Framework.Rectangle(
+                        -selectedBoard.CenterPoint.X + 100, -selectedBoard.CenterPoint.Y + 100,
+                        selectedBoard.MapSize.X - 200, selectedBoard.MapSize.Y - 200));
                 selectedBoard.RegenerateMinimap();
             }
         }
 
-        /// <summary>
-        /// Context menu for closing of the map
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void CloseMapTab(object sender, EventArgs e)
+        private void CloseMapTab(TabItem tabItem)
         {
-            if (tabs.Items.Count <= 0) // at least 1 tabs for now
-            {
-                return;
-            }
-            if (MessageBox.Show("Are you sure you want to close this map?", "Close", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
-                return;
-
-            System.Windows.Controls.MenuItem item = (System.Windows.Controls.MenuItem)sender;
-            if (item == null)
-                return;
-
-            System.Windows.Controls.TabItem tabItem = (System.Windows.Controls.TabItem)item.Tag;
-            TabItemContainer container = (TabItemContainer)tabItem.Tag;
+            if (_tabs.Items.Count <= 0) return;
+            if (tabItem?.Tag is not TabItemContainer container) return;
             Board selectedBoard = container.Board;
             lock (selectedBoard.ParentControl)
             {
-                tabs.SelectedItem = tabs.Items[0];
-                tabs.Items.Remove(tabItem);
-
+                _tabs.SelectedItem = _tabs.Items[0];
+                _tabs.Items.Remove(tabItem);
                 selectedBoard.Dispose();
             }
-
             UpdateEditorPanelVisibility();
         }
 
-        /// <summary>
-        /// If there's no more tabs, disable the ability for the user to select any new map objects  to be added
-        /// </summary>
         public void UpdateEditorPanelVisibility()
         {
-            editorPanel.IsEnabled = tabs.Items.Count > 0; // at least 1 tabs for now.
-            blackBorderPanel.UpdateBoardData();
+            _editorPanel.IsEnabled = _tabs.Items.Count > 0;
+            blackBorderPanel?.UpdateBoardData();
         }
 
-        private void Tabs_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+        private void Tabs_SelectionChanged(object? sender, SelectionChangedEventArgs e)
         {
-            if (multiBoard.SelectedBoard == null)
-                return;
-
-            lock (multiBoard)
+            if (_multiBoard.SelectedBoard == null) return;
+            lock (_multiBoard)
             {
                 MultiBoard_ReturnToSelectionState();
-
-                if (tabs.SelectedItem != null)
+                if (_tabs.SelectedItem != null)
                 {
-                    System.Windows.Controls.TabItem selectedTab = (System.Windows.Controls.TabItem)tabs.SelectedItem;
-
-                    multiBoard.SelectedBoard = ((TabItemContainer)selectedTab.Tag).Board;
-
-                    ApplicationSettings.lastDefaultLayer = multiBoard.SelectedBoard.SelectedLayerIndex;
-
-                    ribbon.SetLayers(multiBoard.SelectedBoard.Layers);
-                    ribbon.SetSelectedLayer(multiBoard.SelectedBoard.SelectedLayerIndex, multiBoard.SelectedBoard.SelectedPlatform, multiBoard.SelectedBoard.SelectedAllLayers, multiBoard.SelectedBoard.SelectedAllPlatforms);
-                    ribbon.SetHasMinimap(multiBoard.SelectedBoard.MinimapRectangle != null);
-
-                    // LBTop LBBottom LBSide
-                    blackBorderPanel.UpdateBoardData();
-
-                    // Notify object viewer of board change
-                    objectViewerPanel?.OnBoardChanged(multiBoard.SelectedBoard);
-
-                    ParseVisibleEditedTypes();
-                } else
-                {
-                    multiBoard.SelectedBoard = null;
+                    TabItem selectedTab = (TabItem)_tabs.SelectedItem;
+                    if (selectedTab.Tag is TabItemContainer container)
+                    {
+                        _multiBoard.SelectedBoard = container.Board;
+                        ApplicationSettings.lastDefaultLayer = _multiBoard.SelectedBoard.SelectedLayerIndex;
+                        _ribbon.SetLayers(_multiBoard.SelectedBoard.Layers);
+                        _ribbon.SetSelectedLayer(
+                            _multiBoard.SelectedBoard.SelectedLayerIndex,
+                            _multiBoard.SelectedBoard.SelectedPlatform,
+                            _multiBoard.SelectedBoard.SelectedAllLayers,
+                            _multiBoard.SelectedBoard.SelectedAllPlatforms);
+                        _ribbon.SetHasMinimap(_multiBoard.SelectedBoard.MinimapRectangle != null);
+                        blackBorderPanel?.UpdateBoardData();
+                        objectViewerPanel?.OnBoardChanged(_multiBoard.SelectedBoard);
+                        ParseVisibleEditedTypes();
+                    }
                 }
-                multiBoard.Focus();
+                else
+                {
+                    _multiBoard.SelectedBoard = null;
+                }
+                _multiBoard.Focus();
             }
         }
-        #endregion
 
-        #region Ribbon Etc Handlers
+        // ── Ribbon event handlers ─────────────────────────────────────
 
-        /// <summary>
-        /// Show quest editor window
-        /// </summary>
-        /// <exception cref="NotImplementedException"></exception>
         private void Ribbon_ShowQuestEditorWindowClicked()
         {
-            QuestEditor questEditor = new QuestEditor();
-            questEditor.ShowDialog();
+            // TODO: port QuestEditor to Avalonia
+            Debug.WriteLine("QuestEditor stub");
         }
-        #endregion
 
-        #region Ribbon Debug Handlers
-        /// <summary>
-        /// Show map '/info' handlers
-        /// </summary>
         private void Ribbon_ShowMapPropertiesClicked()
         {
-            if (multiBoard.SelectedBoard == null)
-                return;
-            List<WzImageProperty> unsupportedProp = multiBoard.SelectedBoard.MapInfo.unsupportedInfoProperties;
-
-            StringBuilder sb = new StringBuilder();
+            if (_multiBoard.SelectedBoard == null) return;
+            var unsupported = _multiBoard.SelectedBoard.MapInfo.unsupportedInfoProperties;
+            var sb = new StringBuilder();
             int i = 1;
-            foreach (WzImageProperty imgProp in unsupportedProp)
+            foreach (var p in unsupported)
             {
-                sb.Append(i).Append(": ").Append(imgProp.Name);
-                sb.Append(", val: ").Append(imgProp.WzValue != null ? imgProp.WzValue.ToString() : Environment.NewLine);
-                sb.Append(Environment.NewLine);
-                i++;
+                sb.Append(i++).Append(": ").Append(p.Name);
+                sb.Append(", val: ").Append(p.WzValue?.ToString() ?? "").AppendLine();
             }
-            sb.Append(Environment.NewLine).Append("Fix it under MapInfo.cs");
-
-            MessageBox.Show(sb.ToString(), "List of unsupported properties.");
+            Debug.WriteLine("Unsupported map properties:\n" + sb);
         }
-        #endregion
 
-
-        #region Ribbon Handlers
-        private string lastSaveLoc = null;
+        private string? _lastSaveLoc;
 
         public void Ribbon_ExportClicked()
         {
-            SaveFileDialog ofd = new SaveFileDialog() { Title = "Select export location", Filter = "HaCreator Map File (*.ham)|*.ham" };
-            if (lastSaveLoc != null)
-                ofd.FileName = lastSaveLoc;
-            if (ofd.ShowDialog() != DialogResult.OK)
-                return;
-            lastSaveLoc = ofd.FileName;
-            // No need to lock, SerializeBoard locks only the critical areas to cut down on locked time
-            try
+            // TODO: Avalonia SaveFileDialog
+            Debug.WriteLine("Export stub");
+        }
+
+        private void Ribbon_UserObjsClicked()
+        {
+            lock (_multiBoard)
             {
-                File.WriteAllText(ofd.FileName, multiBoard.SelectedBoard.SerializationManager.SerializeBoard(true));
-            }
-            catch (Exception e)
-            {
-                MessageBox.Show(string.Format("Could not save: {0}\r\n\r\n{1}", e.Message, e.StackTrace));
+                // TODO: port ManageUserObjects to Avalonia
+                Debug.WriteLine("ManageUserObjects stub");
+                objPanel?.OnL1Changed(UserObjectsManager.l1);
             }
         }
 
-        void Ribbon_UserObjsClicked()
+        private void Ribbon_FinalizeClicked()
         {
-            lock (multiBoard)
+            // TODO: confirmation dialog
+            lock (_multiBoard)
             {
-                new ManageUserObjects(multiBoard.UserObjects).ShowDialog();
-                objPanel.OnL1Changed(UserObjectsManager.l1);
+                new MapSaver(_multiBoard.SelectedBoard).ActualizeFootholds();
             }
         }
 
-        void Ribbon_FinalizeClicked()
+        private void Ribbon_HaRepackerClicked()
         {
-            if (MessageBox.Show("This will finalize all footholds, removing their Tile bindings and clearing the Undo/Redo list in the process.\r\nContinue?", "Warning", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
-            {
-                lock (multiBoard)
-                {
-                    new MapSaver(multiBoard.SelectedBoard).ActualizeFootholds();
-                }
-            }
+            // TODO: launch HaRepacker in cross-platform mode
+            Debug.WriteLine("HaRepacker stub");
         }
 
-        void Ribbon_HaRepackerClicked()
+        private bool? GetTypes(ItemTypes visibleTypes, ItemTypes editedTypes, ItemTypes type)
         {
-            WaitWindow ww = new WaitWindow("Opening HaRepacker...");
-            ww.Show();
-            Application.DoEvents();
-
-            HaRepacker.Program.WzFileManager = new WzFileManager(); // this will be over-written later at Initialization.cs. just temporary placeholder
-            bool firstRun = HaRepacker.Program.PrepareApplication(false);
-            HaRepacker.GUI.MainForm mf = new HaRepacker.GUI.MainForm(null, false, firstRun);
-            mf.unloadAllToolStripMenuItem.Visible = false;
-            mf.reloadAllToolStripMenuItem.Visible = false;
-            foreach (WzFile entry in Program.WzManager.WzFileList)
-            {
-                mf.Interop_AddLoadedWzFileToManager(entry);
-            }
-            ww.EndWait();
-            lock (multiBoard)
-            {
-                mf.ShowDialog();
-            }
-            HaRepacker.Program.EndApplication(false, false);
-        }
-
-        bool? getTypes(ItemTypes visibleTypes, ItemTypes editedTypes, ItemTypes type)
-        {
-            if ((editedTypes & type) == type)
-            {
-                return true;
-            }
-            else if ((visibleTypes & type) == type)
-            {
-                return (bool?)null;
-            }
-            else
-            {
-                return false;
-            }
+            if ((editedTypes & type) == type) return true;
+            if ((visibleTypes & type) == type) return null;
+            return false;
         }
 
         private void ParseVisibleEditedTypes()
         {
-            ItemTypes visibleTypes = ApplicationSettings.theoreticalVisibleTypes = multiBoard.SelectedBoard.VisibleTypes;
-            ItemTypes editedTypes = ApplicationSettings.theoreticalEditedTypes = multiBoard.SelectedBoard.EditedTypes;
-            ribbon.SetVisibilityCheckboxes(getTypes(visibleTypes, editedTypes, ItemTypes.Tiles),
-                                            getTypes(visibleTypes, editedTypes, ItemTypes.Objects),
-                                            getTypes(visibleTypes, editedTypes, ItemTypes.NPCs),
-                                            getTypes(visibleTypes, editedTypes, ItemTypes.Mobs),
-                                            getTypes(visibleTypes, editedTypes, ItemTypes.Reactors),
-                                            getTypes(visibleTypes, editedTypes, ItemTypes.Portals),
-                                            getTypes(visibleTypes, editedTypes, ItemTypes.Footholds),
-                                            getTypes(visibleTypes, editedTypes, ItemTypes.Ropes),
-                                            getTypes(visibleTypes, editedTypes, ItemTypes.Chairs),
-                                            getTypes(visibleTypes, editedTypes, ItemTypes.ToolTips),
-                                            getTypes(visibleTypes, editedTypes, ItemTypes.Backgrounds),
-                                            getTypes(visibleTypes, editedTypes, ItemTypes.Misc),
-                                            getTypes(visibleTypes, editedTypes, ItemTypes.MirrorFieldData)
-                                            );
+            ItemTypes visible = ApplicationSettings.theoreticalVisibleTypes = _multiBoard.SelectedBoard.VisibleTypes;
+            ItemTypes edited  = ApplicationSettings.theoreticalEditedTypes  = _multiBoard.SelectedBoard.EditedTypes;
+            _ribbon.SetVisibilityCheckboxes(
+                GetTypes(visible, edited, ItemTypes.Tiles),
+                GetTypes(visible, edited, ItemTypes.Objects),
+                GetTypes(visible, edited, ItemTypes.NPCs),
+                GetTypes(visible, edited, ItemTypes.Mobs),
+                GetTypes(visible, edited, ItemTypes.Reactors),
+                GetTypes(visible, edited, ItemTypes.Portals),
+                GetTypes(visible, edited, ItemTypes.Footholds),
+                GetTypes(visible, edited, ItemTypes.Ropes),
+                GetTypes(visible, edited, ItemTypes.Chairs),
+                GetTypes(visible, edited, ItemTypes.ToolTips),
+                GetTypes(visible, edited, ItemTypes.Backgrounds),
+                GetTypes(visible, edited, ItemTypes.Misc),
+                GetTypes(visible, edited, ItemTypes.MirrorFieldData));
         }
 
-        void Ribbon_RandomTilesToggled(bool pressed)
+        private void Ribbon_RandomTilesToggled(bool pressed)
         {
             ApplicationSettings.randomTiles = pressed;
-            if (tilePanel != null)
-                tilePanel.LoadTileSetList();
+            tilePanel?.LoadTileSetList();
         }
 
-        void Ribbon_SnappingToggled(bool pressed)
-        {
-            UserSettings.useSnapping = pressed;
-        }
+        private void Ribbon_SnappingToggled(bool pressed) => UserSettings.useSnapping = pressed;
 
-        void Ribbon_InfoModeToggled(bool pressed)
-        {
-            ApplicationSettings.InfoMode = pressed;
-        }
+        private void Ribbon_InfoModeToggled(bool pressed) => ApplicationSettings.InfoMode = pressed;
 
-        void Ribbon_RegenerateMinimapClicked()
+        private void Ribbon_RegenerateMinimapClicked()
         {
-            if (multiBoard.SelectedBoard.RegenerateMinimap())
-                MessageBox.Show("Minimap regenerated successfully", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            if (_multiBoard.SelectedBoard.RegenerateMinimap())
+                Debug.WriteLine("Minimap regenerated.");
             else
-            {
-                MessageBox.Show("An error occured during minimap regeneration. The error has been logged. If possible, save the map report it via github.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                ErrorLogger.Log(ErrorLevel.Critical, "error regenning minimap for map " + multiBoard.SelectedBoard.MapInfo.id.ToString());
-            }
+                ErrorLogger.Log(ErrorLevel.Critical,
+                    "Error regenerating minimap for map " + _multiBoard.SelectedBoard.MapInfo.id);
         }
 
-        void Ribbon_MapSimulationClicked()
+        private void Ribbon_MapSimulationClicked()
         {
-            multiBoard.DeviceReady = false;
-
-
-            Board selectedBoard = multiBoard.SelectedBoard;
-            System.Windows.Controls.TabItem tab = (System.Windows.Controls.TabItem) tabs.SelectedItem;
-            if (selectedBoard == null || tab == null)
-                return;
-
-            // Create callback for portal teleportation
-            Func<int, Tuple<Board, string>> loadMapCallback = (mapId) =>
-            {
-                return LoadMapForSimulator(mapId);
-            };
-
-            // Create callback for when simulator exits - restore DeviceReady on UI thread
-            Action onComplete = () =>
-            {
-                tabs.Dispatcher.BeginInvoke(new Action(() =>
-                {
-                    multiBoard.DeviceReady = true;
-                }));
-            };
-
-            MapSimulator.MapSimulatorLoader.CreateAndShowMapSimulator(selectedBoard, (string) tab.Header, loadMapCallback, onComplete);
+            // TODO: port MapSimulator to Avalonia + MonoGame.DesktopGL
+            Debug.WriteLine("MapSimulator stub");
         }
 
-        /// <summary>
-        /// Loads a map image on-demand from the data source.
-        /// This is used when WzImage was not stored in MapsCache to save memory.
-        /// </summary>
-        /// <param name="mapId">The 9-digit map ID</param>
-        /// <returns>The loaded WzImage or null if not found</returns>
-        private WzImage LoadMapImageOnDemand(string mapId)
-        {
-            if (Program.DataSource == null)
-                return null;
+        private void Ribbon_ParallaxToggled(bool pressed) => UserSettings.emulateParallax = pressed;
 
-            string paddedId = mapId.PadLeft(9, '0');
-            string folderNum = paddedId[0].ToString();
+        private void Ribbon_ShowMinimapToggled(bool pressed) => UserSettings.useMiniMap = pressed;
 
-            // Try to load from Map/Map/MapX/mapid.img
-            string relativePath = $"Map/Map{folderNum}/{paddedId}.img";
-            var mapImage = Program.DataSource.GetImageByPath($"Map/{relativePath}");
-
-            if (mapImage == null)
-            {
-                // Try without extra Map/ prefix
-                mapImage = Program.DataSource.GetImage("Map", $"Map/Map{folderNum}/{paddedId}.img");
-            }
-
-            if (mapImage != null)
-                mapImage.ParseImage();
-
-            return mapImage;
-        }
-
-        /// <summary>
-        /// Loads a map by ID for the simulator (portal teleportation).
-        /// This loads the map into a new tab in the editor and returns the Board for simulation.
-        /// If the map is already loaded in MultiBoard, it switches to that existing tab instead.
-        /// Must be called from the game thread - marshals UI operations to the UI thread.
-        /// </summary>
-        /// <param name="mapId">The map ID to load</param>
-        /// <returns>Tuple of (Board, titleName) or null if map not found</returns>
-        private Tuple<Board, string> LoadMapForSimulator(int mapId)
-        {
-            // Format map ID as 9-digit string
-            string mapIdStr = mapId.ToString().PadLeft(9, '0');
-
-            // First, check if the map is already loaded in MultiBoard
-            Tuple<Board, string> existingResult = null;
-            tabs.Dispatcher.Invoke(() =>
-            {
-                foreach (Board board in multiBoard.Boards)
-                {
-                    if (board.MapInfo != null && board.MapInfo.id == mapId)
-                    {
-                        // Map is already loaded - switch to it
-                        multiBoard.SelectedBoard = board;
-                        if (board.TabPage != null)
-                        {
-                            tabs.SelectedItem = board.TabPage;
-                            string titleName = (string)board.TabPage.Header;
-                            existingResult = new Tuple<Board, string>(board, titleName);
-                        }
-                        break;
-                    }
-                }
-            });
-
-            if (existingResult != null)
-            {
-                return existingResult;
-            }
-
-            // Check if map exists in cache
-            if (!Program.InfoManager.MapsCache.ContainsKey(mapIdStr))
-            {
-                return null;
-            }
-
-            try
-            {
-                // Get map data from cache
-                Tuple<WzImage, string, string, string, MapInfo> loadedMap = Program.InfoManager.MapsCache[mapIdStr];
-
-                WzImage mapImage = loadedMap.Item1;
-                string mapName = loadedMap.Item2;
-                string streetName = loadedMap.Item3;
-                string categoryName = loadedMap.Item4;
-                MapInfo info = loadedMap.Item5;
-
-                // Load WzImage on-demand if null (memory optimization)
-                if (mapImage == null)
-                {
-                    mapImage = LoadMapImageOnDemand(mapIdStr);
-                }
-                if (mapImage == null)
-                {
-                    return null;
-                }
-
-                // Create MapInfo on-demand if null (memory optimization)
-                if (info == null)
-                {
-                    info = new MapInfo(mapImage, streetName, mapName, categoryName);
-                }
-
-                // Use Dispatcher.Invoke to run UI operations on the UI thread
-                // Use the tabs control's Dispatcher since this is a WinForms app with WPF elements
-                Tuple<Board, string> result = null;
-                tabs.Dispatcher.Invoke(() =>
-                {
-                    // Load the map into a new tab
-                    MapLoader.CreateMapFromImage(mapId, mapImage, info, mapName, streetName, categoryName, tabs, multiBoard, MakeRightClickHandler());
-
-                    // Get the newly created board (it becomes the selected board)
-                    Board newBoard = multiBoard.SelectedBoard;
-                    System.Windows.Controls.TabItem newTab = (System.Windows.Controls.TabItem)tabs.SelectedItem;
-
-                    if (newBoard != null && newTab != null)
-                    {
-                        string titleName = (string)newTab.Header;
-                        result = new Tuple<Board, string>(newBoard, titleName);
-                    }
-                });
-
-                return result;
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error loading map {mapId}: {ex.Message}");
-            }
-
-            return null;
-        }
-
-        void Ribbon_ParallaxToggled(bool pressed)
-        {
-            UserSettings.emulateParallax = pressed;
-        }
-
-        void Ribbon_ShowMinimapToggled(bool pressed)
-        {
-            UserSettings.useMiniMap = pressed;
-        }
-
-        void SetTypes(ref ItemTypes newVisibleTypes, ref ItemTypes newEditedTypes, bool? x, ItemTypes type)
+        private void SetTypes(ref ItemTypes newVisible, ref ItemTypes newEdited, bool? x, ItemTypes type)
         {
             if (x.HasValue)
             {
-                if (x.Value)
-                {
-                    newVisibleTypes ^= type;
-                    newEditedTypes ^= type;
-                }
+                if (x.Value) { newVisible ^= type; newEdited ^= type; }
             }
             else
             {
-                newVisibleTypes ^= type;
+                newVisible ^= type;
             }
         }
 
-        void Ribbon_ViewToggled(bool? tiles, bool? objs, bool? npcs, bool? mobs, bool? reactors, bool? portals, bool? footholds, bool? ropes, bool? chairs, bool? tooltips, bool? backgrounds, bool? misc, bool? mirrorField)
+        private void Ribbon_ViewToggled(bool? tiles, bool? objs, bool? npcs, bool? mobs,
+            bool? reactors, bool? portals, bool? footholds, bool? ropes, bool? chairs,
+            bool? tooltips, bool? backgrounds, bool? misc, bool? mirrorField)
         {
-            lock (multiBoard)
+            lock (_multiBoard)
             {
-                ItemTypes newVisibleTypes = 0;
-                ItemTypes newEditedTypes = 0;
-                SetTypes(ref newVisibleTypes, ref newEditedTypes, tiles, ItemTypes.Tiles);
-                SetTypes(ref newVisibleTypes, ref newEditedTypes, objs, ItemTypes.Objects);
-                SetTypes(ref newVisibleTypes, ref newEditedTypes, npcs, ItemTypes.NPCs);
-                SetTypes(ref newVisibleTypes, ref newEditedTypes, mobs, ItemTypes.Mobs);
-                SetTypes(ref newVisibleTypes, ref newEditedTypes, reactors, ItemTypes.Reactors);
-                SetTypes(ref newVisibleTypes, ref newEditedTypes, portals, ItemTypes.Portals);
-                SetTypes(ref newVisibleTypes, ref newEditedTypes, footholds, ItemTypes.Footholds);
-                SetTypes(ref newVisibleTypes, ref newEditedTypes, ropes, ItemTypes.Ropes);
-                SetTypes(ref newVisibleTypes, ref newEditedTypes, chairs, ItemTypes.Chairs);
-                SetTypes(ref newVisibleTypes, ref newEditedTypes, tooltips, ItemTypes.ToolTips);
-                SetTypes(ref newVisibleTypes, ref newEditedTypes, backgrounds, ItemTypes.Backgrounds);
-                SetTypes(ref newVisibleTypes, ref newEditedTypes, misc, ItemTypes.Misc);
-                SetTypes(ref newVisibleTypes, ref newEditedTypes, mirrorField, ItemTypes.MirrorFieldData);
+                ItemTypes newVisible = 0, newEdited = 0;
+                SetTypes(ref newVisible, ref newEdited, tiles, ItemTypes.Tiles);
+                SetTypes(ref newVisible, ref newEdited, objs, ItemTypes.Objects);
+                SetTypes(ref newVisible, ref newEdited, npcs, ItemTypes.NPCs);
+                SetTypes(ref newVisible, ref newEdited, mobs, ItemTypes.Mobs);
+                SetTypes(ref newVisible, ref newEdited, reactors, ItemTypes.Reactors);
+                SetTypes(ref newVisible, ref newEdited, portals, ItemTypes.Portals);
+                SetTypes(ref newVisible, ref newEdited, footholds, ItemTypes.Footholds);
+                SetTypes(ref newVisible, ref newEdited, ropes, ItemTypes.Ropes);
+                SetTypes(ref newVisible, ref newEdited, chairs, ItemTypes.Chairs);
+                SetTypes(ref newVisible, ref newEdited, tooltips, ItemTypes.ToolTips);
+                SetTypes(ref newVisible, ref newEdited, backgrounds, ItemTypes.Backgrounds);
+                SetTypes(ref newVisible, ref newEdited, misc, ItemTypes.Misc);
+                SetTypes(ref newVisible, ref newEdited, mirrorField, ItemTypes.MirrorFieldData);
 
-                ApplicationSettings.theoreticalVisibleTypes = newVisibleTypes;
-                ApplicationSettings.theoreticalEditedTypes = newEditedTypes;
-                if (multiBoard.SelectedBoard != null)
+                ApplicationSettings.theoreticalVisibleTypes = newVisible;
+                ApplicationSettings.theoreticalEditedTypes  = newEdited;
+                if (_multiBoard.SelectedBoard != null)
                 {
-                    InputHandler.ClearSelectedItems(multiBoard.SelectedBoard);
-                    multiBoard.SelectedBoard.VisibleTypes = newVisibleTypes;
-                    multiBoard.SelectedBoard.EditedTypes = newEditedTypes;
+                    MultiBoard.ClearSelectedItems(_multiBoard.SelectedBoard);
+                    _multiBoard.SelectedBoard.VisibleTypes = newVisible;
+                    _multiBoard.SelectedBoard.EditedTypes  = newEdited;
                 }
             }
         }
 
-        void Ribbon_ExitClicked()
+        private void Ribbon_ExitClicked() => CloseRequested?.Invoke();
+
+        private async void Ribbon_SettingsClicked()
         {
-            if (CloseRequested != null)
+            if (OwnerWindow == null)
             {
-                CloseRequested.Invoke();
-            }
-        }
-
-        void Ribbon_SettingsClicked()
-        {
-            lock (multiBoard)
-            {
-                new UserSettingsForm().ShowDialog();
-            }
-        }
-
-        void Ribbon_HelpClicked()
-        {
-            string helpPath = Path.Combine(Application.StartupPath, "Help.htm");
-            if (File.Exists(helpPath))
-                Process.Start(helpPath);
-            else
-                MessageBox.Show("Help could not be shown because the help file (HRHelp.htm) was not found");
-        }
-
-        void Ribbon_AboutClicked()
-        {
-            new About().ShowDialog();
-        }
-
-        void Ribbon_RepackClicked()
-        {
-            // Check if we're using IMG filesystem mode (no WzManager)
-            if (Program.WzManager == null)
-            {
-                // Show Pack to WZ dialog for IMG filesystem mode
-                if (Program.DataSource != null)
-                {
-                    // Get the version path and data source from DataSource
-                    string versionPath = null;
-                    MapleLib.Img.ImgFileSystemDataSource imgDataSource = null;
-
-                    if (Program.DataSource is MapleLib.Img.ImgFileSystemDataSource imgDs)
-                    {
-                        versionPath = imgDs.Manager?.VersionPath;
-                        imgDataSource = imgDs;
-                    }
-                    else if (Program.DataSource is MapleLib.Img.HybridDataSource hybridDs)
-                    {
-                        // Try to get from hybrid's img source
-                        versionPath = hybridDs.ImgSource?.Manager?.VersionPath;
-                        imgDataSource = hybridDs.ImgSource;
-                    }
-
-                    if (!string.IsNullOrEmpty(versionPath))
-                    {
-                        lock (multiBoard)
-                        {
-                            PackToWz packDialog = new PackToWz(versionPath, imgDataSource);
-                            packDialog.ShowDialog();
-                        }
-                        return;
-                    }
-                }
-
-                MessageBox.Show(
-                    "Unable to determine the IMG filesystem path.\n\n" +
-                    "Please use HaRepacker to pack IMG files to WZ.",
-                    "IMG Filesystem Mode",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Information);
+                Debug.WriteLine("[HaCreatorStateManager] OwnerWindow not set; cannot open Settings dialog");
                 return;
             }
-
-            lock (multiBoard)
-            {
-                Repack r = new Repack();
-                r.ShowDialog();
-            }
-            if (Program.Restarting && CloseRequested != null)
-            {
-                CloseRequested.Invoke();
-            }
+            var dlg = new HaCreator.GUI.UserSettingsDialog();
+            await dlg.ShowDialog(OwnerWindow);
         }
 
-        void Ribbon_SaveClicked()
+        private void Ribbon_HelpClicked()
         {
-            lock (multiBoard)
-            {
-                new Save(multiBoard.SelectedBoard).ShowDialog();
-            }
+            string helpPath = Path.Combine(AppContext.BaseDirectory, "Help.htm");
+            if (File.Exists(helpPath))
+                Process.Start(new ProcessStartInfo(helpPath) { UseShellExecute = true });
+            else
+                Debug.WriteLine("Help file not found.");
         }
 
-        public System.Windows.RoutedEventHandler[] MakeRightClickHandler()
+        private void Ribbon_AboutClicked()
         {
-            return new System.Windows.RoutedEventHandler[] { 
-                new System.Windows.RoutedEventHandler(MapEditInfo), 
-                new System.Windows.RoutedEventHandler(MapAddVR), 
-                new System.Windows.RoutedEventHandler(MapAddMinimap),
-                 new System.Windows.RoutedEventHandler(CloseMapTab)
+            // TODO: port About dialog to Avalonia
+            Debug.WriteLine("About stub");
+        }
+
+        private void Ribbon_RepackClicked()
+        {
+            // TODO: port Repack/PackToWz to Avalonia
+            Debug.WriteLine("Repack stub");
+        }
+
+        private async void Ribbon_SaveClicked()
+        {
+            Board? board;
+            lock (_multiBoard) { board = _multiBoard.SelectedBoard; }
+            if (board == null) return;
+            if (OwnerWindow == null)
+            {
+                Debug.WriteLine("[HaCreatorStateManager] OwnerWindow not set; cannot open Save dialog");
+                return;
+            }
+            var dlg = new HaCreator.GUI.SaveMapDialog(board);
+            await dlg.ShowDialog(OwnerWindow);
+        }
+
+        public EventHandler[] MakeRightClickHandler()
+        {
+            return new EventHandler[]
+            {
+                (s, e) => { if (s is MenuItem mi && mi.Tag is TabItem tab) MapEditInfo(tab); },
+                (s, e) => { if (s is MenuItem mi && mi.Tag is TabItem tab) MapAddVR(tab); },
+                (s, e) => { if (s is MenuItem mi && mi.Tag is TabItem tab) MapAddMinimap(tab); },
+                (s, e) => { if (s is MenuItem mi && mi.Tag is TabItem tab) CloseMapTab(tab); }
             };
         }
 
-        void Ribbon_NewClicked()
+        private async void Ribbon_NewClicked()
         {
-            LoadMap(new New(multiBoard, tabs, MakeRightClickHandler()));
-        }
-
-        void Ribbon_OpenClicked()
-        {
-            string mapNameFilter = null;
-            Board currentSelectedBoard = multiBoard.SelectedBoard;
-            if (currentSelectedBoard != null)
+            if (OwnerWindow == null)
             {
-                mapNameFilter = ( currentSelectedBoard.MapInfo.id / 10000).ToString(); // shows near-by maps relative to the current map opened in the Board
+                Debug.WriteLine("[HaCreatorStateManager] OwnerWindow not set; cannot open New dialog");
+                return;
             }
-            
-            FieldSelector fieldSelector = new FieldSelector(multiBoard, tabs, MakeRightClickHandler(), false, mapNameFilter); // allow this selector to float above the editor UI.
-            LoadMap(fieldSelector);
+            var dlg = new HaCreator.GUI.NewMapDialog(_multiBoard, _tabs, MakeRightClickHandler());
+            await dlg.ShowDialog(OwnerWindow);
         }
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="tm">To map</param>
-        public void LoadMap(int tm)
+        private async void Ribbon_OpenClicked()
         {
-            FieldSelector fieldSelector = new FieldSelector(multiBoard, tabs, MakeRightClickHandler(), false, tm.ToString());
-
-            LoadMap(fieldSelector);
-        }
-
-        /// <summary>
-        /// Loads a new map
-        /// </summary>
-        /// <param name="loader"></param>
-        public void LoadMap(Form loader = null)
-        {
-            lock (multiBoard)
+            if (OwnerWindow == null)
             {
-                bool deviceLoadedThisTime = false;
+                Debug.WriteLine("[HaCreatorStateManager] OwnerWindow not set; cannot open FieldSelector");
+                return;
+            }
+            var dlg = new HaCreator.GUI.FieldSelectorDialog(_multiBoard, _tabs, MakeRightClickHandler());
+            await dlg.ShowDialog(OwnerWindow);
+        }
 
-                // load multiboard early before map
-                if (!multiBoard.DeviceReady)
+        public void LoadMap(int mapId) => Debug.WriteLine($"LoadMap({mapId}) stub");
+
+        public void LoadMap()
+        {
+            lock (_multiBoard)
+            {
+                if (!_multiBoard.DeviceReady)
                 {
-                    ribbon.SetEnabled(true);
-                    ribbon.SetOptions(UserSettings.useMiniMap, UserSettings.emulateParallax, UserSettings.useSnapping, ApplicationSettings.randomTiles, ApplicationSettings.InfoMode);
-                    multiBoard.Start();
+                    _ribbon.SetEnabled(true);
+                    _ribbon.SetOptions(UserSettings.useMiniMap, UserSettings.emulateParallax,
+                        UserSettings.useSnapping, ApplicationSettings.randomTiles, ApplicationSettings.InfoMode);
+                    _multiBoard.Start();
                     backupMan.Start();
-
-                    deviceLoadedThisTime = true;
+                    FirstMapLoaded?.Invoke();
                 }
-
-                if (loader == null || loader.ShowDialog() == DialogResult.OK)
-                {
-                    if (deviceLoadedThisTime)
-                    {
-                        FirstMapLoaded?.Invoke();
-                    }
-                    multiBoard.SelectedBoard.SelectedPlatform = multiBoard.SelectedBoard.SelectedLayerIndex == -1 ? -1 : multiBoard.SelectedBoard.Layers[multiBoard.SelectedBoard.SelectedLayerIndex].zMList.ElementAt(0);
-                    ribbon.SetLayers(multiBoard.SelectedBoard.Layers);
-                    ribbon.SetSelectedLayer(multiBoard.SelectedBoard.SelectedLayerIndex, multiBoard.SelectedBoard.SelectedPlatform, multiBoard.SelectedBoard.SelectedAllLayers, multiBoard.SelectedBoard.SelectedAllPlatforms);
-                    ribbon.SetHasMinimap(multiBoard.SelectedBoard.MinimapRectangle != null);
-                    multiBoard.SelectedBoard.VisibleTypes = ApplicationSettings.theoreticalVisibleTypes;
-                    multiBoard.SelectedBoard.EditedTypes = ApplicationSettings.theoreticalEditedTypes;
-                    ParseVisibleEditedTypes();
-
-                    // Notify object viewer of new board
-                    objectViewerPanel?.OnBoardChanged(multiBoard.SelectedBoard);
-
-                    multiBoard.Focus();
-                }
+                _multiBoard.Focus();
             }
         }
 
-        void ribbon_NewPlatformClicked()
+        private void Ribbon_NewPlatformClicked()
         {
-            lock (multiBoard)
+            lock (_multiBoard)
             {
-                NewPlatform dlg = new NewPlatform(new SortedSet<int>(multiBoard.SelectedBoard.Layers.Select(x => (IEnumerable<int>)x.zMList).Aggregate((x, y) => Enumerable.Concat(x, y))));
-                if (dlg.ShowDialog() != DialogResult.OK)
-                    return;
-                int zm = dlg.result;
-                multiBoard.SelectedBoard.SelectedLayer.zMList.Add(zm);
-                multiBoard.SelectedBoard.SelectedPlatform = zm;
-                ribbon.SetLayers(multiBoard.SelectedBoard.Layers);
-                ribbon.SetSelectedLayer(multiBoard.SelectedBoard.SelectedLayerIndex, multiBoard.SelectedBoard.SelectedPlatform, multiBoard.SelectedBoard.SelectedAllLayers, multiBoard.SelectedBoard.SelectedAllPlatforms);
+                // TODO: port NewPlatform dialog
+                Debug.WriteLine("NewPlatform stub");
             }
         }
 
-        /// <summary>
-        /// Edit map Physics
-        /// </summary>
-        private void Ribbon_EditMapPhysicsClicked()
+        private void Ribbon_MapPhysicsClicked()
         {
-            MapPhysicsEditor editor = new MapPhysicsEditor();
-            editor.ShowDialog();
+            // TODO: port MapPhysicsEditor to Avalonia
+            Debug.WriteLine("MapPhysicsEditor stub");
         }
-        #endregion
 
-        #region Ribbon Layer Boxes
+        // ── Layer ribbon handlers ─────────────────────────────────────
+
         private void SetLayer(int currentLayer, int currentPlatform, bool allLayers, bool allPlats)
         {
-            multiBoard.SelectedBoard.SelectedLayerIndex = currentLayer;
-            multiBoard.SelectedBoard.SelectedPlatform = currentPlatform;
-            multiBoard.SelectedBoard.SelectedAllLayers = allLayers;
-            multiBoard.SelectedBoard.SelectedAllPlatforms = allPlats;
+            _multiBoard.SelectedBoard.SelectedLayerIndex = currentLayer;
+            _multiBoard.SelectedBoard.SelectedPlatform = currentPlatform;
+            _multiBoard.SelectedBoard.SelectedAllLayers = allLayers;
+            _multiBoard.SelectedBoard.SelectedAllPlatforms = allPlats;
             ApplicationSettings.lastDefaultLayer = currentLayer;
             ApplicationSettings.lastAllLayers = allLayers;
         }
 
-        void ribbon_LayerViewChanged(int layer, int platform, bool allLayers, bool allPlats, string tileSet)
+        private void Ribbon_LayerViewChanged(int layer, int platform, bool allLayers, bool allPlats, string tileSet)
         {
-            if (multiBoard.SelectedBoard == null)
-                return;
+            if (_multiBoard.SelectedBoard == null) return;
             SetLayer(layer, platform, allLayers, allPlats);
-            InputHandler.ClearSelectedItems(multiBoard.SelectedBoard);
-
-            // Update tilePanel to navigate to that selected tileLayer
-            if (tileSet != null)
-            {
-                tilePanel.SetSelectedTileSet(tileSet);
-            }
+            MultiBoard.ClearSelectedItems(_multiBoard.SelectedBoard);
+            tilePanel?.SetSelectedTileSet(tileSet);
         }
-        #endregion
+
+        // ── Events ────────────────────────────────────────────────────
 
         public delegate void EmptyDelegate();
+        public event EmptyDelegate? CloseRequested;
+        public event EmptyDelegate? FirstMapLoaded;
 
-        public event EmptyDelegate CloseRequested;
-        public event EmptyDelegate FirstMapLoaded;
+        // ── Item description ──────────────────────────────────────────
 
-        /// <summary>
-        /// Creates the description of the selected item to be displayed on the top right corner of HaRibbon
-        /// </summary>
-        /// <param name="item"></param>
-        /// <returns></returns>
         public static string CreateItemDescription(BoardItem item)
         {
-            const string firstLineSpacer = " ";
+            const string sp = " ";
+            var sb = new StringBuilder();
 
-            StringBuilder sb = new StringBuilder();
-            if (item is TileInstance)
+            if (item is TileInstance t)
             {
                 sb.Append("[Tile] ");
-                sb.Append(firstLineSpacer).Append(((TileInfo)item.BaseInfo).tS).Append(@"\").Append(((TileInfo)item.BaseInfo).u).Append(@"\").Append(((TileInfo)item.BaseInfo).no);
+                sb.Append(sp).Append(((TileInfo)t.BaseInfo).tS).Append('\\')
+                  .Append(((TileInfo)t.BaseInfo).u).Append('\\')
+                  .Append(((TileInfo)t.BaseInfo).no);
             }
-            else if (item is ObjectInstance)
+            else if (item is ObjectInstance o)
             {
                 sb.Append("[Object] ");
-                sb.Append(firstLineSpacer).Append(((ObjectInfo)item.BaseInfo).oS).Append(@"\").Append(((ObjectInfo)item.BaseInfo).l0).Append(@"\")
-                    .Append(((ObjectInfo)item.BaseInfo).l1).Append(@"\").Append(((ObjectInfo)item.BaseInfo).l2);
+                sb.Append(sp).Append(((ObjectInfo)o.BaseInfo).oS).Append('\\')
+                  .Append(((ObjectInfo)o.BaseInfo).l0).Append('\\')
+                  .Append(((ObjectInfo)o.BaseInfo).l1).Append('\\')
+                  .Append(((ObjectInfo)o.BaseInfo).l2);
             }
-            else if (item is BackgroundInstance)
+            else if (item is BackgroundInstance bg)
             {
                 sb.Append("[Background] ");
-                sb.Append(firstLineSpacer).Append(((BackgroundInfo)item.BaseInfo).bS).Append(@"\").Append((((BackgroundInfo)item.BaseInfo).Type.ToString())).Append(@"\")
-                    .Append(((BackgroundInfo)item.BaseInfo).no);
+                sb.Append(sp).Append(((BackgroundInfo)bg.BaseInfo).bS).Append('\\')
+                  .Append(((BackgroundInfo)bg.BaseInfo).Type).Append('\\')
+                  .Append(((BackgroundInfo)bg.BaseInfo).no);
             }
-            else if (item is PortalInstance)
+            else if (item is PortalInstance portal)
             {
-                PortalInstance portal = (PortalInstance)item;
                 sb.Append("[Portal] ");
-                sb.Append(firstLineSpacer).Append("Name: ").Append(((PortalInstance)item).pn).Append(Environment.NewLine);
-                sb.Append(firstLineSpacer).Append("Type: ").Append(PortalTypeExtensions.GetFriendlyName(portal.pt));
+                sb.Append(sp).Append("Name: ").Append(portal.pn).AppendLine();
+                sb.Append(sp).Append("Type: ").Append(PortalTypeExtensions.GetFriendlyName(portal.pt));
             }
-            else if (item is MobInstance)
+            else if (item is MobInstance mob)
             {
                 sb.Append("[Mob] ");
-                sb.Append(firstLineSpacer).Append("Name: ").Append(((MobInfo)item.BaseInfo).Name).Append(Environment.NewLine);
-                sb.Append(firstLineSpacer).Append("ID: ").Append(((MobInfo)item.BaseInfo).ID);
+                sb.Append(sp).Append("Name: ").Append(((MobInfo)mob.BaseInfo).Name).AppendLine();
+                sb.Append(sp).Append("ID: ").Append(((MobInfo)mob.BaseInfo).ID);
             }
-            else if (item is NpcInstance)
+            else if (item is NpcInstance npc)
             {
                 sb.Append("[Npc] ");
-                sb.Append(firstLineSpacer).Append("Name: ").Append(((NpcInfo)item.BaseInfo).StringName).Append(Environment.NewLine);
-                sb.Append(firstLineSpacer).Append("ID: ").Append(((NpcInfo)item.BaseInfo).ID);
+                sb.Append(sp).Append("Name: ").Append(((NpcInfo)npc.BaseInfo).StringName).AppendLine();
+                sb.Append(sp).Append("ID: ").Append(((NpcInfo)npc.BaseInfo).ID);
             }
-            else if (item is ReactorInstance)
+            else if (item is ReactorInstance reactor)
             {
                 sb.Append("[Reactor] ");
-                sb.Append(firstLineSpacer).Append("ID: ").Append(((ReactorInfo)item.BaseInfo).ID);
+                sb.Append("ID: ").Append(((ReactorInfo)reactor.BaseInfo).ID);
             }
-            else if (item is FootholdAnchor foothold)
+            else if (item is FootholdAnchor fh)
             {
                 sb.Append("[Foothold Anchor] ");
-                sb.Append("X: ").Append(foothold.X).Append(Environment.NewLine);
-                sb.Append("Y: ").Append(foothold.Y).Append(Environment.NewLine);
+                sb.Append("X: ").Append(fh.X).AppendLine();
+                sb.Append("Y: ").Append(fh.Y).AppendLine();
             }
             else if (item is RopeAnchor rope)
             {
                 sb.Append(rope.ParentRope.ladder ? "[Ladder] " : "[Rope] ");
-                sb.Append("X: ").Append(rope.X).Append(Environment.NewLine);
-                sb.Append("Y: ").Append(rope.Y).Append(Environment.NewLine);
+                sb.Append("X: ").Append(rope.X).AppendLine();
+                sb.Append("Y: ").Append(rope.Y).AppendLine();
             }
             else if (item is Chair chair)
             {
                 sb.Append("[Chair] ");
-                sb.Append("X: ").Append(chair.X).Append(Environment.NewLine);
-                sb.Append("Y: ").Append(chair.Y).Append(Environment.NewLine);
+                sb.Append("X: ").Append(chair.X).AppendLine();
+                sb.Append("Y: ").Append(chair.Y).AppendLine();
             }
             else if (item is ToolTipChar || item is ToolTipDot || item is ToolTipInstance)
             {
@@ -1222,103 +741,63 @@ namespace HaCreator.MapEditor
             else if (item is INamedMisc misc)
             {
                 sb.Append(misc.Name);
-            } 
-            else if (item is MirrorFieldData mirrorFieldData)
+            }
+            else if (item is MirrorFieldData mfd)
             {
-                sb.Append("[MirrorFieldData] ");
-                sb.Append("Ground reflections for '").Append(mirrorFieldData.MirrorFieldDataType.ToString()).Append("'");
-
-            } 
-            else if (item is VRDot vrDot)
+                sb.Append("[MirrorFieldData] Ground reflections for '").Append(mfd.MirrorFieldDataType).Append('\'');
+            }
+            else if (item is VRDot vrd)
             {
                 sb.Append("[VR Dot] ");
-                sb.Append("X: ").Append(vrDot.X).Append(Environment.NewLine);
-                sb.Append("Y: ").Append(vrDot.Y).Append(Environment.NewLine);
+                sb.Append("X: ").Append(vrd.X).AppendLine();
+                sb.Append("Y: ").Append(vrd.Y).AppendLine();
             }
-            else if (item is MinimapDot minimapDot)
+            else if (item is MinimapDot mmd)
             {
                 sb.Append("[Minimap Dot] ");
-                sb.Append("X: ").Append(minimapDot.X).Append(Environment.NewLine);
-                sb.Append("Y: ").Append(minimapDot.Y).Append(Environment.NewLine);
+                sb.Append("X: ").Append(mmd.X).AppendLine();
+                sb.Append("Y: ").Append(mmd.Y).AppendLine();
             }
             else
             {
-                sb.Append("[Unknown] ");
-                sb.Append(item.ToString());
+                sb.Append("[Unknown] ").Append(item);
             }
-            
-            sb.Append(Environment.NewLine);
-            sb.Append("Width: ").Append(item.Width).Append(", Height: ").Append(item.Height);
 
+            sb.AppendLine();
+            sb.Append("Width: ").Append(item.Width).Append(", Height: ").Append(item.Height);
             return sb.ToString();
         }
 
-        /// <summary>
-        /// Sets the tile panel while initialising the TilePanel UserControl
-        /// </summary>
-        /// <param name="tp"></param>
-        public void SetTilePanel(TilePanel tp)
+        // ── Panel setters ─────────────────────────────────────────────
+
+        public void SetTilePanel(TilePanel tp) => tilePanel = tp;
+        public void SetObjPanel(ObjPanel op) => objPanel = op;
+        public void SetBlackBorderPanel(BlackBorderPanel op) => blackBorderPanel = op;
+        public void SetBackgroundPanel(BackgroundPanel bp) => backgroundPanel = bp;
+        public void SetLifePanel(LifePanel lp) => lifePanel = lp;
+        public void SetObjectViewerPanel(ObjectViewerPanel ovp) => objectViewerPanel = ovp;
+
+        // ── Edit mode ─────────────────────────────────────────────────
+
+        public void EnterEditMode(ItemTypes type)
         {
-            this.tilePanel = tp;
-        }
-        /// <summary>
-        /// Sets the object panel while initialising the ObjPanel UserControl
-        /// </summary>
-        /// <param name="op"></param>
-        public void SetObjPanel(ObjPanel op)
-        {
-            this.objPanel = op;
-        }
-        /// <summary>
-        /// Sets the black border panel while initialising the BlackBorderPanel UserControl
-        /// </summary>
-        /// <param name="op"></param>
-        public void SetBlackBorderPanel(BlackBorderPanel op)
-        {
-            this.blackBorderPanel = op;
+            _multiBoard.SelectedBoard.EditedTypes = type;
+            _multiBoard.SelectedBoard.VisibleTypes |= type;
+            _ribbon.SetEnabled(false);
         }
 
-        /// <summary>
-        /// Sets the background panel
-        /// </summary>
-        /// <param name="bp"></param>
-        public void SetBackgroundPanel(BackgroundPanel bp)
+        public void ExitEditMode()
         {
-            this.backgroundPanel = bp;
+            _multiBoard.SelectedBoard.EditedTypes = ApplicationSettings.theoreticalEditedTypes;
+            _multiBoard.SelectedBoard.VisibleTypes = ApplicationSettings.theoreticalVisibleTypes;
+            _ribbon.SetEnabled(true);
         }
 
-        /// <summary>
-        /// Sets the life panel
-        /// </summary>
-        /// <param name="lp"></param>
-        public void SetLifePanel(LifePanel lp)
-        {
-            this.lifePanel = lp;
-        }
+        // ── Hot swap ──────────────────────────────────────────────────
 
-        /// <summary>
-        /// Sets the object viewer panel
-        /// </summary>
-        /// <param name="ovp"></param>
-        public void SetObjectViewerPanel(ObjectViewerPanel ovp)
-        {
-            this.objectViewerPanel = ovp;
-        }
-
-        #region Hot Swap
-        /// <summary>
-        /// Gets the HotSwapRefreshService
-        /// </summary>
         public HotSwapRefreshService HotSwapService => _hotSwapService;
-
-        /// <summary>
-        /// Gets the AssetUsageTracker
-        /// </summary>
         public AssetUsageTracker AssetUsageTracker => _assetUsageTracker;
 
-        /// <summary>
-        /// Initializes hot swap functionality and subscribes all panels
-        /// </summary>
         public void InitializeHotSwap()
         {
             if (Program.DataSource is MapleLib.Img.ImgFileSystemDataSource imgDataSource)
@@ -1327,76 +806,27 @@ namespace HaCreator.MapEditor
                 _hotSwapService = new HotSwapRefreshService(
                     Program.InfoManager,
                     System.Threading.SynchronizationContext.Current);
-
                 _hotSwapService.SubscribeToDataSource(imgDataSource);
-
-                // Subscribe panels
                 tilePanel?.SubscribeToHotSwap(_hotSwapService);
                 objPanel?.SubscribeToHotSwap(_hotSwapService);
                 backgroundPanel?.SubscribeToHotSwap(_hotSwapService);
                 lifePanel?.SubscribeToHotSwap(_hotSwapService);
-
-                System.Diagnostics.Debug.WriteLine("HaCreatorStateManager: Hot swap initialized");
             }
         }
 
-        /// <summary>
-        /// Registers all assets used by a board with the usage tracker
-        /// </summary>
-        /// <param name="board">The board to register</param>
-        public void RegisterBoardAssets(Board board)
-        {
-            _assetUsageTracker?.RegisterBoardAssets(board);
-        }
+        public void RegisterBoardAssets(Board board) => _assetUsageTracker?.RegisterBoardAssets(board);
+        public void UnregisterBoardAssets(Board board) => _assetUsageTracker?.UnregisterBoardAssets(board);
 
-        /// <summary>
-        /// Unregisters all assets used by a board
-        /// </summary>
-        /// <param name="board">The board to unregister</param>
-        public void UnregisterBoardAssets(Board board)
-        {
-            _assetUsageTracker?.UnregisterBoardAssets(board);
-        }
-
-        /// <summary>
-        /// Disposes hot swap resources
-        /// </summary>
         public void DisposeHotSwap()
         {
             _hotSwapService?.Dispose();
             _hotSwapService = null;
             _assetUsageTracker = null;
         }
-        #endregion
 
-        public void EnterEditMode(ItemTypes type)
-        {
-            multiBoard.SelectedBoard.EditedTypes = type;
-            multiBoard.SelectedBoard.VisibleTypes |= type;
-            ribbon.SetEnabled(false);
-        }
+        // ── Accessors ─────────────────────────────────────────────────
 
-        public void ExitEditMode()
-        {
-            multiBoard.SelectedBoard.EditedTypes = ApplicationSettings.theoreticalEditedTypes;
-            multiBoard.SelectedBoard.VisibleTypes = ApplicationSettings.theoreticalVisibleTypes;
-            ribbon.SetEnabled(true);
-        }
-
-        public MultiBoard MultiBoard
-        {
-            get
-            {
-                return multiBoard;
-            }
-        }
-
-        public HaRibbon Ribbon
-        {
-            get
-            {
-                return ribbon;
-            }
-        }
+        public MultiBoard MultiBoard => _multiBoard;
+        public HaRibbon Ribbon => _ribbon;
     }
 }
