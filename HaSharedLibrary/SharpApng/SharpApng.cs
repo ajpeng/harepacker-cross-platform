@@ -58,12 +58,10 @@ namespace HaSharedLibrary.SharpApng
             return result;
         }
 
-        // TODO: implement cross-platform APNG encoding (SharpApngBasicWrapper requires apng64/apng32.dll).
         public void WriteApng(string path, bool firstFrameHidden, bool disposeAfter)
         {
-            throw new PlatformNotSupportedException(
-                "APNG export requires the Windows-only apng64/apng32.dll native library. " +
-                "Cross-platform APNG encoding is not yet implemented.");
+            ApngWriter.Write(path, m_frames, firstFrameHidden);
+            if (disposeAfter) Dispose();
         }
     }
 }

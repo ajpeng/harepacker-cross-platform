@@ -67,5 +67,7 @@
     <!-- Audio: Core types for format parsing; playback is platform-guarded -->
     <PackageReference Include="NAudio.Core" Version="2.2.1" />
     <PackageReference Include="NAudio.Midi" Version="2.2.1" />
+    <!-- Cross-platform OpenAL audio playback -->
+    <PackageReference Include="OpenTK.Audio.OpenAL" Version="4.8.2" />
   </ItemGroup>
 </Project>
