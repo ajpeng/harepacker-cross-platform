@@ -1,15 +1,18 @@
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Threading;
 using HaRepacker.GUI.Input;
 using HaRepacker.Models;
 using MapleLib.Helpers;
 using MapleLib.WzLib;
 using MapleLib.WzLib.WzProperties;
+using SkiaSharp;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace HaRepacker.GUI.Panels
 {
@@ -448,7 +451,150 @@ namespace HaRepacker.GUI.Panels
             return result;
         }
         public void SaveImageAnimation_Click() => Warning.Error("Save animation not yet implemented.");
-        public void FixLinkForOldMapleStory_OnClick() => Warning.Error("Fix inlink not yet implemented.");
-        public void AiBatchImageUpscaleEdit(float factor) => Warning.Error("AI upscale not yet implemented.");
+
+        public void FixLinkForOldMapleStory_OnClick()
+        {
+            if (SelectedNode == null) { Warning.Error("Select a node first."); return; }
+            var t0 = DateTime.Now;
+            CheckImageNodeRecursively_LinkRepair(SelectedNode);
+            double ms = (DateTime.Now - t0).TotalMilliseconds;
+            Warning.Warn($"Fix inlink complete.\nElapsed: {ms:N0} ms");
+        }
+
+        private void CheckImageNodeRecursively_LinkRepair(WzNode node)
+        {
+            if (node.WzObject is WzImage img)
+            {
+                if (!img.Parsed) img.ParseImage();
+                node.Reparse();
+            }
+
+            if (node.WzObject is WzCanvasProperty prop)
+            {
+                if (prop.ContainsInlinkProperty() || prop.ContainsOutlinkProperty())
+                {
+                    if (prop.ContainsInlinkProperty())
+                        WzNode.GetChildNode(node, WzCanvasProperty.InlinkPropertyName)?.DeleteNode();
+                    if (prop.ContainsOutlinkProperty())
+                        WzNode.GetChildNode(node, WzCanvasProperty.OutlinkPropertyName)?.DeleteNode();
+
+                    MapleLib.WzLib.WzLinkResolver.ResolveSingleCanvas(prop);
+                    node.ChangedNodeProperty();
+                }
+            }
+            else
+            {
+                foreach (var child in node.Nodes.ToList())
+                    CheckImageNodeRecursively_LinkRepair(child);
+            }
+
+            WzNode.GetChildNode(node, "_hash")?.DeleteNode();
+        }
+
+        public async void AiBatchImageUpscaleEdit(float downscaleFactorAfter)
+        {
+            if (SelectedNode == null) { Warning.Error("Select a node first."); return; }
+
+            const float SCALE_UP_FACTOR = 4;
+            var toUpscale = new Dictionary<string, (SKBitmap bmp, WzCanvasProperty prop, WzNode node)>();
+            CollectUpscaleNodes(SelectedNode, toUpscale);
+
+            if (toUpscale.Count == 0) { Warning.Error("No canvas images found in the selected node."); return; }
+
+            string pathIn = Path.Combine(Path.GetTempPath(), "HaRepacker_EsrganIn_" + Random.Shared.Next());
+            string pathOut = Path.Combine(Path.GetTempPath(), "HaRepacker_EsrganOut_" + Random.Shared.Next());
+            var t0 = DateTime.Now;
+
+            try
+            {
+                Directory.CreateDirectory(pathIn);
+                Directory.CreateDirectory(pathOut);
+
+                // Save input bitmaps
+                foreach (var (key, (bmp, _, _)) in toUpscale)
+                {
+                    string filePath = Path.Combine(pathIn, key + ".png");
+                    using var img = SKImage.FromBitmap(bmp);
+                    using var data = img.Encode(SKEncodedImageFormat.Png, 100);
+                    File.WriteAllBytes(filePath, data.ToArray());
+                }
+
+                await RealESRGAN_AI_Upscale.EsrganNcnn.Run(pathIn, pathOut, (int)SCALE_UP_FACTOR);
+
+                // Apply upscaled bitmaps
+                foreach (var (key, (_, prop, wzNode)) in toUpscale)
+                {
+                    string filePath = Path.Combine(pathOut, key + ".png");
+                    if (!File.Exists(filePath)) continue;
+
+                    using var upscaled = SKBitmap.Decode(filePath);
+                    SKBitmap result;
+                    if (Math.Abs(downscaleFactorAfter - 1f) < 0.001f)
+                    {
+                        result = upscaled.Copy();
+                    }
+                    else
+                    {
+                        int newW = (int)(upscaled.Width * downscaleFactorAfter);
+                        int newH = (int)(upscaled.Height * downscaleFactorAfter);
+                        result = new SKBitmap(newW, newH);
+                        using var canvas = new SKCanvas(result);
+                        using var paint = new SKPaint { FilterQuality = SKFilterQuality.High };
+                        canvas.DrawBitmap(upscaled, SKRect.Create(0, 0, newW, newH), paint);
+                    }
+
+                    prop.PngProperty.PNG = result;
+
+                    // Update origin coordinates if present
+                    var origin = prop.GetCanvasOriginPosition();
+                    if (origin.X != 0 || origin.Y != 0)
+                        prop.SetCanvasOriginPosition(new System.Drawing.PointF(
+                            origin.X * (SCALE_UP_FACTOR * downscaleFactorAfter),
+                            origin.Y * (SCALE_UP_FACTOR * downscaleFactorAfter)));
+
+                    await Dispatcher.UIThread.InvokeAsync(() => wzNode.ChangedNodeProperty());
+                }
+
+                double elapsed = (DateTime.Now - t0).TotalSeconds;
+                Warning.Warn($"AI upscale complete.\nElapsed: {elapsed:N2} sec(s)");
+            }
+            catch (Exception ex)
+            {
+                Warning.Error("AI upscale failed: " + ex.Message);
+            }
+            finally
+            {
+                try { if (Directory.Exists(pathIn)) Directory.Delete(pathIn, true); } catch { }
+                try { if (Directory.Exists(pathOut)) Directory.Delete(pathOut, true); } catch { }
+            }
+        }
+
+        private static void CollectUpscaleNodes(
+            WzNode node,
+            Dictionary<string, (SKBitmap, WzCanvasProperty, WzNode)> result)
+        {
+            if (node.WzObject is WzImage img)
+            {
+                if (!img.Parsed) img.ParseImage();
+                node.Reparse();
+            }
+
+            if (node.WzObject is WzCanvasProperty prop
+                && !prop.ContainsInlinkProperty()
+                && !prop.ContainsOutlinkProperty())
+            {
+                string key = prop.FullPath.GetHashCode().ToString();
+                if (!result.ContainsKey(key))
+                {
+                    SKBitmap bmp = prop.GetLinkedWzImageProperty().GetBitmap();
+                    result[key] = (bmp, prop, node);
+                }
+            }
+            else
+            {
+                foreach (var child in node.Nodes)
+                    CollectUpscaleNodes(child, result);
+            }
+        }
     }
 }

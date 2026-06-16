@@ -138,6 +138,7 @@
     <ProjectReference Include="..\HaSharedLibrary\HaSharedLibrary.csproj" />
     <ProjectReference Include="..\MapleLib\MapleLib\MapleLib.csproj" />
     <ProjectReference Include="..\MapleLib\spine-runtimes-2.1.25\spine-csharp\spine-csharp 2.1.25.csproj" />
+    <ProjectReference Include="..\RealESRGAN_AI_Upscale\RealESRGAN_AI_Upscale.csproj" />
   </ItemGroup>
 
   <ItemGroup>
