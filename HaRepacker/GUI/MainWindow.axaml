@@ -61,6 +61,9 @@
                 <MenuItem Header="WZ _Key Brute-force…"       Click="OnWzKeyBruteforceClick" />
                 <MenuItem Header="_Custom WZ Encryption…"     Click="OnCustomEncryptionClick" />
                 <MenuItem Header="_Pack IMG Files to WZ…"     Click="OnPackToWzClick" />
+                <Separator />
+                <MenuItem Header="Render _Map (FH Mapper)…"  Click="OnFHMapperClick" />
+                <MenuItem Header="FH Mapper _Settings…"      Click="OnFHMapperSettingsClick" />
             </MenuItem>
             <MenuItem Header="_Help">
                 <MenuItem Header="_About…" Click="OnAboutClick" />

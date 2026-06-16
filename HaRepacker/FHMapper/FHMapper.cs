@@ -1,72 +1,94 @@
-﻿using Footholds;
+using Footholds;
+using MapleLib; // WzDataReader extension methods (ReadString, ReadValue)
 using MapleLib.WzLib;
 using MapleLib.WzLib.WzProperties;
+using SkiaSharp;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
+using System.Drawing; // System.Drawing.Primitives (cross-platform): Point, PointF, Size, Rectangle
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Windows.Forms;
-using System.Security.Cryptography;
-using System.Diagnostics;
-using MapleLib;
+using Avalonia.Controls.ApplicationLifetimes;
 using HaRepacker.GUI.Panels;
+using HaRepacker.Models;
 using MapleLib.Configuration;
-using HaRepacker.GUI;
 
 namespace HaRepacker.FHMapper
 {
     public class FHMapper
     {
         public static string SettingsPath = Path.Combine(ConfigurationManager.GetLocalFolderPath(), "Settings.ini");
-        public List<Object> settings = new List<object>();
-        private readonly MainPanel MainPanel;
-        private TreeNode node;
+        public List<object> settings = new List<object>();
+        private readonly MainPanel _mainPanel;
+        private WzNode? _node;
+        private readonly List<DisplayMapWindow> _openDisplayMaps = new();
 
-        // Fonts
-        private static Font FONT_DISPLAY_MAPID = new Font("Segoe UI", 20);
-        private static Font FONT_GAME_TOOLTIP = new Font("Segoe UI", 9);
-        private static Font FONT_DISPLAY_MINIMAP_NOT_AVAILABLE = new Font("Segoe UI", 18);
-        private static Font FONT_DISPLAY_PORTAL_LFIE_FOOTHOLD = new Font("Segoe UI", 8);
-
-        /// <summary>
-        /// Constructor
-        /// </summary>
-        /// <param name="MainPanel"></param>
-        public FHMapper(MainPanel MainPanel)
+        public FHMapper(MainPanel mainPanel)
         {
-            this.MainPanel = MainPanel;
+            _mainPanel = mainPanel;
+        }
+
+        private static Avalonia.Controls.Window? GetMainWindow()
+        {
+            if (Avalonia.Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+                return desktop.MainWindow;
+            return null;
+        }
+
+        private static void DrawTextAt(SKCanvas canvas, string text, float x, float y, SKFont font, SKPaint paint)
+        {
+            font.GetFontMetrics(out var metrics);
+            canvas.DrawText(text, x, y - metrics.Ascent, font, paint);
+        }
+
+        private static SKBitmap FlipHorizontal(SKBitmap source)
+        {
+            var flipped = new SKBitmap(source.Width, source.Height);
+            using var c = new SKCanvas(flipped);
+            c.Translate(source.Width, 0);
+            c.Scale(-1, 1);
+            c.DrawBitmap(source, 0, 0);
+            return flipped;
+        }
+
+        private static void SaveBitmap(SKBitmap bitmap, string path)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            using var img = SKImage.FromBitmap(bitmap);
+            using var data = img.Encode(SKEncodedImageFormat.Png, 100);
+            File.WriteAllBytes(path, data.ToArray());
         }
 
         #region Renders
-        private Bitmap RenderMinimap(Size bmpSize, WzFile wzFile, WzImage img, string mapIdName, WzSubProperty miniMapSubProperty)
+        private SKBitmap RenderMinimap(Size bmpSize, WzFile wzFile, WzImage img, string mapIdName, WzSubProperty? miniMapSubProperty)
         {
-            Bitmap minimapRender = new Bitmap(400, 200);
-            using (Graphics drawBuf = Graphics.FromImage(minimapRender))
+            var minimapRender = new SKBitmap(400, 200);
+            using var drawBuf = new SKCanvas(minimapRender);
+            drawBuf.Clear(SKColors.White);
+
+            using var blackPaint = new SKPaint { Color = SKColors.Black };
+            using var fontMapId = new SKFont(SKTypeface.FromFamilyName("Segoe UI") ?? SKTypeface.Default, 20);
+            using var fontMinimap = new SKFont(SKTypeface.FromFamilyName("Segoe UI") ?? SKTypeface.Default, 18);
+
+            // Map mark
+            if (img["info"]?["mapMark"] is WzStringProperty mapMark)
             {
-                // Draw map mark
-                WzStringProperty mapMark = ((WzStringProperty)img["info"]["mapMark"]);
-                if (mapMark != null)
-                {
-                    string mapMarkPath = wzFile.WzDirectory.Name + "/MapHelper.img/mark/" + mapMark.GetString();
-                    WzCanvasProperty mapMarkCanvas = (WzCanvasProperty)wzFile.GetObjectFromPath(mapMarkPath);
+                string mapMarkPath = wzFile.WzDirectory.Name + "/MapHelper.img/mark/" + mapMark.GetString();
+                if (wzFile.GetObjectFromPath(mapMarkPath) is WzCanvasProperty markCanvas && mapMark.ToString() != "None")
+                    drawBuf.DrawBitmap(markCanvas.GetLinkedWzCanvasBitmap(), 10, 10);
+            }
 
-                    if (mapMarkCanvas != null && mapMark.ToString() != "None") // Doesnt have to render mapmark if its not available. Actual client does not crash
-                    {
-                        drawBuf.DrawImage(mapMarkCanvas.GetLinkedWzCanvasBitmap(), 10, 10);
-                    }
-                }
-                // Get map name
-                string mapName = string.Empty;
-                string streetName = string.Empty;
-
-                string mapNameStringPath = "String.wz/Map.img";
-                WzImage mapNameImages = (WzImage)WzFile.GetObjectFromMultipleWzFilePath(mapNameStringPath, Program.WzFileManager.WzFileList);
-                foreach (WzSubProperty subAreaImgProp in mapNameImages.WzProperties)
+            // Map name lookup
+            string mapName = string.Empty;
+            string streetName = string.Empty;
+            if (WzFile.GetObjectFromMultipleWzFilePath("String.wz/Map.img", Program.WzFileManager.WzFileList) is WzImage mapNameImages)
+            {
+                foreach (WzSubProperty area in mapNameImages.WzProperties)
                 {
-                    foreach (WzSubProperty mapImg in subAreaImgProp.WzProperties)
+                    foreach (WzSubProperty mapImg in area.WzProperties)
                     {
                         if (mapImg.Name == mapIdName)
                         {
@@ -76,50 +98,38 @@ namespace HaRepacker.FHMapper
                         }
                     }
                 }
-
-                // Draw map name and ID
-                //drawBuf.FillRectangle(new SolidBrush(Color.CornflowerBlue), 0, 0, bmpSize.Width, bmpSize.Height);
-                drawBuf.DrawString(string.Format("[{0}] {1}", mapIdName, streetName), FONT_DISPLAY_MAPID, new SolidBrush(Color.Black), new PointF(60, 10));
-                drawBuf.DrawString(mapName, FONT_DISPLAY_MAPID, new SolidBrush(Color.Black), new PointF(60, 30));
-
-                // Draw mini map
-                if (miniMapSubProperty != null)
-                    drawBuf.DrawImage(((WzCanvasProperty)miniMapSubProperty["canvas"]).GetLinkedWzCanvasBitmap(), 10, 80);
-                else
-                {
-                    drawBuf.DrawString("Minimap not availible", FONT_DISPLAY_MINIMAP_NOT_AVAILABLE, new SolidBrush(Color.Black), new PointF(10, 45));
-                }
             }
-            minimapRender.Save("Renders\\" + mapIdName + "\\" + mapIdName + "_miniMapRender.bmp");
+
+            DrawTextAt(drawBuf, $"[{mapIdName}] {streetName}", 60, 10, fontMapId, blackPaint);
+            DrawTextAt(drawBuf, mapName, 60, 34, fontMapId, blackPaint);
+
+            if (miniMapSubProperty?["canvas"] is WzCanvasProperty minimapCanvas)
+                drawBuf.DrawBitmap(minimapCanvas.GetLinkedWzCanvasBitmap(), 10, 80);
+            else
+                DrawTextAt(drawBuf, "Minimap not available", 10, 45, fontMinimap, blackPaint);
+
             return minimapRender;
         }
         #endregion
 
-        /// <summary>
-        /// Attempts to render the map and save the progress
-        /// </summary>
-        /// <param name="img"></param>
-        /// <param name="zoom"></param>
-        /// <param name="errorList"></param>
         public bool TryRenderMapAndSave(WzImage img, double zoom, ref List<string> errorList)
         {
             string mapIdName = img.Name.Substring(0, img.Name.Length - 4);
+            _node = _mainPanel.SelectedNode;
+            WzFile wzFile = img.WzFileParent;
 
-            node = MainPanel.DataTree.SelectedNode;
-            WzFile wzFile = ((WzObject)node.Tag).WzFileParent;
+            var MSPs = new List<SpawnPoint.Spawnpoint>();
+            var FHs = new List<FootHold.Foothold>();
+            var Ps = new List<Portals.Portal>();
 
-            // Spawnpoint foothold and portal lists
-            List<SpawnPoint.Spawnpoint> MSPs = new List<SpawnPoint.Spawnpoint>();
-            List<FootHold.Foothold> FHs = new List<FootHold.Foothold>();
-            List<Portals.Portal> Ps = new List<Portals.Portal>();
+            var miniMapSub = img["miniMap"] as WzSubProperty;
             Size bmpSize;
             Point center;
 
-            WzSubProperty miniMapSubProperty = ((WzSubProperty)img["miniMap"]);
             try
             {
-                bmpSize = new Size(((WzIntProperty)miniMapSubProperty["width"]).Value, ((WzIntProperty)miniMapSubProperty["height"]).Value);
-                center = new Point(((WzIntProperty)miniMapSubProperty["centerX"]).Value, ((WzIntProperty)miniMapSubProperty["centerY"]).Value);
+                bmpSize = new Size(((WzIntProperty)miniMapSub!["width"]).Value, ((WzIntProperty)miniMapSub["height"]).Value);
+                center = new Point(((WzIntProperty)miniMapSub["centerX"]).Value, ((WzIntProperty)miniMapSub["centerY"]).Value);
             }
             catch (Exception exp)
             {
@@ -127,326 +137,237 @@ namespace HaRepacker.FHMapper
                 {
                     try
                     {
-                        WzSubProperty infoSubProperty = ((WzSubProperty)img["info"]);
-
-                        bmpSize = new Size(((WzIntProperty)infoSubProperty["VRRight"]).Value - ((WzIntProperty)infoSubProperty["VRLeft"]).Value, ((WzIntProperty)infoSubProperty["VRBottom"]).Value - ((WzIntProperty)infoSubProperty["VRTop"]).Value);
-                        center = new Point(((WzIntProperty)infoSubProperty["VRRight"]).Value, ((WzIntProperty)infoSubProperty["VRBottom"]).Value);
+                        var info = (WzSubProperty)img["info"];
+                        bmpSize = new Size(
+                            ((WzIntProperty)info["VRRight"]).Value - ((WzIntProperty)info["VRLeft"]).Value,
+                            ((WzIntProperty)info["VRBottom"]).Value - ((WzIntProperty)info["VRTop"]).Value);
+                        center = new Point(((WzIntProperty)info["VRRight"]).Value, ((WzIntProperty)info["VRBottom"]).Value);
                     }
                     catch
                     {
-                        errorList.Add("Missing map info WzSubProperty. Path: " + mapIdName + ".img/info/VRRight; VRLeft; VRBottom; VRTop\r\n OR info/miniMap/width ; height; centerX; centerY");
+                        errorList.Add("Missing map info. Need miniMap/width,height,centerX,centerY OR info/VRRight,VRLeft,VRBottom,VRTop");
                         return false;
                     }
                 }
-                else
-                    return false;
+                else return false;
             }
 
-            // Render minimap
-            Bitmap minimapRender = RenderMinimap(bmpSize, wzFile, img, mapIdName, miniMapSubProperty);
+            string renderDir = Path.Combine("Renders", mapIdName);
 
-            // Render map
-            Bitmap mapRender = new Bitmap(bmpSize.Width, bmpSize.Height);
-            using (Graphics drawBuf = Graphics.FromImage(mapRender))
+            using var fontPortal = new SKFont(SKTypeface.FromFamilyName("Segoe UI") ?? SKTypeface.Default, 8);
+            using var fontTooltip = new SKFont(SKTypeface.FromFamilyName("Segoe UI") ?? SKTypeface.Default, 9);
+            using var blackPaint = new SKPaint { Color = SKColors.Black };
+            using var redPaint = new SKPaint { Color = SKColors.Red };
+            using var strokePaint = new SKPaint { Color = SKColors.Black, Style = SKPaintStyle.Stroke, StrokeWidth = 1 };
+
+            // Minimap
+            using var minimapRender = RenderMinimap(bmpSize, wzFile, img, mapIdName, miniMapSub);
+            SaveBitmap(minimapRender, Path.Combine(renderDir, mapIdName + "_miniMapRender.png"));
+
+            // Map (portals, life, footholds)
+            var mapRender = new SKBitmap(bmpSize.Width, bmpSize.Height);
+            using (var drawBuf = new SKCanvas(mapRender))
             {
-                WzSubProperty ps = (WzSubProperty)img["portal"];
-                foreach (WzSubProperty p in ps.WzProperties)
+                drawBuf.Clear(SKColors.Transparent);
+
+                // Portals
+                if (img["portal"] is WzSubProperty ps)
                 {
-                    //WzSubProperty p = (WzSubProperty)p10.ExtendedProperty;
-                    int x = ((WzIntProperty)p["x"]).Value + center.X;
-                    int y = ((WzIntProperty)p["y"]).Value + center.Y;
-                    int pt = ((WzIntProperty)p["pt"]).Value;
-                    string pn = ((WzStringProperty)p["pn"]).ReadString(string.Empty);
-                    int tm = ((WzIntProperty)p["tm"]).ReadValue(999999999);
-
-                    Color pColor = Color.Red;
-                    if (pt == 0)
-                        pColor = Color.Orange;
-                    else if (pt == 2 || pt == 7)//Normal
-                        pColor = Color.Blue;
-                    else if (pt == 3)//Auto-enter
-                        pColor = Color.Magenta;
-                    else if (pt == 1 || pt == 8)
-                        pColor = Color.BlueViolet;
-                    else
-                        pColor = Color.IndianRed;
-
-                    // Draw portal preview image
-                    bool drewPortalImg = false;
-                    if (pn != string.Empty || pt == 2)
+                    foreach (WzSubProperty p in ps.WzProperties)
                     {
-                        string portalEditorImage = wzFile.WzDirectory.Name + "/MapHelper.img/portal/editor/" + (pt == 2 ? "pv" : pn);
-                        WzCanvasProperty portalEditorCanvas = (WzCanvasProperty)wzFile.GetObjectFromPath(portalEditorImage);
-                        if (portalEditorCanvas != null)
-                        {
-                            drewPortalImg = true;
+                        int x = ((WzIntProperty)p["x"]).Value + center.X;
+                        int y = ((WzIntProperty)p["y"]).Value + center.Y;
+                        int pt = ((WzIntProperty)p["pt"]).Value;
+                        string pn = ((WzStringProperty)p["pn"]).ReadString(string.Empty);
 
-                            PointF canvasOriginPosition = portalEditorCanvas.GetCanvasOriginPosition();
-                            drawBuf.DrawImage(portalEditorCanvas.GetLinkedWzCanvasBitmap(), x - canvasOriginPosition.X, y - canvasOriginPosition.Y);
+                        SKColor pColor = pt switch
+                        {
+                            0 => SKColors.Orange,
+                            2 or 7 => SKColors.Blue,
+                            3 => SKColors.Magenta,
+                            1 or 8 => SKColors.BlueViolet,
+                            _ => SKColors.IndianRed
+                        };
+
+                        bool drewPortalImg = false;
+                        if (pn != string.Empty || pt == 2)
+                        {
+                            string portalPath = wzFile.WzDirectory.Name + "/MapHelper.img/portal/editor/" + (pt == 2 ? "pv" : pn);
+                            if (wzFile.GetObjectFromPath(portalPath) is WzCanvasProperty portalCanvas)
+                            {
+                                drewPortalImg = true;
+                                PointF origin = portalCanvas.GetCanvasOriginPosition();
+                                drawBuf.DrawBitmap(portalCanvas.GetLinkedWzCanvasBitmap(), x - origin.X, y - origin.Y);
+                            }
                         }
-                    }
-                    if (!drewPortalImg)
-                    {
-                        drawBuf.FillRectangle(new SolidBrush(Color.FromArgb(95, pColor.R, pColor.G, pColor.B)), x - 20, y - 20, 40, 40);
-                        drawBuf.DrawRectangle(new Pen(Color.Black, 1F), x - 20, y - 20, 40, 40);
-                    }
-
-                    // Draw portal name
-                    drawBuf.DrawString("Portal: " + p.Name, FONT_DISPLAY_PORTAL_LFIE_FOOTHOLD, new SolidBrush(Color.Red), x - 8, y - 7.7F);
-
-                    Portals.Portal portal = new Portals.Portal();
-                    portal.Shape = new Rectangle(x - 20, y - 20, 40, 40);
-                    portal.Data = p;
-                    Ps.Add(portal);
-                }
-
-                WzSubProperty SPs = (WzSubProperty)img["life"];
-                foreach (WzSubProperty sp in SPs.WzProperties)
-                {
-                    Color MSPColor = Color.ForestGreen;
-
-                    string type = ((WzStringProperty)sp["type"]).Value;
-                    switch (type)
-                    {
-                        case "n": // NPC
-                        case "m": // monster
-                            {
-                                bool isNPC = type == "n";
-                                int lifeId = int.Parse(((WzStringProperty)sp["id"]).GetString());
-
-                                int x = ((WzIntProperty)sp["x"]).Value + center.X;
-                                int y = ((WzIntProperty)sp["y"]).Value + center.Y;
-                                int x_text = x - 15;
-                                int y_text = y - 15;
-                                bool facingLeft = ((WzIntProperty)sp["f"]).ReadValue(0) == 0; // This value is optional. If its not stated in the WZ, its assumed to be 0
-
-                                SpawnPoint.Spawnpoint MSP = new SpawnPoint.Spawnpoint();
-                                MSP.Shape = new Rectangle(x_text, y_text, 30, 30);
-                                MSP.Data = sp;
-                                MSPs.Add(MSP);
-
-
-                                // Render monster image
-                                string lifeStrId = lifeId.ToString().PadLeft(7, '0');
-
-                                string mobWzPath;
-                                string mobLinkWzPath;
-                                string mobNamePath;
-
-                                if (!isNPC)
-                                {
-                                    mobWzPath = string.Format("Mob.wz/{0}.img/info/link", lifeStrId);
-                                    mobNamePath = string.Format("String.wz/Mob.img/{0}/name", lifeId);
-                                }
-                                else
-                                {
-                                    mobWzPath = string.Format("Npc.wz/{0}.img/info/link", lifeStrId);
-                                    mobNamePath = string.Format("String.wz/Npc.img/{0}/name", lifeId);
-                                }
-
-                                WzStringProperty linkInfo = (WzStringProperty)WzFile.GetObjectFromMultipleWzFilePath(mobWzPath, Program.WzFileManager.WzFileList);
-                                if (linkInfo != null)
-                                {
-                                    lifeId = int.Parse(linkInfo.GetString());
-                                    lifeStrId = lifeId.ToString().PadLeft(7, '0');
-                                }
-
-                                if (!isNPC)
-                                    mobLinkWzPath = string.Format("Mob.wz/{0}.img/stand/0", lifeStrId);
-                                else
-                                    mobLinkWzPath = string.Format("Npc.wz/{0}.img/stand/0", lifeStrId);
-
-                                WzCanvasProperty lifeImg = (WzCanvasProperty)WzFile.GetObjectFromMultipleWzFilePath(mobLinkWzPath, Program.WzFileManager.WzFileList);
-                                if (lifeImg != null)
-                                {
-                                    PointF canvasOriginPosition = lifeImg.GetCanvasOriginPosition();
-                                    PointF renderXY = new PointF(x - canvasOriginPosition.X, y - canvasOriginPosition.Y);
-
-                                    Bitmap renderMobbitmap = lifeImg.GetLinkedWzCanvasBitmap();
-
-                                    if (!facingLeft)
-                                        renderMobbitmap.RotateFlip(RotateFlipType.RotateNoneFlipX);
-
-                                    drawBuf.DrawImage(renderMobbitmap, renderXY);
-                                }
-                                else
-                                {
-                                    //drawBuf.FillRectangle(new SolidBrush(Color.FromArgb(95, MSPColor.R, MSPColor.G, MSPColor.B)), x_text, y_text, 30, 30);
-                                    //drawBuf.DrawRectangle(new Pen(Color.Black, 1F), x_text, y_text, 30, 30);
-                                    errorList.Add("Missing monster/npc object. Path: " + mobWzPath + "\r\n" + mobLinkWzPath);
-                                }
-
-                                // Get monster name
-                                WzStringProperty stringName = (WzStringProperty)WzFile.GetObjectFromMultipleWzFilePath(mobNamePath, Program.WzFileManager.WzFileList);
-                                if (stringName != null)
-                                    drawBuf.DrawString(string.Format("SP: {0}, Name: {1}, ID: {2}", sp.Name, stringName.GetString(), lifeId), FONT_DISPLAY_PORTAL_LFIE_FOOTHOLD, new SolidBrush(Color.Red), x_text + 7, y_text + 7.3F);
-                                else
-                                    errorList.Add("Missing monster/npc string object. Path: " + mobNamePath);
-                                break;
-                            }
-                        default:
-                            {
-                                break;
-                            }
-                    }
-                }
-
-
-                WzSubProperty fhs = (WzSubProperty)img["foothold"];
-                foreach (WzImageProperty fhspl0 in fhs.WzProperties)
-                {
-                    foreach (WzImageProperty fhspl1 in fhspl0.WzProperties)
-                    {
-                        Color c = Color.FromArgb(95, Color.FromArgb(GetPseudoRandomColor(fhspl1.Name)));
-                        foreach (WzSubProperty fh in fhspl1.WzProperties)
+                        if (!drewPortalImg)
                         {
-                            int x = ((WzIntProperty)fh["x1"]).Value + center.X;
-                            int y = ((WzIntProperty)fh["y1"]).Value + center.Y;
-                            int width = ((((WzIntProperty)fh["x2"]).Value + center.X) - x);
-                            int height = ((((WzIntProperty)fh["y2"]).Value + center.Y) - y);
-
-                            if (width < 0)
-                            {
-                                x += width;// *2;
-                                width = -width;
-                            }
-                            if (height < 0)
-                            {
-                                y += height;// *2;
-                                height = -height;
-                            }
-                            if (width == 0 || width < 15)
-                                width = 15;
-                            height += 10;
-
-                            FootHold.Foothold nFH = new FootHold.Foothold();
-                            nFH.Shape = new Rectangle(x, y, width, height);
-                            nFH.Data = fh;
-                            FHs.Add(nFH);
-
-                            //drawBuf.FillRectangle(new SolidBrush(Color.FromArgb(95, Color.Gray.R, Color.Gray.G, Color.Gray.B)), x, y, width, height);
-                            drawBuf.FillRectangle(new SolidBrush(c), x, y, width, height);
-                            drawBuf.DrawRectangle(new Pen(Color.Black, 1F), x, y, width, height);
-                            drawBuf.DrawString(fh.Name, FONT_DISPLAY_PORTAL_LFIE_FOOTHOLD, new SolidBrush(Color.Red), new PointF(x + (width / 2) - 8, y + (height / 2) - 7.7F));
+                            using var fill = new SKPaint { Color = pColor.WithAlpha(95), Style = SKPaintStyle.Fill };
+                            drawBuf.DrawRect(x - 20, y - 20, 40, 40, fill);
+                            drawBuf.DrawRect(x - 20, y - 20, 40, 40, strokePaint);
                         }
+                        DrawTextAt(drawBuf, "Portal: " + p.Name, x - 8, y - 8, fontPortal, redPaint);
+
+                        Ps.Add(new Portals.Portal { Shape = new Rectangle(x - 20, y - 20, 40, 40), Data = p });
                     }
                 }
-            }
-            mapRender.Save("Renders\\" + mapIdName + "\\" + mapIdName + "_footholdRender.bmp");
 
-            Bitmap backgroundRender = new Bitmap(bmpSize.Width, bmpSize.Height);
-            using (Graphics tileBuf = Graphics.FromImage(backgroundRender))
-            {
-                WzSubProperty backImg = (WzSubProperty)img["back"];
-                if (backImg != null)
+                // Life (mobs/NPCs)
+                if (img["life"] is WzSubProperty lifeSub)
                 {
-                    foreach (WzSubProperty bgItem in backImg.WzProperties)
+                    foreach (WzSubProperty sp in lifeSub.WzProperties)
                     {
-                        string bS = ((WzStringProperty)bgItem["bS"]).Value;
-                        int front = ((WzIntProperty)bgItem["front"]).Value;
-                        int ani = ((WzIntProperty)bgItem["ani"]).Value;
-                        int no = ((WzIntProperty)bgItem["no"]).Value;
-                        int x = ((WzIntProperty)bgItem["x"]).Value;
-                        int y = ((WzIntProperty)bgItem["y"]).Value;
-                        int rx = ((WzIntProperty)bgItem["rx"]).Value;
-                        int ry = ((WzIntProperty)bgItem["ry"]).Value;
-                        int type = ((WzIntProperty)bgItem["type"]).Value;
-                        int cx = ((WzIntProperty)bgItem["cx"]).Value;
-                        int cy = ((WzIntProperty)bgItem["cy"]).Value;
-                        int a = ((WzIntProperty)bgItem["a"]).Value;
-                        bool facingLeft = ((WzIntProperty)bgItem["f"]).ReadValue(0) == 0;
+                        string type = ((WzStringProperty)sp["type"]).Value;
+                        if (type != "n" && type != "m") continue;
+                        bool isNPC = type == "n";
+                        int lifeId = int.Parse(((WzStringProperty)sp["id"]).GetString());
+                        int x = ((WzIntProperty)sp["x"]).Value + center.X;
+                        int y = ((WzIntProperty)sp["y"]).Value + center.Y;
+                        bool facingLeft = ((WzIntProperty)sp["f"]).ReadValue(0) == 0;
 
-                        if (bS == string.Empty)
-                            continue;
+                        MSPs.Add(new SpawnPoint.Spawnpoint { Shape = new Rectangle(x - 15, y - 15, 30, 30), Data = sp });
 
-                        string bgObjImagePath = "Map.wz/Back/" + bS + ".img/Back/" + no;
-                        WzCanvasProperty wzBgCanvas = (WzCanvasProperty)WzFile.GetObjectFromMultipleWzFilePath(bgObjImagePath, Program.WzFileManager.WzFileList);
-                        if (wzBgCanvas != null)
+                        string lifeStrId = lifeId.ToString().PadLeft(7, '0');
+                        string wzBase = isNPC ? "Npc" : "Mob";
+                        string linkPath = $"{wzBase}.wz/{lifeStrId}.img/info/link";
+                        string namePath = $"String.wz/{wzBase}.img/{lifeId}/name";
+
+                        if (WzFile.GetObjectFromMultipleWzFilePath(linkPath, Program.WzFileManager.WzFileList) is WzStringProperty linkInfo)
                         {
-                            PointF canvasOriginPosition = wzBgCanvas.GetCanvasOriginPosition();
-                            PointF renderXY = new PointF(x + canvasOriginPosition.X + center.X, y + canvasOriginPosition.X + center.Y);
+                            lifeId = int.Parse(linkInfo.GetString());
+                            lifeStrId = lifeId.ToString().PadLeft(7, '0');
+                        }
 
-                            Bitmap drawImage = wzBgCanvas.GetLinkedWzCanvasBitmap();
-
-                            if (!facingLeft)
-                                drawImage.RotateFlip(RotateFlipType.RotateNoneFlipX);
-
-                            tileBuf.DrawImage(drawImage, renderXY);
+                        string standPath = $"{wzBase}.wz/{lifeStrId}.img/stand/0";
+                        if (WzFile.GetObjectFromMultipleWzFilePath(standPath, Program.WzFileManager.WzFileList) is WzCanvasProperty lifeImg)
+                        {
+                            PointF origin = lifeImg.GetCanvasOriginPosition();
+                            SKBitmap lifeBmp = lifeImg.GetLinkedWzCanvasBitmap();
+                            SKBitmap? flipped = null;
+                            if (!facingLeft) { flipped = FlipHorizontal(lifeBmp); lifeBmp = flipped; }
+                            drawBuf.DrawBitmap(lifeBmp, x - origin.X, y - origin.Y);
+                            flipped?.Dispose();
                         }
                         else
                         {
-                            errorList.Add("Missing Map BG object. Path: " + bgObjImagePath);
+                            errorList.Add($"Missing mob/npc. Path: {linkPath}\r\n{standPath}");
                         }
+
+                        if (WzFile.GetObjectFromMultipleWzFilePath(namePath, Program.WzFileManager.WzFileList) is WzStringProperty nameStr)
+                            DrawTextAt(drawBuf, $"SP:{sp.Name} {nameStr.GetString()} ID:{lifeId}", x - 15 + 7, y - 15 + 7, fontPortal, redPaint);
+                        else
+                            errorList.Add("Missing mob/npc string. Path: " + namePath);
                     }
                 }
-            }
-            backgroundRender.Save("Renders\\" + mapIdName + "\\" + mapIdName + "_backgroundRender.bmp");
 
-
-            // Render tooltip
-            WzSubProperty tooltipProperty = (WzSubProperty)img["ToolTip"];
-            Bitmap toolTip = null;
-            if (tooltipProperty != null)
-            {
-                toolTip = new Bitmap(bmpSize.Width, bmpSize.Height);
-                using (Graphics toolTipBuf = Graphics.FromImage(toolTip))
+                // Footholds
+                if (img["foothold"] is WzSubProperty fhsSub)
                 {
-                    string stringTooltipPath = "String.wz/ToolTipHelp.img/Mapobject/" + mapIdName;
-                    WzSubProperty wzToolTip = (WzSubProperty)WzFile.GetObjectFromMultipleWzFilePath(stringTooltipPath, Program.WzFileManager.WzFileList);
-
-                    if (wzToolTip == null)
+                    foreach (WzImageProperty fhspl0 in fhsSub.WzProperties)
                     {
-                        errorList.Add("Map tooltip object is missing. Path: " + stringTooltipPath);
-                    }
-
-                    for (int i = 0; i < 99; i++) // starts from 0
-                    {
-                        WzSubProperty toolTipItem = (WzSubProperty)tooltipProperty[i.ToString()];
-                        if (toolTipItem == null)
-                            break;
-
-                        int x1 = toolTipItem["x1"].ReadValue();
-                        int x2 = toolTipItem["x2"].ReadValue();
-                        int y1 = toolTipItem["y1"].ReadValue();
-                        int y2 = toolTipItem["y2"].ReadValue();
-
-                        // Check String.wz
-                        WzSubProperty wzToolTipForI = (WzSubProperty)wzToolTip[i.ToString()];
-                        if (wzToolTipForI == null)
+                        foreach (WzImageProperty fhspl1 in fhspl0.WzProperties)
                         {
-                            errorList.Add("Map tooltip is missing. Path: " + stringTooltipPath + "/" + i);
-                        }
-                        string title = wzToolTipForI["Title"].ReadString(null);
-                        string desc = wzToolTipForI["Desc"].ReadString(null);
+                            int ci = GetPseudoRandomColor(fhspl1.Name);
+                            var fhColor = new SKColor((byte)((ci >> 16) & 0xFF), (byte)((ci >> 8) & 0xFF), (byte)(ci & 0xFF), 95);
 
-                        if (title == null)
-                        {
-                            errorList.Add("Map tooltip is missing. Path: " + stringTooltipPath + "/" + i + "/Title");
+                            foreach (WzSubProperty fh in fhspl1.WzProperties)
+                            {
+                                int x = ((WzIntProperty)fh["x1"]).Value + center.X;
+                                int y = ((WzIntProperty)fh["y1"]).Value + center.Y;
+                                int w = ((WzIntProperty)fh["x2"]).Value + center.X - x;
+                                int h = ((WzIntProperty)fh["y2"]).Value + center.Y - y;
+                                if (w < 0) { x += w; w = -w; }
+                                if (h < 0) { y += h; h = -h; }
+                                if (w < 15) w = 15;
+                                h += 10;
+
+                                FHs.Add(new FootHold.Foothold { Shape = new Rectangle(x, y, w, h), Data = fh });
+                                using var fill = new SKPaint { Color = fhColor, Style = SKPaintStyle.Fill };
+                                drawBuf.DrawRect(x, y, w, h, fill);
+                                drawBuf.DrawRect(x, y, w, h, strokePaint);
+                                DrawTextAt(drawBuf, fh.Name, x + w / 2f - 8, y + h / 2f - 8, fontPortal, redPaint);
+                            }
                         }
-                        toolTipBuf.DrawString(string.Format("{0}\n{1}", title, desc == null ? string.Empty : desc), FONT_GAME_TOOLTIP, new SolidBrush(Color.Black), new PointF(x1 + center.X, y1 + center.Y));
                     }
                 }
-                toolTip.Save("Renders\\" + mapIdName + "\\" + mapIdName + "_tooltip.bmp");
+            }
+            SaveBitmap(mapRender, Path.Combine(renderDir, mapIdName + "_footholdRender.png"));
+
+            // Background
+            var backgroundRender = new SKBitmap(bmpSize.Width, bmpSize.Height);
+            using (var tileBuf = new SKCanvas(backgroundRender))
+            {
+                tileBuf.Clear(SKColors.Transparent);
+                if (img["back"] is WzSubProperty backSub)
+                {
+                    foreach (WzSubProperty bgItem in backSub.WzProperties)
+                    {
+                        string bS = ((WzStringProperty)bgItem["bS"]).Value;
+                        if (bS == string.Empty) continue;
+                        int no = ((WzIntProperty)bgItem["no"]).Value;
+                        int x = ((WzIntProperty)bgItem["x"]).Value;
+                        int y = ((WzIntProperty)bgItem["y"]).Value;
+                        bool facingLeft = ((WzIntProperty)bgItem["f"]).ReadValue(0) == 0;
+
+                        string bgPath = $"Map.wz/Back/{bS}.img/Back/{no}";
+                        if (WzFile.GetObjectFromMultipleWzFilePath(bgPath, Program.WzFileManager.WzFileList) is WzCanvasProperty bgCanvas)
+                        {
+                            PointF origin = bgCanvas.GetCanvasOriginPosition();
+                            SKBitmap bgBmp = bgCanvas.GetLinkedWzCanvasBitmap();
+                            SKBitmap? flipped = null;
+                            if (!facingLeft) { flipped = FlipHorizontal(bgBmp); bgBmp = flipped; }
+                            tileBuf.DrawBitmap(bgBmp, x + origin.X + center.X, y + origin.X + center.Y); // original uses .X for Y (preserved bug)
+                            flipped?.Dispose();
+                        }
+                        else errorList.Add("Missing Map BG. Path: " + bgPath);
+                    }
+                }
+            }
+            SaveBitmap(backgroundRender, Path.Combine(renderDir, mapIdName + "_backgroundRender.png"));
+
+            // Tooltips
+            SKBitmap? toolTip = null;
+            if (img["ToolTip"] is WzSubProperty tooltipProp)
+            {
+                toolTip = new SKBitmap(bmpSize.Width, bmpSize.Height);
+                using var ttBuf = new SKCanvas(toolTip);
+                ttBuf.Clear(SKColors.Transparent);
+                string ttPath = "String.wz/ToolTipHelp.img/Mapobject/" + mapIdName;
+                var wzTT = WzFile.GetObjectFromMultipleWzFilePath(ttPath, Program.WzFileManager.WzFileList) as WzSubProperty;
+                if (wzTT == null) errorList.Add("Missing tooltip. Path: " + ttPath);
+
+                for (int i = 0; i < 99; i++)
+                {
+                    if (tooltipProp[i.ToString()] is not WzSubProperty ttItem) break;
+                    int x1 = ttItem["x1"].ReadValue();
+                    int y1 = ttItem["y1"].ReadValue();
+
+                    if (wzTT?[i.ToString()] is not WzSubProperty ttForI)
+                    { errorList.Add($"Missing tooltip entry. Path: {ttPath}/{i}"); continue; }
+
+                    string title = ttForI["Title"].ReadString(string.Empty);
+                    string desc = ttForI["Desc"].ReadString(string.Empty);
+                    DrawTextAt(ttBuf, $"{title}\n{desc}", x1 + center.X, y1 + center.Y, fontTooltip, blackPaint);
+                }
+                SaveBitmap(toolTip, Path.Combine(renderDir, mapIdName + "_tooltip.png"));
             }
 
-            // Render Tiles
-            Bitmap tileRender = new Bitmap(bmpSize.Width, bmpSize.Height);
-            using (Graphics tileBuf = Graphics.FromImage(tileRender))
+            // Tiles + objects
+            var tileRender = new SKBitmap(bmpSize.Width, bmpSize.Height);
+            using (var tileBuf = new SKCanvas(tileRender))
             {
+                tileBuf.Clear(SKColors.Transparent);
                 for (int i = 0; i < 7; i++)
                 {
-                    // The below code was commented out because it was creating problems when loading certain maps. When debugging it would throw an exception at line 469.
-                    // Objects first
-                    WzSubProperty iProperty = (WzSubProperty)img[i.ToString()];
-                    WzSubProperty objProperties = ((WzSubProperty)iProperty["obj"]);
-                    WzSubProperty infoProperties = ((WzSubProperty)iProperty["info"]);
-                    WzSubProperty tileProperties = ((WzSubProperty)iProperty["tile"]);
+                    if (img[i.ToString()] is not WzSubProperty iProperty) continue;
+                    var objProps = iProperty["obj"] as WzSubProperty;
+                    var infoProps = iProperty["info"] as WzSubProperty;
+                    var tileProps = iProperty["tile"] as WzSubProperty;
 
-                    if (objProperties.WzProperties.Count > 0)
+                    if (objProps?.WzProperties.Count > 0)
                     {
-                        foreach (WzSubProperty obj in objProperties.WzProperties)
+                        foreach (WzSubProperty obj in objProps.WzProperties)
                         {
-                            //WzSubProperty obj = (WzSubProperty)oe.ExtendedProperty;
                             string imgName = ((WzStringProperty)obj["oS"]).Value + ".img";
                             string l0 = ((WzStringProperty)obj["l0"]).Value;
                             string l1 = ((WzStringProperty)obj["l1"]).Value;
@@ -454,269 +375,180 @@ namespace HaRepacker.FHMapper
                             int x = ((WzIntProperty)obj["x"]).Value + center.X;
                             int y = ((WzIntProperty)obj["y"]).Value + center.Y;
 
-                            PointF origin;
-                            WzCanvasProperty png;
+                            string objPath = $"{wzFile.WzDirectory.Name}/Obj/{imgName}/{l0}/{l1}/{l2}/0";
+                            var objData = WzFile.GetObjectFromMultipleWzFilePath(objPath, Program.WzFileManager.WzFileList) as WzImageProperty;
 
-                            string imgObjPath = string.Format("{0}/Obj/{1}/{2}/{3}/{4}/0", wzFile.WzDirectory.Name, imgName, l0, l1, l2);
-
-                            WzImageProperty objData = (WzImageProperty)WzFile.GetObjectFromMultipleWzFilePath(imgObjPath, Program.WzFileManager.WzFileList);
-                            tryagain:
-                            if (objData is WzCanvasProperty)
+                            WzCanvasProperty? png = null;
+                            PointF origin = PointF.Empty;
+                            int retries = 0;
+                        tryagain:
+                            if (retries++ > 10) { errorList.Add("UOL loop at tile renderer"); return false; }
+                            if (objData is WzCanvasProperty cp)
+                            { png = cp; origin = cp.GetCanvasOriginPosition(); }
+                            else if (objData is WzUOLProperty uol)
                             {
-                                png = ((WzCanvasProperty)objData);
-                                origin = ((WzCanvasProperty)objData).GetCanvasOriginPosition();
-                            }
-                            else if (objData is WzUOLProperty)
-                            {
-                                WzObject currProp = objData.Parent;
-                                foreach (string directive in ((WzUOLProperty)objData).Value.Split("/".ToCharArray()))
+                                WzObject curr = objData.Parent!;
+                                foreach (string d in uol.Value.Split('/'))
                                 {
-                                    if (directive == "..")
-                                        currProp = currProp.Parent;
-                                    else
+                                    if (d == "..") curr = curr.Parent!;
+                                    else curr = curr switch
                                     {
-                                        if (currProp.GetType() == typeof(WzSubProperty))
-                                        {
-                                            currProp = ((WzSubProperty)currProp)[directive];
-                                        }
-                                        else if (currProp.GetType() == typeof(WzCanvasProperty))
-                                        {
-                                            currProp = ((WzCanvasProperty)currProp)[directive];
-                                        }
-                                        else if (currProp.GetType() == typeof(WzImage))
-                                        {
-                                            currProp = ((WzImage)currProp)[directive];
-                                        }
-                                        else if (currProp.GetType() == typeof(WzConvexProperty))
-                                        {
-                                            currProp = ((WzConvexProperty)currProp)[directive];
-                                        }
-                                        else
-                                        {
-                                            errorList.Add("UOL error at map renderer");
-                                            return false;
-                                        }
-                                    }
+                                        WzSubProperty s => s[d],
+                                        WzCanvasProperty c2 => c2[d],
+                                        WzImage wi => wi[d],
+                                        WzConvexProperty cx => cx[d],
+                                        _ => throw new InvalidOperationException("UOL error")
+                                    };
                                 }
-                                objData = (WzImageProperty)currProp;
+                                objData = (WzImageProperty)curr;
                                 goto tryagain;
                             }
-                            else
-                            {
-                                errorList.Add("Unknown Wz type at map renderer");
-                                return false;
-                            }
+                            else { errorList.Add("Unknown WZ type at tile renderer"); return false; }
 
-                            //WzVectorProperty origin = (WzVectorProperty)wzFile.GetObjectFromPath(wzFile.WzDirectory.Name + "/Obj/" + imgName + "/" + l0 + "/" + l1 + "/" + l2 + "/0");
-                            //WzPngProperty png = (WzPngProperty)wzFile.GetObjectFromPath(wzFile.WzDirectory.Name + "/Obj/" + imgName + "/" + l0 + "/" + l1 + "/" + l2 + "/0/PNG");
-                            tileBuf.DrawImage(png.GetLinkedWzCanvasBitmap(), x - origin.X, y - origin.Y);
+                            if (png != null)
+                                tileBuf.DrawBitmap(png.GetLinkedWzCanvasBitmap(), x - origin.X, y - origin.Y);
                         }
                     }
-                    if (infoProperties.WzProperties.Count == 0)
-                        continue;
 
-                    if (tileProperties.WzProperties.Count == 0)
-                        continue;
+                    if (infoProps == null || tileProps == null) continue;
+                    if (infoProps.WzProperties.Count == 0 || tileProps.WzProperties.Count == 0) continue;
 
-                    // Ok, we have some tiles and a tileset
-                    string tileSetName = ((WzStringProperty)infoProperties["tS"]).Value;
-
-                    // Browse to the tileset
+                    string tileSetName = ((WzStringProperty)infoProps["tS"]).Value;
                     string tilePath = wzFile.WzDirectory.Name + "/Tile/" + tileSetName + ".img";
-                    WzImage tileSet = (WzImage)WzFile.GetObjectFromMultipleWzFilePath(tilePath, Program.WzFileManager.WzFileList);
-                    if (!tileSet.Parsed)
-                        tileSet.ParseImage();
+                    if (WzFile.GetObjectFromMultipleWzFilePath(tilePath, Program.WzFileManager.WzFileList) is not WzImage tileSet) continue;
+                    if (!tileSet.Parsed) tileSet.ParseImage();
 
-                    foreach (WzSubProperty tile in tileProperties.WzProperties)
+                    foreach (WzSubProperty tile in tileProps.WzProperties)
                     {
-                        //WzSubProperty tile = (WzSubProperty)te.ExtendedProperty;
-
                         int x = ((WzIntProperty)tile["x"]).Value + center.X;
                         int y = ((WzIntProperty)tile["y"]).Value + center.Y;
-                        string tilePackName = ((WzStringProperty)tile["u"]).Value;
+                        string packName = ((WzStringProperty)tile["u"]).Value;
                         string tileID = ((WzIntProperty)tile["no"]).Value.ToString();
-
-                        WzSubProperty tilePack = ((WzSubProperty)tileSet[tilePackName]);
-                        WzCanvasProperty tileCanvas = (WzCanvasProperty)tilePack[tileID];
-                        if (tileCanvas == null)
-                        {
-                            errorList.Add(string.Format("Tile {0}, ID: {1} is not found.", tilePackName, tileID));
-                        }
-                        PointF tileVector = tileCanvas.GetCanvasOriginPosition();
-                        tileBuf.DrawImage(tileCanvas.GetLinkedWzCanvasBitmap(), x - tileVector.X, y - tileVector.Y);
+                        if (tileSet[packName] is not WzSubProperty tilePack
+                            || tilePack[tileID] is not WzCanvasProperty tileCanvas)
+                        { errorList.Add($"Tile {packName}/{tileID} not found."); continue; }
+                        PointF tv = tileCanvas.GetCanvasOriginPosition();
+                        tileBuf.DrawBitmap(tileCanvas.GetLinkedWzCanvasBitmap(), x - tv.X, y - tv.Y);
                     }
                 }
             }
-            tileRender.Save("Renders\\" + mapIdName + "\\" + mapIdName + "_tileRender.bmp");
+            SaveBitmap(tileRender, Path.Combine(renderDir, mapIdName + "_tileRender.png"));
 
-            // Render nodeInfo
-            Bitmap nodeInfoRender = null;
-            WzSubProperty nodeInfoProperty = (WzSubProperty)img["nodeInfo"];
-            if (nodeInfoProperty != null)
+            // NodeInfo
+            SKBitmap? nodeInfoRender = null;
+            if (img["nodeInfo"] is WzSubProperty nodeInfoProp)
             {
-                nodeInfoRender = new Bitmap(bmpSize.Width, bmpSize.Height);
-                using (Graphics nodeInfoBuffer = Graphics.FromImage(nodeInfoRender))
+                nodeInfoRender = new SKBitmap(bmpSize.Width, bmpSize.Height);
+                using var niBuf = new SKCanvas(nodeInfoRender);
+                niBuf.Clear(SKColors.Transparent);
+                using var wheatFill = new SKPaint { Color = SKColors.Wheat, Style = SKPaintStyle.Fill };
+
+                foreach (WzImageProperty ni in nodeInfoProp.WzProperties)
                 {
-                    int start = 0;
-                    int end = 0;
-
-                    foreach (WzImageProperty nodeInfoImg in nodeInfoProperty.WzProperties)
-                    {
-                        switch (nodeInfoImg.Name)
-                        {
-                            case "edgeInfo":
-                                {
-                                    break;
-                                }
-                            case "end":
-                                {
-                                    end = ((WzIntProperty)nodeInfoImg).ReadValue();
-                                    break;
-                                }
-                            case "start":
-                                {
-                                    start = ((WzIntProperty)nodeInfoImg).ReadValue();
-                                    break;
-                                }
-                            default:
-                                {
-                                    int nodeInfoImgFileName = -1;
-                                    if (int.TryParse(nodeInfoImg.Name, out nodeInfoImgFileName))
-                                    {
-                                        int attr = ((WzIntProperty)nodeInfoImg["attr"]).ReadValue();
-                                        int key = ((WzIntProperty)nodeInfoImg["key"]).ReadValue();
-                                        int x = ((WzIntProperty)nodeInfoImg["x"]).ReadValue() + center.X;
-                                        int y = ((WzIntProperty)nodeInfoImg["y"]).ReadValue() + center.Y;
-
-                                        List<int> edges = new List<int>();
-                                        foreach (WzImageProperty edge in nodeInfoImg["edge"].WzProperties)
-                                        {
-                                            edges.Add(edge.ReadValue());
-                                        }
-
-                                        const int width = 200;
-                                        const int height = 20;
-
-                                        nodeInfoBuffer.FillRectangle(new SolidBrush(Color.Wheat), x, y, width, height);
-                                        nodeInfoBuffer.DrawRectangle(new Pen(Color.Black, 1F), x, y, width, height);
-                                        nodeInfoBuffer.DrawString(
-                                            string.Format("Key: {0}, x: {1}, y: {1}", key, x, y),
-                                            FONT_DISPLAY_PORTAL_LFIE_FOOTHOLD, new SolidBrush(Color.Black), new PointF(x + (width / 2) - 8, y + (height / 2) - 7.7F));
-                                    }
-                                    break;
-                                }
-                        }
-                    }
+                    if (ni.Name is "edgeInfo" or "end" or "start" || !int.TryParse(ni.Name, out _)) continue;
+                    int key = ((WzIntProperty)ni["key"]).ReadValue();
+                    int x = ((WzIntProperty)ni["x"]).ReadValue() + center.X;
+                    int y = ((WzIntProperty)ni["y"]).ReadValue() + center.Y;
+                    niBuf.DrawRect(x, y, 200, 20, wheatFill);
+                    niBuf.DrawRect(x, y, 200, 20, strokePaint);
+                    DrawTextAt(niBuf, $"Key:{key} x:{x} y:{y}", x + 92, y + 2, fontPortal, blackPaint);
                 }
-                nodeInfoRender.Save("Renders\\" + mapIdName + "\\" + mapIdName + "_nodeInfoRender.bmp");
+                SaveBitmap(nodeInfoRender, Path.Combine(renderDir, mapIdName + "_nodeInfoRender.png"));
             }
 
-
-            // Render everything combined
-            Bitmap fullBmp = new Bitmap(bmpSize.Width, bmpSize.Height + 10);
-            using (Graphics fullBuf = Graphics.FromImage(fullBmp))
+            // Composite
+            var fullBmp = new SKBitmap(bmpSize.Width, bmpSize.Height + 10);
+            using (var fullBuf = new SKCanvas(fullBmp))
             {
-                fullBuf.FillRectangle(new SolidBrush(Color.CornflowerBlue), 0, 0, bmpSize.Width, bmpSize.Height + 10);
-                fullBuf.DrawImage(backgroundRender, 0, 0);
-                fullBuf.DrawImage(tileRender, 0, 0);
-                fullBuf.DrawImage(mapRender, 0, 0);
-                if (toolTip != null)
-                {
-                    fullBuf.DrawImage(toolTip, 0, 0);
-                }
-                if (nodeInfoRender != null)
-                {
-                    fullBuf.DrawImage(nodeInfoRender, 0, 0);
-                }
-                fullBuf.DrawImage(minimapRender, 0, 0);
+                fullBuf.Clear(SKColors.CornflowerBlue);
+                fullBuf.DrawBitmap(backgroundRender, 0, 0);
+                fullBuf.DrawBitmap(tileRender, 0, 0);
+                fullBuf.DrawBitmap(mapRender, 0, 0);
+                if (toolTip != null) fullBuf.DrawBitmap(toolTip, 0, 0);
+                if (nodeInfoRender != null) fullBuf.DrawBitmap(nodeInfoRender, 0, 0);
+                fullBuf.DrawBitmap(minimapRender, 0, 0);
             }
-            //pbx_Foothold_Render.Image = fullBmp;
-            fullBmp.Save("Renders\\" + mapIdName + "\\" + mapIdName + "_fullRender.bmp");
+            SaveBitmap(fullBmp, Path.Combine(renderDir, mapIdName + "_fullRender.png"));
 
-            // Cleanup resources
             backgroundRender.Dispose();
             tileRender.Dispose();
             mapRender.Dispose();
             toolTip?.Dispose();
-            minimapRender.Dispose();
+            nodeInfoRender?.Dispose();
 
-            if (errorList.Count() > 0)
-                return false;
-
-            // Display render map
-            DisplayMap showMap = new DisplayMap
+            if (errorList.Count > 0)
             {
-                map = fullBmp,
-                Footholds = FHs,
-                thePortals = Ps,
-                settings = settings,
-                MobSpawnPoints = MSPs
-            };
-            showMap.FormClosed += new FormClosedEventHandler(DisplayMapClosed);
+                fullBmp.Dispose();
+                return false;
+            }
+
+            // fullBmp ownership transferred to DisplayMapWindow
+            var showMap = new DisplayMapWindow(fullBmp, zoom, FHs, Ps, MSPs, settings);
+            showMap.Closed += DisplayMapClosed;
+            _openDisplayMaps.Add(showMap);
+            showMap.Closed += (_, _) => _openDisplayMaps.Remove(showMap);
+
             try
             {
-                showMap.scale = zoom;
-                showMap.Show();
+                var mainWin = GetMainWindow();
+                if (mainWin != null) showMap.Show(mainWin);
+                else showMap.Show();
                 return true;
             }
             catch (FormatException)
             {
-                MessageBox.Show("You must set the render scale to a valid number.", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                Warning.Error("Invalid render scale value.");
                 return false;
             }
         }
 
         public int GetPseudoRandomColor(string x)
         {
-            MD5 md5ctx = MD5.Create();
-            byte[] md5 = md5ctx.ComputeHash(Encoding.ASCII.GetBytes(x));
+            byte[] md5 = MD5.HashData(Encoding.ASCII.GetBytes(x));
             return BitConverter.ToInt32(md5, 0) & 0xFFFFFF;
         }
 
-        private void DisplayMapClosed(object sender, FormClosedEventArgs e)
-        {
-            ((WzNode)node).Reparse();
-        }
+        private void DisplayMapClosed(object? sender, EventArgs e)
+            => _node?.Reparse();
 
         internal void ParseSettings()
         {
-            //Clear current settings
             settings.Clear();
             try
             {
-                // Add the new ones
-                string theSettings;
                 if (!File.Exists(SettingsPath))
-                    File.WriteAllText(SettingsPath, "!TAB1-!DPt:0!DPc:False!DNt:0!DNc:True!DFt:-230!DFc:False!\r\n!TAB2-!DXt:100!DXc:False!DYt:100!DYc:False!DTt:2!DTc:False!\r\n!TAB3-!DFPt:C:\\NEXON\\MapleStory\\Map.wz!DFPc:False!DSt:1!DSc:True!");
-                using (TextReader settingsFile = new StreamReader(SettingsPath))
-                    theSettings = settingsFile.ReadToEnd();
-                settings.Add(Regex.Match(theSettings, @"(?<=!DPt:)-?\d*(?=!)").Value);
-                settings.Add(bool.Parse(Regex.Match(theSettings, @"(?<=!DPc:)\w+(?=!)").Value));
-                settings.Add(Regex.Match(theSettings, @"(?<=!DNt:)-?\d*(?=!)").Value);
-                settings.Add(bool.Parse(Regex.Match(theSettings, @"(?<=!DNc:)\w+(?=!)").Value));
-                settings.Add(Regex.Match(theSettings, @"(?<=!DFt:)-?\d*(?=!)").Value);
-                settings.Add(bool.Parse(Regex.Match(theSettings, @"(?<=!DFc:)\w+(?=!)").Value));
-                settings.Add(Regex.Match(theSettings, @"(?<=!DXt:)-?\d*(?=!)").Value);
-                settings.Add(bool.Parse(Regex.Match(theSettings, @"(?<=!DXc:)\w+(?=!)").Value));
-                settings.Add(Regex.Match(theSettings, @"(?<=!DYt:)-?\d*(?=!)").Value);
-                settings.Add(bool.Parse(Regex.Match(theSettings, @"(?<=!DYc:)\w+(?=!)").Value));
-                settings.Add(Regex.Match(theSettings, @"(?<=!DTt:)\d*(?=!)").Value);
-                settings.Add(bool.Parse(Regex.Match(theSettings, @"(?<=!DTc:)\w+(?=!)").Value));
-                settings.Add(Regex.Match(theSettings, @"(?<=!DFPt:)C:(%\w+)+.wz(?=!)").Value.Replace('%', '/'));
-                settings.Add(bool.Parse(Regex.Match(theSettings, @"(?<=!DFPc:)\w+(?=!)").Value));
-                settings.Add(Regex.Match(theSettings, @"(?<=!DSt:)\d*,?\d*(?=!)").Value);
-                settings.Add(bool.Parse(Regex.Match(theSettings, @"(?<=!DSc:)\w+(?=!)").Value));
+                    File.WriteAllText(SettingsPath,
+                        "!TAB1-!DPt:0!DPc:False!DNt:0!DNc:True!DFt:-230!DFc:False!\r\n" +
+                        "!TAB2-!DXt:100!DXc:False!DYt:100!DYc:False!DTt:2!DTc:False!\r\n" +
+                        "!TAB3-!DFPt:C:\\NEXON\\MapleStory\\Map.wz!DFPc:False!DSt:1!DSc:True!");
+
+                string s;
+                using (var r = new System.IO.StreamReader(SettingsPath)) s = r.ReadToEnd();
+
+                settings.Add(Regex.Match(s, @"(?<=!DPt:)-?\d*(?=!)").Value);
+                settings.Add(bool.Parse(Regex.Match(s, @"(?<=!DPc:)\w+(?=!)").Value));
+                settings.Add(Regex.Match(s, @"(?<=!DNt:)-?\d*(?=!)").Value);
+                settings.Add(bool.Parse(Regex.Match(s, @"(?<=!DNc:)\w+(?=!)").Value));
+                settings.Add(Regex.Match(s, @"(?<=!DFt:)-?\d*(?=!)").Value);
+                settings.Add(bool.Parse(Regex.Match(s, @"(?<=!DFc:)\w+(?=!)").Value));
+                settings.Add(Regex.Match(s, @"(?<=!DXt:)-?\d*(?=!)").Value);
+                settings.Add(bool.Parse(Regex.Match(s, @"(?<=!DXc:)\w+(?=!)").Value));
+                settings.Add(Regex.Match(s, @"(?<=!DYt:)-?\d*(?=!)").Value);
+                settings.Add(bool.Parse(Regex.Match(s, @"(?<=!DYc:)\w+(?=!)").Value));
+                settings.Add(Regex.Match(s, @"(?<=!DTt:)\d*(?=!)").Value);
+                settings.Add(bool.Parse(Regex.Match(s, @"(?<=!DTc:)\w+(?=!)").Value));
+                settings.Add(Regex.Match(s, @"(?<=!DFPt:)C:(%\w+)+.wz(?=!)").Value.Replace('%', '/'));
+                settings.Add(bool.Parse(Regex.Match(s, @"(?<=!DFPc:)\w+(?=!)").Value));
+                settings.Add(Regex.Match(s, @"(?<=!DSt:)\d*,?\d*(?=!)").Value);
+                settings.Add(bool.Parse(Regex.Match(s, @"(?<=!DSc:)\w+(?=!)").Value));
             }
-            catch { MessageBox.Show("Failed to load settings.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error); return; }
-            foreach (Form form in Application.OpenForms)
+            catch
             {
-                DisplayMap mapForm;
-                if (form.Name == "DisplayMap")// If the Map window is open, update its settings
-                {
-                    mapForm = (DisplayMap)form;
-                    mapForm.settings = settings;
-                }
+                Warning.Error("Failed to load FH Mapper settings.");
+                return;
             }
+            foreach (var win in _openDisplayMaps)
+                win.Settings = settings;
         }
     }
 }

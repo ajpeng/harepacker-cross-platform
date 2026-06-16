@@ -567,6 +567,38 @@ namespace HaRepacker.GUI
         private void OnPackToWzClick(object? sender, RoutedEventArgs e)
             => Warning.Error("Please use File > Open Version Directory… to select the IMG filesystem directory first.");
 
+        // ── FH Mapper ─────────────────────────────────────────────────────────
+
+        private void OnFHMapperClick(object? sender, RoutedEventArgs e)
+        {
+            var panel = ActivePanel;
+            if (panel?.SelectedNode?.WzObject is not WzImage img)
+            {
+                Warning.Error("Please select a map .img node (e.g. 100000000.img) first.");
+                return;
+            }
+
+            var mapper = new FHMapper.FHMapper(panel);
+            mapper.ParseSettings();
+
+            double zoom = 1.0;
+            if (mapper.settings.Count >= 16 && (bool)mapper.settings[15])
+                double.TryParse((string)mapper.settings[14], out zoom);
+
+            var errors = new List<string>();
+            if (!mapper.TryRenderMapAndSave(img, zoom, ref errors) && errors.Count > 0)
+                Warning.Error(string.Join("\n", errors.Take(10)));
+        }
+
+        private async void OnFHMapperSettingsClick(object? sender, RoutedEventArgs e)
+        {
+            var panel = ActivePanel;
+            var mapper = new FHMapper.FHMapper(panel ?? new GUI.Panels.MainPanel());
+            mapper.ParseSettings();
+            var dlg = new FHMapper.FHSettingsWindow(mapper, mapper.settings);
+            await dlg.ShowDialog(this);
+        }
+
         // ── Help ─────────────────────────────────────────────────────────────
 
         private async void OnAboutClick(object? sender, RoutedEventArgs e)

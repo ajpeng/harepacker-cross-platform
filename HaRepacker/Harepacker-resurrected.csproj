@@ -84,8 +84,17 @@
     <Compile Remove="GUI\Panels\SubPanels\PointFEditor.cs" />
     <Compile Remove="GUI\Panels\SubPanels\PointFEditorControl.cs" />
 
-    <!-- FHMapper WinForms -->
-    <Compile Remove="FHMapper\**" />
+    <!-- FHMapper: exclude old WinForms files; new Avalonia ports are compiled normally -->
+    <Compile Remove="FHMapper\DisplayMap.cs" />
+    <Compile Remove="FHMapper\DisplayMap.designer.cs" />
+    <Compile Remove="FHMapper\Edit.cs" />
+    <Compile Remove="FHMapper\Edit.designer.cs" />
+    <Compile Remove="FHMapper\EditPortals.cs" />
+    <Compile Remove="FHMapper\EditPortals.designer.cs" />
+    <Compile Remove="FHMapper\Settings.cs" />
+    <Compile Remove="FHMapper\Settings.designer.cs" />
+    <Compile Remove="FHMapper\SpawnpointInfo.cs" />
+    <Compile Remove="FHMapper\SpawnpointInfo.designer.cs" />
 
     <!-- Comparer/WinForms -->
     <Compile Remove="Comparer\TreeViewNodeSorter.cs" />
