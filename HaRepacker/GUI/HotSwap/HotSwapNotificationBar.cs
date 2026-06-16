@@ -1,14 +1,13 @@
-using System;
-using System.Drawing;
-using System.IO;
-using System.Windows.Forms;
+using Avalonia.Controls;
+using Avalonia.Layout;
+using Avalonia.Media;
+using Avalonia.Threading;
 using MapleLib.Img;
+using System;
+using System.IO;
 
 namespace HaRepacker.GUI.HotSwap
 {
-    /// <summary>
-    /// Represents a pending file modification notification
-    /// </summary>
     public class FileModificationInfo
     {
         public string FilePath { get; set; }
@@ -19,48 +18,22 @@ namespace HaRepacker.GUI.HotSwap
 
         public string FileName => Path.GetFileName(FilePath);
 
-        public string DisplayMessage
+        public string DisplayMessage => ChangeType switch
         {
-            get
-            {
-                switch (ChangeType)
-                {
-                    case ImgChangeType.ContentChanged:
-                    case ImgChangeType.SizeChanged:
-                        return $"{FileName} reloaded";
-                    case ImgChangeType.Deleted:
-                        return $"{FileName} removed";
-                    case ImgChangeType.Added:
-                        return $"{FileName} added";
-                    case ImgChangeType.Renamed:
-                        return $"{Path.GetFileName(OldPath)} renamed to {FileName}";
-                    default:
-                        return $"{FileName} updated";
-                }
-            }
-        }
+            ImgChangeType.ContentChanged or ImgChangeType.SizeChanged => $"{FileName} reloaded",
+            ImgChangeType.Deleted => $"{FileName} removed",
+            ImgChangeType.Added => $"{FileName} added",
+            ImgChangeType.Renamed => $"{Path.GetFileName(OldPath)} renamed to {FileName}",
+            _ => $"{FileName} updated"
+        };
     }
 
-    /// <summary>
-    /// User's response to a modification notification
-    /// </summary>
-    public enum NotificationResponse
-    {
-        Reload,
-        Ignore,
-        IgnoreAll,
-        KeepLocal,
-        AddToTree
-    }
+    public enum NotificationResponse { Reload, Ignore, IgnoreAll, KeepLocal, AddToTree }
 
-    /// <summary>
-    /// Event args for when user responds to a notification
-    /// </summary>
     public class NotificationResponseEventArgs : EventArgs
     {
         public FileModificationInfo Modification { get; }
         public NotificationResponse Response { get; }
-
         public NotificationResponseEventArgs(FileModificationInfo modification, NotificationResponse response)
         {
             Modification = modification;
@@ -69,111 +42,84 @@ namespace HaRepacker.GUI.HotSwap
     }
 
     /// <summary>
-    /// A subtle notification bar that briefly shows hot-swap status messages
+    /// Avalonia notification bar control for hot-swap status messages.
+    /// Embed as the first child of a DockPanel in the main window.
     /// </summary>
-    public class HotSwapNotificationBar : UserControl
+    public class HotSwapNotificationBar : IDisposable
     {
-        private Label _messageLabel;
-        private Timer _hideTimer;
+        private readonly Border _border;
+        private readonly TextBlock _label;
+        private DispatcherTimer _hideTimer;
         private const int DisplayDurationMs = 3000;
+
+        public Border Control => _border;
 
         public event EventHandler<NotificationResponseEventArgs> UserResponse;
 
         public HotSwapNotificationBar()
         {
-            InitializeComponent();
-        }
-
-        private void InitializeComponent()
-        {
-            this.SuspendLayout();
-
-            this.Height = 24;
-            this.Dock = DockStyle.Top;
-            this.BackColor = Color.FromArgb(230, 245, 230); // Light green for success
-            this.Visible = false;
-            this.Padding = new Padding(8, 0, 8, 0);
-
-            _messageLabel = new Label
+            _label = new TextBlock
             {
-                Text = "",
-                Font = new Font("Segoe UI", 9f),
-                ForeColor = Color.FromArgb(40, 80, 40),
-                AutoSize = false,
-                Dock = DockStyle.Fill,
-                TextAlign = ContentAlignment.MiddleLeft
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Avalonia.Thickness(8, 0)
             };
 
-            this.Controls.Add(_messageLabel);
+            _border = new Border
+            {
+                Height = 24,
+                Background = new SolidColorBrush(Color.FromRgb(230, 245, 230)),
+                Child = _label,
+                IsVisible = false
+            };
 
-            _hideTimer = new Timer { Interval = DisplayDurationMs };
-            _hideTimer.Tick += (s, e) =>
+            _hideTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(DisplayDurationMs) };
+            _hideTimer.Tick += (_, _) =>
             {
                 _hideTimer.Stop();
-                this.Visible = false;
+                _border.IsVisible = false;
             };
-
-            this.ResumeLayout(false);
         }
 
-        /// <summary>
-        /// Shows a brief notification message
-        /// </summary>
         public void ShowMessage(string message, bool isError = false)
         {
-            if (this.InvokeRequired)
+            if (!Dispatcher.UIThread.CheckAccess())
             {
-                this.Invoke(new Action(() => ShowMessage(message, isError)));
+                Dispatcher.UIThread.InvokeAsync(() => ShowMessage(message, isError));
                 return;
             }
 
-            _messageLabel.Text = message;
-            this.BackColor = isError
-                ? Color.FromArgb(255, 230, 230)  // Light red for errors
-                : Color.FromArgb(230, 245, 230); // Light green for success
-            _messageLabel.ForeColor = isError
-                ? Color.FromArgb(120, 40, 40)
-                : Color.FromArgb(40, 80, 40);
+            _label.Text = message;
+            _border.Background = new SolidColorBrush(isError
+                ? Color.FromRgb(255, 230, 230)
+                : Color.FromRgb(230, 245, 230));
+            _label.Foreground = new SolidColorBrush(isError
+                ? Color.FromRgb(120, 40, 40)
+                : Color.FromRgb(40, 80, 40));
 
-            this.Visible = true;
-            this.BringToFront();
-
+            _border.IsVisible = true;
             _hideTimer.Stop();
             _hideTimer.Start();
         }
 
-        /// <summary>
-        /// Queue a file modification notification (auto-handled, just shows message)
-        /// </summary>
         public void QueueNotification(FileModificationInfo modification)
         {
-            if (modification == null)
-                return;
-
+            if (modification == null) return;
             ShowMessage(modification.DisplayMessage);
         }
 
-        /// <summary>
-        /// Clear all pending notifications
-        /// </summary>
         public void ClearAll()
         {
             _hideTimer.Stop();
-            this.Visible = false;
+            _border.IsVisible = false;
         }
 
         public void ResetIgnoreAllSession() { }
-
         public int PendingCount => 0;
 
-        protected override void Dispose(bool disposing)
+        public void Dispose()
         {
-            if (disposing)
-            {
-                _hideTimer?.Stop();
-                _hideTimer?.Dispose();
-            }
-            base.Dispose(disposing);
+            _hideTimer?.Stop();
+            _hideTimer = null;
         }
     }
 }

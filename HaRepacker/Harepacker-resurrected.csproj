@@ -60,8 +60,7 @@
     <!-- GUI\ContextMenuManager.cs: ported to Avalonia MenuItem/ContextMenu -->
     <Compile Remove="GUI\Resources.Designer.cs" />
 
-    <!-- HotSwap (depends on MainForm) -->
-    <Compile Remove="GUI\HotSwap\**" />
+    <!-- HotSwap: ported to Avalonia -->
 
     <!-- Input and Interaction dialogs (WinForms) — replaced by InputDialogs.cs -->
     <Compile Remove="GUI\Input\**" />
