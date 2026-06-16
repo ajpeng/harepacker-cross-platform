@@ -9,6 +9,7 @@ using MapleLib.WzLib.WzStructure.Data;
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Drawing;
+using SkiaSharp;
 using System.Linq;
 
 namespace HaCreator.MapEditor.Info
@@ -33,7 +34,7 @@ namespace HaCreator.MapEditor.Info
         /// <param name="no"></param>
         /// <param name="parentObject"></param>
         /// <param name="wzSpineAnimationItem"></param>
-        public BackgroundInfo(WzImageProperty imageProperty, Bitmap image, System.Drawing.Point origin, string bS, BackgroundInfoType _type, string no, WzObject parentObject,
+        public BackgroundInfo(WzImageProperty imageProperty, SKBitmap? image, System.Drawing.Point origin, string bS, BackgroundInfoType _type, string no, WzObject parentObject,
             WzSpineAnimationItem wzSpineAnimationItem)
             : base(image, origin, parentObject)
         {
@@ -119,12 +120,12 @@ namespace HaCreator.MapEditor.Info
                             WzStringProperty stringObj = (WzStringProperty)spineAtlasProp;
                             wzSpineAnimationItem = new WzSpineAnimationItem(stringObj);
 
-                            wzSpineAnimationItem.LoadResources(graphicsDevice);
+                            wzSpineAnimationItem.LoadResources();
                         }
                     }
 
                     // Preview Image
-                    Bitmap bitmap = spineCanvas.GetLinkedWzCanvasBitmap();
+                    SKBitmap? bitmap = spineCanvas.GetLinkedWzCanvasBitmap();
 
                     // Origin
                     PointF origin__ = spineCanvas.GetCanvasOriginPosition();

@@ -3,6 +3,7 @@ using HaCreator.MapEditor.Input;
 using HaCreator.MapEditor.Instance;
 using HaCreator.MapEditor.UndoRedo;
 using MapleLib.WzLib.WzStructure.Data;
+using SkiaSharp;
 using XNA = Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
@@ -189,10 +190,12 @@ namespace HaCreator.MapEditor
         {
             lock (Board.ParentControl)
             {
-                System.Drawing.Bitmap image = this.Image;
+                SKBitmap? image = this.Image;
+                if (image == null) return true;
                 if (this is IFlippable && ((IFlippable)this).Flip)
                     x = image.Width - x;
-                return image.GetPixel(x, y).A == 0;
+                if (x < 0 || x >= image.Width || y < 0 || y >= image.Height) return true;
+                return image.GetPixel(x, y).Alpha == 0;
             }
         }
 
@@ -235,7 +238,7 @@ namespace HaCreator.MapEditor
         #endregion
 
         #region Properties
-        public abstract System.Drawing.Bitmap Image { get; }
+        public abstract SKBitmap? Image { get; }
         public abstract System.Drawing.Point Origin { get; }
         public abstract ItemTypes Type { get; }
         public abstract MapleDrawableInfo BaseInfo { get; }

@@ -8,7 +8,7 @@ using MapleLib.WzLib.WzStructure;
 using MapleLib.WzLib.WzStructure.Data;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
+using SkiaSharp;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -27,7 +27,7 @@ namespace HaCreator.Wz
         public Dictionary<string, WzBinaryProperty> BGMs = new Dictionary<string, WzBinaryProperty>();
 
         // Maps
-        public Dictionary<string, Bitmap> MapMarks = new Dictionary<string, Bitmap>();
+        public Dictionary<string, SKBitmap?> MapMarks = new Dictionary<string, SKBitmap?>();
         public Dictionary<string, Tuple<string, string, string>> MapsNameCache = new Dictionary<string, Tuple<string, string, string>>(); // street name, map name, category name
         public Dictionary<string, Tuple<WzImage, string, string, string, MapInfo>> MapsCache = new Dictionary<string, Tuple<WzImage, string, string, string, MapInfo>>(); // mapImage, strMapProp, mapName, streetName, categoryName, info
 

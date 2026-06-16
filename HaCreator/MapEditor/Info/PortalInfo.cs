@@ -7,7 +7,7 @@ using MapleLib.WzLib.WzStructure;
 using MapleLib.WzLib.WzStructure.Data;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
+using SkiaSharp;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -18,7 +18,7 @@ namespace HaCreator.MapEditor.Info
     {
         private PortalType type;
 
-        public PortalInfo(PortalType type, Bitmap image, System.Drawing.Point origin, WzObject parentObject)
+        public PortalInfo(PortalType type, SKBitmap? image, System.Drawing.Point origin, WzObject parentObject)
             : base(image, origin, parentObject)
         {
             this.type = type;
@@ -26,15 +26,12 @@ namespace HaCreator.MapEditor.Info
 
         public static PortalInfo Load(WzCanvasProperty parentObject)
         {
-            Bitmap bitmap = parentObject.GetLinkedWzCanvasBitmap();
-            // Create a placeholder if bitmap is null or invalid
+            SKBitmap? bitmap = parentObject.GetLinkedWzCanvasBitmap();
             if (bitmap == null)
             {
-                bitmap = new Bitmap(20, 20);
-                using (Graphics g = Graphics.FromImage(bitmap))
-                {
-                    g.Clear(Color.Magenta); // Placeholder color for missing portal image
-                }
+                bitmap = new SKBitmap(20, 20);
+                using var canvas = new SKCanvas(bitmap);
+                canvas.Clear(SKColors.Magenta);
             }
 
             PortalInfo portal = new(

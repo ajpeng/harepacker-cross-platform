@@ -150,7 +150,7 @@ namespace HaCreator.MapEditor.Instance.Shapes
             get { return null; }
         }
 
-        public override System.Drawing.Bitmap Image
+        public override SkiaSharp.SKBitmap? Image
         {
             get { throw new NotImplementedException(); }
         }

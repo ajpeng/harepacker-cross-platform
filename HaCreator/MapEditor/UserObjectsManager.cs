@@ -6,8 +6,7 @@ using MapleLib.WzLib.WzProperties;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
-using System.Drawing.Imaging;
+using SkiaSharp;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -57,19 +56,19 @@ namespace HaCreator.MapEditor
             l1prop = l0prop[l1];
         }
 
-        private byte[] SaveImageToBytes(Bitmap bmp)
+        private byte[] SaveImageToBytes(SKBitmap bmp)
         {
-            MemoryStream ms = new MemoryStream();
-            bmp.Save(ms, ImageFormat.Png);
-            return ms.ToArray();
+            using var img = SKImage.FromBitmap(bmp);
+            using var data = img.Encode(SKEncodedImageFormat.Png, 100);
+            return data.ToArray();
         }
 
-        public ObjectInfo Add(Bitmap bmp, string name)
+        public ObjectInfo Add(SKBitmap bmp, string name)
         {
             if (!IsNameValid(name))
                 throw new NameAlreadyUsedException();
 
-            Point origin = new Point(bmp.Width / 2, bmp.Height / 2);
+            System.Drawing.Point origin = new System.Drawing.Point(bmp.Width / 2, bmp.Height / 2);
 
             WzSubProperty prop = new WzSubProperty();
             WzCanvasProperty canvasProp = new WzCanvasProperty();
@@ -167,7 +166,7 @@ namespace HaCreator.MapEditor
             foreach (KeyValuePair<string, byte[]> obj in newObjectsData2)
             {
                 if (IsNameValid(obj.Key))
-                    Add((Bitmap)Image.FromStream(new MemoryStream(obj.Value)), obj.Key);
+                    Add(SKBitmap.Decode(obj.Value), obj.Key);
             }
             SerializeObjects();
         }

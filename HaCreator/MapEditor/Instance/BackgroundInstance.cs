@@ -7,7 +7,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using HaRepacker.Utils;
+using SkiaSharp;
 
 namespace HaCreator.MapEditor.Instance
 {
@@ -98,7 +98,7 @@ namespace HaCreator.MapEditor.Instance
             get { return baseInfo; }
         }
 
-        public override System.Drawing.Bitmap Image
+        public override SKBitmap? Image
         {
             get
             {

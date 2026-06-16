@@ -1,6 +1,7 @@
 ﻿using HaSharedLibrary.Util;
 using MapleLib.WzLib;
 using Microsoft.Xna.Framework.Graphics;
+using SkiaSharp;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -12,14 +13,14 @@ namespace HaCreator.MapEditor.Info
 {
     public abstract class MapleDrawableInfo
     {
-        private Bitmap image;
-        private Texture2D texture;
-        private Point origin;
+        private SKBitmap? image;
+        private Texture2D? texture;
+        private System.Drawing.Point origin;
         private WzObject parentObject;
         int width;
         int height;
 
-        public MapleDrawableInfo(Bitmap image, Point origin, WzObject parentObject)
+        public MapleDrawableInfo(SKBitmap? image, Point origin, WzObject parentObject)
         {
             this.Image = image;
             this.origin = origin;
@@ -38,30 +39,15 @@ namespace HaCreator.MapEditor.Info
         /// <returns></returns>
         public abstract BoardItem CreateInstance(Layer layer, Board board, int x, int y, int z, bool flip);
 
-        public virtual Texture2D GetTexture(SpriteBatch sprite)
+        public virtual Texture2D? GetTexture(SpriteBatch sprite)
         {
             if (texture == null)
             {
-                if (image == null)
-                {
-                    // Use placeholder for null images
-                    texture = global::HaCreator.Properties.Resources.placeholder.ToTexture2D(sprite.GraphicsDevice);
-                }
-                else
-                {
-                    try
-                    {
-                        if (image.Width == 1 && image.Height == 1)
-                            texture = global::HaCreator.Properties.Resources.placeholder.ToTexture2D(sprite.GraphicsDevice);
-                        else
-                            texture = image.ToTexture2D(sprite.GraphicsDevice);
-                    }
-                    catch
-                    {
-                        // Use placeholder if image conversion fails
-                        texture = global::HaCreator.Properties.Resources.placeholder.ToTexture2D(sprite.GraphicsDevice);
-                    }
-                }
+                SKBitmap src = (image == null || (image.Width == 1 && image.Height == 1))
+                    ? global::HaCreator.Properties.Resources.placeholder
+                    : image;
+                try { texture = src.ToTexture2D(sprite.GraphicsDevice); }
+                catch { texture = global::HaCreator.Properties.Resources.placeholder.ToTexture2D(sprite.GraphicsDevice); }
             }
             return texture;
         }
@@ -78,19 +64,13 @@ namespace HaCreator.MapEditor.Info
             }
         }
 
-        public virtual Bitmap Image
+        public virtual SKBitmap? Image
         {
-            get
-            {
-              //  if(image.Width==1 && image.Height==1)
-            //        return global::HaCreator.Properties.Resources.placeholder;
-                return image;
-            }
+            get => image;
             set
             {
                 image = value;
                 texture = null;
-
                 if (image != null)
                 {
                     width = image.Width;

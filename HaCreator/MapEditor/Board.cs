@@ -13,8 +13,8 @@ using HaCreator.MapEditor.Instance.Shapes;
 using HaSharedLibrary.Util;
 using System.Runtime.CompilerServices;
 using HaCreator.MapEditor.Instance;
+using SkiaSharp;
 using System.Linq;
-using Footholds;
 
 namespace HaCreator.MapEditor
 {
@@ -31,9 +31,9 @@ namespace HaCreator.MapEditor
         private readonly Mouse mouse;
         private MapInfo mapInfo = new MapInfo();
         private bool bIsNewMapDesign = false; // determines if this board is a new map design or editing an existing map.
-        private System.Drawing.Bitmap miniMap;
+        private SKBitmap? miniMap;
         private System.Drawing.Point miniMapPos;
-        private Texture2D miniMapTexture;
+        private Texture2D? miniMapTexture;
 
         // App settings
         private int selectedLayerIndex = ApplicationSettings.lastDefaultLayer;
@@ -55,9 +55,9 @@ namespace HaCreator.MapEditor
         private bool loading = false;
         private VRRectangle vrRect = null;
         private MinimapRectangle mmRect = null;
-        private System.Windows.Controls.ContextMenu menu = null;
-        private readonly SerializationManager serMan = null;
-        private System.Windows.Controls.TabItem page = null;
+        private object? menu = null;
+        private readonly SerializationManager? serMan = null;
+        private object? page = null;
         private bool dirty;
         private readonly int uid;
 
@@ -80,7 +80,7 @@ namespace HaCreator.MapEditor
         /// <param name="menu"></param>
         /// <param name="visibleTypes"></param>
         /// <param name="editedTypes"></param>
-        public Board(Point mapSize, Point centerPoint, MultiBoard parent, bool bIsNewMapDesign, System.Windows.Controls.ContextMenu menu, ItemTypes visibleTypes, ItemTypes editedTypes)
+        public Board(Point mapSize, Point centerPoint, MultiBoard parent, bool bIsNewMapDesign, object? menu, ItemTypes visibleTypes, ItemTypes editedTypes)
         {
             this.uid = Interlocked.Increment(ref uidCounter);
             this.MapSize = mapSize;
@@ -97,18 +97,22 @@ namespace HaCreator.MapEditor
             serMan = new SerializationManager(this);
         }
 
-        public static System.Drawing.Bitmap ResizeImage(System.Drawing.Bitmap FullsizeImage, float coeff)
+        public static SKBitmap ResizeImage(SKBitmap source, float coeff)
         {
-            return (System.Drawing.Bitmap)FullsizeImage.GetThumbnailImage((int)Math.Round(FullsizeImage.Width / coeff), (int)Math.Round(FullsizeImage.Height / coeff), null, IntPtr.Zero);
+            int w = (int)Math.Round(source.Width / coeff);
+            int h = (int)Math.Round(source.Height / coeff);
+            SKBitmap result = new SKBitmap(w, h, source.ColorType, source.AlphaType);
+            using SKCanvas canvas = new SKCanvas(result);
+            canvas.DrawBitmap(source, new SKRect(0, 0, w, h));
+            return result;
         }
 
-        public static System.Drawing.Bitmap CropImage(System.Drawing.Bitmap img, System.Drawing.Rectangle selection)
+        public static SKBitmap CropImage(SKBitmap img, System.Drawing.Rectangle selection)
         {
-            System.Drawing.Bitmap result = new System.Drawing.Bitmap(selection.Width, selection.Height);
-            using (System.Drawing.Graphics g = System.Drawing.Graphics.FromImage(result))
-            {
-                g.DrawImage(img, new System.Drawing.Rectangle(0, 0, selection.Width, selection.Height), selection, System.Drawing.GraphicsUnit.Pixel);
-            }
+            SKBitmap result = new SKBitmap(selection.Width, selection.Height, img.ColorType, img.AlphaType);
+            using SKCanvas canvas = new SKCanvas(result);
+            canvas.DrawBitmap(img, new SKRect(selection.X, selection.Y, selection.X + selection.Width, selection.Y + selection.Height),
+                              new SKRect(0, 0, selection.Width, selection.Height));
             return result;
         }
 
@@ -129,29 +133,27 @@ namespace HaCreator.MapEditor
                     }
                     else
                     {
-                        System.Drawing.Bitmap bmp = new System.Drawing.Bitmap(mapSize.X, mapSize.Y);
-                        System.Drawing.Graphics processor = System.Drawing.Graphics.FromImage(bmp);
-
-                        foreach (BoardItem item in BoardItems.TileObjs)
+                        SKBitmap bmp = new SKBitmap(mapSize.X, mapSize.Y, SKColorType.Bgra8888, SKAlphaType.Premul);
+                        using (SKCanvas canvas = new SKCanvas(bmp))
                         {
-                            bool isFlippedBoardItem = item.IsFlipped();
-                            System.Drawing.Rectangle destRect = new System.Drawing.Rectangle(
-                                item.X + centerPoint.X - item.Origin.X,
-                                item.Y + centerPoint.Y - item.Origin.Y,
-                                item.Image.Width,
-                                item.Image.Height
-                                );
-
-                            if (isFlippedBoardItem)
+                            canvas.Clear(SKColors.Transparent);
+                            foreach (BoardItem item in BoardItems.TileObjs)
                             {
-                                processor.DrawImage(item.Image,
-                                    destRect,
-                                    item.Image.Width, 0, -item.Image.Width, item.Image.Height,
-                                    System.Drawing.GraphicsUnit.Pixel);
-                            }
-                            else
-                            {
-                                processor.DrawImage(item.Image, destRect);
+                                if (item.Image == null) continue;
+                                int dx = item.X + centerPoint.X - item.Origin.X;
+                                int dy = item.Y + centerPoint.Y - item.Origin.Y;
+                                SKRect dest = new SKRect(dx, dy, dx + item.Image.Width, dy + item.Image.Height);
+                                if (item.IsFlipped())
+                                {
+                                    canvas.Save();
+                                    canvas.Scale(-1, 1, dx + item.Image.Width / 2f, 0);
+                                    canvas.DrawBitmap(item.Image, dest);
+                                    canvas.Restore();
+                                }
+                                else
+                                {
+                                    canvas.DrawBitmap(item.Image, dest);
+                                }
                             }
                         }
                         bmp = CropImage(bmp, new System.Drawing.Rectangle(MinimapRectangle.X + centerPoint.X, MinimapRectangle.Y + centerPoint.Y, MinimapRectangle.Width, MinimapRectangle.Height));
@@ -285,7 +287,7 @@ namespace HaCreator.MapEditor
             parent.FillRectangle(sprite, minimapArea, Color.Gray);
 
             // Render minimap
-            if (miniMapTexture == null)
+            if (miniMapTexture == null && miniMap != null && parent.GraphicsDevice != null)
                 miniMapTexture = miniMap.ToTexture2D(parent.GraphicsDevice);
 
             sprite.Draw(miniMapTexture, minimapImageArea, null, Color.White, 0, new Vector2(0, 0), SpriteEffects.None, 0.99999f);
@@ -528,7 +530,7 @@ namespace HaCreator.MapEditor
         }
 
 
-        public System.Drawing.Bitmap MiniMap
+        public SKBitmap? MiniMap
         {
             get { return miniMap; }
             set { lock (parent) { miniMap = value; miniMapTexture = null; } }
@@ -616,20 +618,18 @@ namespace HaCreator.MapEditor
         public VRRectangle VRRectangle
         {
             get { return vrRect; }
-            set 
-            { 
+            set
+            {
                 vrRect = value;
-                ((System.Windows.Controls.MenuItem) menu.Items[1]).IsEnabled = value == null;
             }
         }
 
         public MinimapRectangle MinimapRectangle
         {
             get { return mmRect; }
-            set 
-            { 
+            set
+            {
                 mmRect = value;
-                ((System.Windows.Controls.MenuItem)menu.Items[2]).IsEnabled = value == null;
                 parent.OnMinimapStateChanged(this, mmRect != null);
             }
         }
@@ -699,7 +699,7 @@ namespace HaCreator.MapEditor
             set { selectedAllLayers = value; }
         }
 
-        public System.Windows.Controls.ContextMenu Menu
+        public object? Menu
         {
             get { return menu; }
         }
@@ -733,7 +733,7 @@ namespace HaCreator.MapEditor
             get { return serMan; }
         }
 
-        public System.Windows.Controls.TabItem TabPage
+        public object? TabPage
         {
             get { return page; }
             set { page = value; }

@@ -1,18 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Windows.Forms;
 using HaCreator.MapEditor;
-using System.Runtime.InteropServices;
 using MapleLib.WzLib;
-using HaCreator.GUI;
 using System.IO;
 using System.Globalization;
 using System.Threading;
-using System.Resources;
-using System.Reflection;
 using HaCreator.Wz;
-using HaSharedLibrary;
 using MapleLib;
 using MapleLib.Img;
 
@@ -29,7 +23,7 @@ namespace HaCreator
 
         public const string APP_NAME = "HaCreator";
 
-        public static HaEditor HaEditorWindow = null;
+        public static object? HaEditorWindow = null;
 
         #region Data Access Helpers
         /// <summary>
@@ -177,63 +171,29 @@ namespace HaCreator
         #endregion
 
         /// <summary>
-        /// The main entry point for the application.
+        /// The main entry point for the application — replaced by Avalonia App in cross-platform port.
         /// </summary>
         [STAThread]
         static void Main()
         {
-            Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
-
-            // Startup
-#if !DEBUG
-            AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
-#endif
-
             // Localisation
             CultureInfo ci = GetMainCulture(CultureInfo.CurrentCulture);
-            Properties.Resources.Culture = ci;
-
             Thread.CurrentThread.CurrentCulture = ci;
             Thread.CurrentThread.CurrentUICulture = ci;
-
             CultureInfo.CurrentCulture = ci;
             CultureInfo.CurrentUICulture = ci;
             CultureInfo.DefaultThreadCurrentCulture = ci;
             CultureInfo.DefaultThreadCurrentUICulture = ci;
 
-
-            Properties.Resources.Culture = CultureInfo.CurrentCulture;
             InfoManager = new WzInformationManager();
             SettingsManager = new WzSettingsManager(GetLocalSettingsPath(), typeof(UserSettings), typeof(ApplicationSettings));
             SettingsManager.LoadSettings();
 
-            // Initialize StartupManager for IMG filesystem support
             StartupManager = new StartupManager();
             StartupManager.ScanVersions();
 
-            MultiBoard.RecalculateSettings();
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
-            Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
-
-            // Program run here
-            GUI.Initialization initForm = new GUI.Initialization();
-            Application.Run(initForm);
-
-            // Shutdown
-            if (initForm.editor != null)
-                initForm.editor.hcsm.backupMan.ClearBackups();
-            SettingsManager.SaveSettings();
-            StartupManager?.SaveConfig();
-            if (Restarting)
-            {
-                Application.Restart();
-            }
-            DataSource?.Dispose();
-            if (WzManager != null)  // doesnt initialise on load until WZ files are loaded via Initialization.xaml.cs
-            {
-                WzManager.Dispose();
-            }
+            // TODO: launch Avalonia HaCreator window
+            throw new NotImplementedException("HaCreator Avalonia entry point not yet implemented");
         }
 
         /// <summary>
@@ -260,7 +220,7 @@ namespace HaCreator
 
         private static void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
         {
-            new ThreadExceptionDialog((Exception)e.ExceptionObject).ShowDialog();
+            Console.Error.WriteLine("Unhandled exception: " + e.ExceptionObject);
             Environment.Exit(-1);
         }
     }

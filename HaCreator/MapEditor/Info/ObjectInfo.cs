@@ -8,7 +8,7 @@ using MapleLib.WzLib.WzProperties;
 using MapleLib.WzLib.WzStructure;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
+using SkiaSharp;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -28,7 +28,7 @@ namespace HaCreator.MapEditor.Info
         private List<XNA.Point> chairOffsets = null;
         private bool connect;
 
-        public ObjectInfo(Bitmap image, System.Drawing.Point origin, string oS, string l0, string l1, string l2, WzObject parentObject)
+        public ObjectInfo(SKBitmap? image, System.Drawing.Point origin, string oS, string l0, string l1, string l2, WzObject parentObject)
             : base(image, origin, parentObject)
         {
             this._oS = oS;

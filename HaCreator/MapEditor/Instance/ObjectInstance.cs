@@ -121,7 +121,7 @@ namespace HaCreator.MapEditor.Instance
             base.Draw(sprite, color, xShift, yShift);
         }
 
-        public override System.Drawing.Bitmap Image
+        public override SkiaSharp.SKBitmap? Image
         {
             get
             {

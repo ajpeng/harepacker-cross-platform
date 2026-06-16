@@ -1,5 +1,4 @@
-﻿using HaCreator.GUI;
-using HaCreator.MapEditor.Instance;
+﻿using HaCreator.MapEditor.Instance;
 using HaCreator.Wz;
 using HaSharedLibrary.Wz;
 using MapleLib.Img;
@@ -7,7 +6,7 @@ using MapleLib.WzLib;
 using MapleLib.WzLib.WzProperties;
 using MapleLib.WzLib.WzStructure;
 using MapleLib.WzLib.WzStructure.Data.MobStructure;
-using System.Drawing;
+using SkiaSharp;
 
 namespace HaCreator.MapEditor.Info
 {
@@ -27,7 +26,7 @@ namespace HaCreator.MapEditor.Info
         /// <param name="id"></param>
         /// <param name="name"></param>
         /// <param name="parentObject"></param>
-        public MobInfo(Bitmap image, System.Drawing.Point origin, string id, string name, WzObject parentObject)
+        public MobInfo(SKBitmap? image, System.Drawing.Point origin, string id, string name, WzObject parentObject)
             : base(image, origin, parentObject)
         {
             this.id = id;
@@ -44,7 +43,7 @@ namespace HaCreator.MapEditor.Info
             }
             else
             {
-                Image = new Bitmap(1, 1);
+                Image = new SKBitmap(1, 1);
                 Origin = new System.Drawing.Point();
             }
         }

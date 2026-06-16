@@ -1,13 +1,12 @@
-﻿using HaCreator.GUI;
-using HaCreator.MapEditor.Instance;
+﻿using HaCreator.MapEditor.Instance;
 using HaCreator.Wz;
 using HaSharedLibrary.Wz;
 using MapleLib.WzLib;
 using MapleLib.WzLib.WzProperties;
 using MapleLib.WzLib.WzStructure;
+using SkiaSharp;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -28,7 +27,7 @@ namespace HaCreator.MapEditor.Info
         /// <param name="id"></param>
         /// <param name="name"></param>
         /// <param name="parentObject"></param>
-        public NpcInfo(Bitmap image, System.Drawing.Point origin, string id, WzObject parentObject)
+        public NpcInfo(SKBitmap? image, System.Drawing.Point origin, string id, WzObject parentObject)
             : base(image, origin, parentObject)
         {
             this.id = id;
@@ -50,7 +49,7 @@ namespace HaCreator.MapEditor.Info
             }
             else
             {
-                Image = new Bitmap(1, 1);
+                Image = new SKBitmap(1, 1);
                 Origin = new System.Drawing.Point();
             }
         }

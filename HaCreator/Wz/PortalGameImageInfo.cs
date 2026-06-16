@@ -2,7 +2,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Drawing;
+using SkiaSharp;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -11,22 +11,22 @@ namespace HaCreator.Wz
 {
     public class PortalGameImageInfo
     {
-        private readonly Bitmap defaultImage;
+        private readonly SKBitmap? defaultImage;
 
-        private readonly Dictionary<string, List<Bitmap>> imageList;
+        private readonly Dictionary<string, List<SKBitmap?>> imageList;
 
-        public PortalGameImageInfo(Bitmap defaultImage, Dictionary<string, List<Bitmap>> imageList)
+        public PortalGameImageInfo(SKBitmap? defaultImage, Dictionary<string, List<SKBitmap?>> imageList)
         {
             this.defaultImage = defaultImage;
             this.imageList = imageList;
         }
 
-        public Bitmap DefaultImage
+        public SKBitmap? DefaultImage
         {
             get { return defaultImage; }
         }
 
-        public List<Bitmap> this[string name]
+        public List<SKBitmap?> this[string name]
         {
             get
             {

@@ -1,107 +1,100 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Drawing;
+/* Copyright (c) 2026, ajpeng https://github.com/ajpeng/harepacker-cross-platform */
+
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using System.Drawing.Imaging;
-using System.Drawing.Text;
+using SkiaSharp;
 using HaSharedLibrary.Util;
+using System;
+using System.Collections.Generic;
 
 namespace HaCreator.MapEditor.Text
 {
+    /// <summary>
+    /// Cross-platform font rendering engine using SkiaSharp (replaces System.Drawing.Font).
+    /// Pre-rasterizes the ASCII character set into Texture2D for MonoGame rendering.
+    /// </summary>
     public class FontEngine
     {
-        private Bitmap globalBitmap;
-        private Graphics globalGraphics;
-        private Font font;
-        private GraphicsDevice device;
+        private readonly GraphicsDevice device;
+        private readonly SKTypeface typeface;
+        private readonly float size;
+        private readonly CharTexture[] characters = new CharTexture[0x100];
+        private readonly SKPaint measurePaint;
 
-        private CharTexture[] characters = new CharTexture[0x100];
-
-        public FontEngine(string fontName, FontStyle fontStyle, float size, GraphicsDevice device)
+        public FontEngine(string fontName, SKFontStyle fontStyle, float size, GraphicsDevice device)
         {
             this.device = device;
-            font = new Font(fontName, size, fontStyle);
-            globalBitmap = new Bitmap(1, 1, PixelFormat.Format32bppArgb);
-            globalGraphics = Graphics.FromImage(globalBitmap);
-            globalGraphics.TextRenderingHint = TextRenderingHint.AntiAlias;
-
-            //format.Alignment = StringAlignment.Near;
-            //format.LineAlignment = StringAlignment.Near;
+            this.size = size;
+            typeface = SKTypeface.FromFamilyName(fontName, fontStyle) ?? SKTypeface.Default;
+            measurePaint = new SKPaint
+            {
+                Typeface = typeface,
+                TextSize = size,
+                IsAntialias = true,
+            };
 
             for (char ch = (char)0; ch < 0x100; ch++)
-            {
-                characters[(int)ch] = RasterizeCharacter(ch);
-            }
+                characters[ch] = RasterizeCharacter(ch);
         }
-
-        Brush brush = new SolidBrush(Color.White);
-        StringFormat format = new StringFormat();
 
         private CharTexture RasterizeCharacter(char ch)
         {
             string text = ch.ToString();
+            float w = measurePaint.MeasureText(text);
+            if (w < 1) w = size * 0.5f;
+            int iw = Math.Max(1, (int)Math.Ceiling(w));
+            int ih = Math.Max(1, (int)Math.Ceiling(size));
 
-            // Causes truetype fonts to be rendered in their exact width
-            StringFormat format = StringFormat.GenericTypographic;
-            SizeF size = globalGraphics.MeasureString(text, font, new PointF(0, 0), format);
-
-            // If the character is unprintable, measure it with the truetype padding to receive its padding width
-            if (size.Width < 1)
+            using SKBitmap bmp = new SKBitmap(iw, ih, SKColorType.Bgra8888, SKAlphaType.Premul);
+            using (SKCanvas canvas = new SKCanvas(bmp))
             {
-                format = StringFormat.GenericDefault;
-                size = globalGraphics.MeasureString(text, font);
+                canvas.Clear(SKColors.Transparent);
+                using var paint = new SKPaint
+                {
+                    Typeface = typeface,
+                    TextSize = size,
+                    IsAntialias = true,
+                    Color = SKColors.White,
+                };
+                canvas.DrawText(text, 0, ih - 2, paint);
             }
 
-            int width = (int)Math.Ceiling(size.Width);
-            int height = (int)Math.Ceiling(size.Height);
-
-            Bitmap bitmap = new Bitmap(width, height, PixelFormat.Format32bppArgb);
-
-            using (Graphics graphics = Graphics.FromImage(bitmap))
-            {
-                graphics.TextRenderingHint = TextRenderingHint.AntiAlias;
-                graphics.DrawString(text, font, brush, 0, 0, format);
-            }
-
-            return new CharTexture(bitmap.ToTexture2D(device), width, height);
+            return new CharTexture(bmp.ToTexture2D(device), iw, ih);
         }
 
-
-        //draws a string to the global device using the font textures.
-        //if the string exceedds maxWidth, it will be truncated with dots
-        public void DrawString(SpriteBatch sprite, Point position, Microsoft.Xna.Framework.Color color, string str, int maxWidth)
+        public void DrawString(SpriteBatch sprite, System.Drawing.Point position, Color color, string str, int maxWidth)
         {
-            //if the string is too long, truncate it and place "..."
-            if (UserSettings.ClipText && globalGraphics.MeasureString(str, font).Width > maxWidth)
+            if (string.IsNullOrEmpty(str)) return;
+            if (UserSettings.ClipText)
             {
-                int dotsWidth = (int)globalGraphics.MeasureString("...", font, new PointF(0, 0), StringFormat.GenericTypographic).Width;
-                do
+                float totalW = measurePaint.MeasureText(str);
+                if (totalW > maxWidth)
                 {
-                    str = str.Substring(0, str.Length - 1);
+                    float dotsW = measurePaint.MeasureText("...");
+                    while (str.Length > 0 && measurePaint.MeasureText(str) + dotsW > maxWidth)
+                        str = str[..^1];
+                    str += "...";
                 }
-                while (globalGraphics.MeasureString(str, font).Width + dotsWidth > maxWidth);
-                str += "...";
             }
+
             int xOffs = 0;
-            foreach (char c in str.ToCharArray())
+            foreach (char c in str)
             {
-                if (c > 256)
+                if (c >= 0x100) return;
+                CharTexture ct = characters[c];
+                if (ct?.texture != null)
                 {
-                    //hack to stop attempting to draw languages other than english
-                    return;
+                    sprite.Draw(ct.texture, new Rectangle(position.X + xOffs, position.Y, ct.w, ct.h), color);
+                    xOffs += ct.w;
                 }
-                int w = characters[c].w;
-                int h = characters[c].h;
-                sprite.Draw(characters[c].texture, new Microsoft.Xna.Framework.Rectangle(position.X + xOffs, position.Y, w, h), color);
-                xOffs += w;
             }
         }
 
-        public SizeF MeasureString(string s)
+        public System.Drawing.SizeF MeasureString(string s)
         {
-            return globalGraphics.MeasureString(s, font);
+            if (string.IsNullOrEmpty(s)) return System.Drawing.SizeF.Empty;
+            float w = measurePaint.MeasureText(s);
+            return new System.Drawing.SizeF(w, size);
         }
     }
 }

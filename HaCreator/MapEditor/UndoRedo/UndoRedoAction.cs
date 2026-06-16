@@ -7,7 +7,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using static System.Windows.Forms.Design.AxImporter;
 using XNA = Microsoft.Xna.Framework;
 
 namespace HaCreator.MapEditor.UndoRedo

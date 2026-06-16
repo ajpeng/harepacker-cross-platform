@@ -42,7 +42,7 @@ namespace HaCreator.MapEditor.Instance.Misc
             sprite.Draw(baseInfo.GetTexture(sprite), destinationRectangle, null, color, 0f, new XNA.Vector2(0, 0), SpriteEffects.None, 0);
         }
 
-        public override System.Drawing.Bitmap Image
+        public override SkiaSharp.SKBitmap? Image
         {
             get
             {

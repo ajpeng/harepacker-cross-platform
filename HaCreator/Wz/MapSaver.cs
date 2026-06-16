@@ -13,7 +13,6 @@ using HaCreator.MapEditor.Instance.Misc;
 using HaCreator.MapEditor.Info;
 using HaCreator.MapEditor.Instance;
 using HaCreator.Collections;
-using HaCreator.MapSimulator;
 using HaSharedLibrary.Render.DX;
 using HaSharedLibrary.Wz;
 

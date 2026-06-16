@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Drawing;
+using SkiaSharp;
 using System.Security.Cryptography;
 using Xna = Microsoft.Xna.Framework;
 using MapleLib.WzLib.WzStructure.Data;
@@ -16,8 +16,8 @@ namespace HaCreator.MapEditor.Input
 {
     public class Mouse : MapleDot //inheriting mapledot to make it easier to attach maplelines to it
     {
-        private Bitmap placeholder = new Bitmap(1, 1);
-        private Point origin = new Point(0, 0);
+        private SKBitmap? placeholder = new SKBitmap(1, 1);
+        private System.Drawing.Point origin = new System.Drawing.Point(0, 0);
         private bool isDown;
         private bool minimapBrowseOngoing;
         private bool multiSelectOngoing;
@@ -422,15 +422,9 @@ namespace HaCreator.MapEditor.Input
         {
         }
 
-        public override System.Drawing.Bitmap Image
-        {
-            get { return placeholder; }
-        }
+        public override SKBitmap? Image => placeholder;
 
-        public override Point Origin
-        {
-            get { return origin; }
-        }
+        public override System.Drawing.Point Origin => origin;
 
         public override ItemTypes Type
         {

@@ -19,7 +19,7 @@ namespace HaRepacker.GUI
 
         private void OnLinkClick(object? sender, PointerPressedEventArgs e)
         {
-            try { Process.Start(new ProcessStartInfo("https://github.com/lastbattle/Harepacker-resurrected") { UseShellExecute = true }); }
+            try { Process.Start(new ProcessStartInfo("https://github.com/ajpeng/harepacker-cross-platform") { UseShellExecute = true }); }
             catch { }
         }
 

@@ -1,6 +1,7 @@
 ﻿using HaCreator.MapEditor.Info;
 using MapleLib.WzLib.WzStructure;
 using Microsoft.Xna.Framework.Graphics;
+using SkiaSharp;
 using XNA = Microsoft.Xna.Framework;
 
 namespace HaCreator.MapEditor.Instance
@@ -97,7 +98,7 @@ namespace HaCreator.MapEditor.Instance
             set { hide = value; }
         }
 
-        public override System.Drawing.Bitmap Image
+        public override SKBitmap? Image
         {
             get
             {

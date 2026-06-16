@@ -149,7 +149,7 @@ namespace HaCreator.MapEditor.Instance
             this.baseInfo = newInfo;
         }
 
-        public override System.Drawing.Bitmap Image
+        public override SkiaSharp.SKBitmap? Image
         {
             get
             {

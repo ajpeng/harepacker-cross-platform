@@ -1,9 +1,10 @@
-﻿using System.Text;
+﻿using System.Drawing;
+using System.Text;
 using XNA = Microsoft.Xna.Framework;
 using MapleLib.WzLib.WzStructure.Data;
-using System.Drawing;
 using HaSharedLibrary.Render.DX;
 using Newtonsoft.Json;
+using SkiaSharp;
 
 namespace HaCreator
 {
@@ -50,7 +51,7 @@ namespace HaCreator
         public static int HiddenLifeR = 127;
         public static string FontName = "Arial";
         public static int FontSize = 13;
-        public static FontStyle FontStyle = FontStyle.Regular;
+        public static SKFontStyle FontStyle = SKFontStyle.Normal;
         public static int dotDescriptionBoxSize = 100;
         public static int ImageViewerHeight = 100;
         public static int ImageViewerWidth = 100;

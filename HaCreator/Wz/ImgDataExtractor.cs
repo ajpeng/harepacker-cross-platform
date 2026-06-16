@@ -8,7 +8,7 @@ using MapleLib.WzLib.WzStructure;
 using MapleLib.WzLib.WzStructure.Data;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
+using SkiaSharp;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -511,12 +511,12 @@ namespace HaCreator.Wz
 
                     if (portalProp["default"]?["portalStart"] != null)
                     {
-                        Dictionary<string, List<Bitmap>> portalTemplates = new();
+                        Dictionary<string, List<SKBitmap?>> portalTemplates = new();
 
                         foreach (WzSubProperty imgProp in portalProp.WzProperties)
                         {
                             var portalStart = imgProp["portalStart"] as WzSubProperty;
-                            List<Bitmap> images = new();
+                            List<SKBitmap?> images = new();
 
                             if (portalStart != null)
                             {
@@ -533,9 +533,9 @@ namespace HaCreator.Wz
                     }
                     else
                     {
-                        Dictionary<string, List<Bitmap>> portalTemplates = new();
-                        Bitmap defaultImage = null;
-                        List<Bitmap> images = new();
+                        Dictionary<string, List<SKBitmap?>> portalTemplates = new();
+                        SKBitmap? defaultImage = null;
+                        List<SKBitmap?> images = new();
 
                         foreach (WzImageProperty prop in portalProp.WzProperties)
                         {

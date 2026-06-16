@@ -7,7 +7,7 @@ using MapleLib.WzLib.WzProperties;
 using MapleLib.WzLib.WzStructure;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
+using SkiaSharp;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -24,7 +24,7 @@ namespace HaCreator.MapEditor.Info
         private int _z;
         private List<XNA.Point> footholdOffsets = new List<XNA.Point>();
 
-        public TileInfo(Bitmap image, System.Drawing.Point origin, string tS, string u, string no, int mag, int z, WzObject parentObject)
+        public TileInfo(SKBitmap? image, System.Drawing.Point origin, string tS, string u, string no, int mag, int z, WzObject parentObject)
             : base(image, origin, parentObject)
         {
             this._tS = tS;

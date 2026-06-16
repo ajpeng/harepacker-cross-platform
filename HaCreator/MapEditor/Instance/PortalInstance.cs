@@ -90,7 +90,7 @@ namespace HaCreator.MapEditor.Instance
             get { return ItemTypes.Portals; }
         }
 
-        public override System.Drawing.Bitmap Image
+        public override SkiaSharp.SKBitmap? Image
         {
             get
             {

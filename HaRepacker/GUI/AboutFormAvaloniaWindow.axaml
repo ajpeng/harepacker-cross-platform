@@ -11,7 +11,7 @@
                        FontSize="16" FontWeight="Bold" TextWrapping="Wrap" />
             <TextBlock Text="A MapleStory .wz file and map editor suite."
                        TextWrapping="Wrap" />
-            <TextBlock Text="Original: lastbattle/Harepacker-resurrected"
+            <TextBlock Text="Crossplatform: ajpeng/harepacker-cross-platform"
                        Foreground="Blue" Cursor="Hand"
                        PointerPressed="OnLinkClick"
                        TextWrapping="Wrap" />

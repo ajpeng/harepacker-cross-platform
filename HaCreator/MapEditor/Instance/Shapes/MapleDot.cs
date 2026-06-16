@@ -2,9 +2,9 @@
 using HaCreator.MapEditor.Input;
 using HaCreator.MapEditor.UndoRedo;
 using Microsoft.Xna.Framework.Graphics;
+using SkiaSharp;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -24,10 +24,10 @@ namespace HaCreator.MapEditor.Instance.Shapes
         public abstract XNA.Color Color { get; }
         public abstract XNA.Color InactiveColor { get; }
 
-        private static Point origin = new Point(UserSettings.DotWidth, UserSettings.DotWidth);
+        private static System.Drawing.Point origin = new System.Drawing.Point(UserSettings.DotWidth, UserSettings.DotWidth);
         public static void OnDotWidthChanged()
         {
-            origin = new Point(UserSettings.DotWidth, UserSettings.DotWidth);
+            origin = new System.Drawing.Point(UserSettings.DotWidth, UserSettings.DotWidth);
         }
 
         public override bool IsPixelTransparent(int x, int y)
@@ -72,7 +72,7 @@ namespace HaCreator.MapEditor.Instance.Shapes
             }
         }
 
-        public override System.Drawing.Bitmap Image
+        public override SKBitmap? Image
         {
             get { return null; }
         }
@@ -94,13 +94,7 @@ namespace HaCreator.MapEditor.Instance.Shapes
             else return InactiveColor;
         }
 
-        public override System.Drawing.Point Origin
-        {
-            get
-            {
-                return origin;
-            }
-        }
+        public override System.Drawing.Point Origin => origin;
 
         public override void Draw(SpriteBatch sprite, XNA.Color color, int xShift, int yShift)
         {
@@ -167,7 +161,7 @@ namespace HaCreator.MapEditor.Instance.Shapes
 
         public virtual void DoSnap()
         {
-            if (InputHandler.IsKeyPushedDown(System.Windows.Forms.Keys.ShiftKey) && connectedLines.Count != 0 && connectedLines[0] is FootholdLine && board.SelectedItems.Count == 1 && board.SelectedItems[0].Equals(this))
+            if (InputHandler.IsShiftDown() && connectedLines.Count != 0 && connectedLines[0] is FootholdLine && board.SelectedItems.Count == 1 && board.SelectedItems[0].Equals(this))
             {
                 FootholdAnchor closestAnchor = null;
                 double closestAngle = double.MaxValue;

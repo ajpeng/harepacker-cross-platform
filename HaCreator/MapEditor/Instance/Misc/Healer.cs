@@ -87,7 +87,7 @@ namespace HaCreator.MapEditor.Instance.Misc
             return true;
         }
 
-        public override System.Drawing.Bitmap Image
+        public override SkiaSharp.SKBitmap? Image
         {
             get
             {
