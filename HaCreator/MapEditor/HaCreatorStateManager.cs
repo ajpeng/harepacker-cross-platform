@@ -1,13 +1,17 @@
 /* Copyright (c) 2026, ajpeng https://github.com/ajpeng/harepacker-cross-platform */
 using Avalonia.Controls;
+using Avalonia.Layout;
 using Avalonia.Threading;
 using HaCreator.Exceptions;
 using HaCreator.GUI;
+using HaCreator.GUI.EditorPanels;
+using HaCreator.GUI.InstanceEditor;
 using HaCreator.MapEditor.Info;
 using HaCreator.MapEditor.Instance;
 using HaCreator.MapEditor.Instance.Misc;
 using HaCreator.MapEditor.Instance.Shapes;
 using HaCreator.MapEditor.UndoRedo;
+using HaCreator.MapSimulator;
 using HaCreator.Wz;
 using MapleLib;
 using MapleLib.Helpers;
@@ -16,6 +20,7 @@ using MapleLib.WzLib.WzStructure;
 using MapleLib.WzLib.WzStructure.Data;
 using System;
 using System.Collections;
+using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -101,6 +106,7 @@ namespace HaCreator.MapEditor
             _ribbon.MapPhysicsClicked       += Ribbon_MapPhysicsClicked;
             _ribbon.ShowQuestEditorWindowClicked += Ribbon_ShowQuestEditorWindowClicked;
             _ribbon.ShowMapPropertiesClicked += Ribbon_ShowMapPropertiesClicked;
+            _ribbon.MapInfoClicked          += MapEditInfo;
             _ribbon.RibbonKeyDown           += (s, e) => { }; // key input forwarding — pending InputHandler port
 
             _tabs.SelectionChanged += Tabs_SelectionChanged;
@@ -108,7 +114,7 @@ namespace HaCreator.MapEditor
             _multiBoard.OnBringToFrontClicked  += MultiBoard_OnBringToFrontClicked;
             _multiBoard.OnEditBaseClicked      += MultiBoard_OnEditBaseClicked;
             _multiBoard.OnEditInstanceClicked  += MultiBoard_OnEditInstanceClicked;
-            _multiBoard.OnLayerTSChanged2      += MultiBoard_OnLayerTSChanged;
+            _multiBoard.OnLayerTSChanged       += (l) => MultiBoard_OnLayerTSChanged(l);
             _multiBoard.OnSendToBackClicked    += MultiBoard_OnSendToBackClicked;
             _multiBoard.ReturnToSelectionState += MultiBoard_ReturnToSelectionState;
             _multiBoard.SelectedItemChanged    += MultiBoard_SelectedItemChanged;
@@ -118,7 +124,7 @@ namespace HaCreator.MapEditor
             _multiBoard.LoadRequested          += Ribbon_OpenClicked;
             _multiBoard.CloseTabRequested      += MultiBoard_CloseTabRequested;
             _multiBoard.SwitchTabRequested     += MultiBoard_SwitchTabRequested;
-            _multiBoard.BackupCheck            += MultiBoard_BackupCheck;
+            // BackupCheck is driven by BackupManager's internal timer
             _multiBoard.BoardRemoved           += MultiBoard_BoardRemoved;
             _multiBoard.MinimapStateChanged    += MultiBoard_MinimapStateChanged;
 
@@ -151,16 +157,9 @@ namespace HaCreator.MapEditor
                 backupMan.DeleteBackup(board.UniqueID);
         }
 
-        void MultiBoard_BackupCheck()
-        {
-            try { backupMan.BackupCheck(); }
-            catch (Exception e) { Debug.WriteLine($"Backup failed: {e.Message}"); }
-        }
-
         void MultiBoard_ImageDropped(Board selectedBoard, SkiaSharp.SKBitmap bmp, string name,
             Microsoft.Xna.Framework.Point pos)
         {
-            // TODO: show WaitWindow (Avalonia progress dialog) then add user object
             if (_multiBoard.UserObjects == null) return;
             try
             {
@@ -171,7 +170,30 @@ namespace HaCreator.MapEditor
             }
             catch (NameAlreadyUsedException)
             {
-                Debug.WriteLine($"User object '{name}' already exists.");
+                string n = name;
+                Dispatcher.UIThread.Post(() =>
+                {
+                    if (OwnerWindow == null) return;
+                    var win = new Avalonia.Controls.Window
+                    {
+                        Title = "Duplicate Name", Width = 320, Height = 130,
+                        WindowStartupLocation = Avalonia.Controls.WindowStartupLocation.CenterOwner,
+                        Content = new Avalonia.Controls.StackPanel
+                        {
+                            Margin = new Avalonia.Thickness(12), Spacing = 10,
+                            Children =
+                            {
+                                new Avalonia.Controls.TextBlock
+                                    { Text = $"A user object named '{n}' already exists." },
+                                new Avalonia.Controls.Button { Content = "OK", IsDefault = true,
+                                    HorizontalAlignment = HorizontalAlignment.Right }
+                            }
+                        }
+                    };
+                    ((Avalonia.Controls.Button)((Avalonia.Controls.StackPanel)win.Content!).Children[1]).Click
+                        += (_, _) => win.Close();
+                    win.ShowDialog(OwnerWindow);
+                });
             }
         }
 
@@ -228,19 +250,10 @@ namespace HaCreator.MapEditor
         void MultiBoard_OnEditInstanceClicked(BoardItem item)
         {
             MultiBoard.ClearBoundItems(_multiBoard.SelectedBoard);
-            try
-            {
-                // TODO: port instance editor dialogs to Avalonia
-                // For now, log and no-op
-                Debug.WriteLine($"Edit instance: {item.GetType().Name}");
-            }
-            catch (Exception e)
-            {
-                Debug.WriteLine($"Error presenting instance editor for {item.GetType().Name}: {e}");
-            }
+            InstanceEditors.DispatchAsync(item, OwnerWindow);
         }
 
-        void MultiBoard_OnEditBaseClicked(BoardItem item) { /* TODO */ }
+        void MultiBoard_OnEditBaseClicked(BoardItem item) { }
 
         void MultiBoard_OnBringToFrontClicked(BoardItem boardRefItem)
         {
@@ -280,12 +293,8 @@ namespace HaCreator.MapEditor
         {
             if (tabItem?.Tag is not TabItemContainer container) return;
             Board selectedBoard = container.Board;
-            lock (selectedBoard.ParentControl)
-            {
-                // TODO: port InfoEditor to Avalonia
-                Debug.WriteLine("MapEditInfo stub");
-                selectedBoard.ParentControl.AdjustScrollBars();
-            }
+            // Dispatch outside the lock — InfoEditorDialog acquires the lock itself when saving
+            InfoEditorDialog.DispatchAsync(selectedBoard, selectedBoard.MapInfo, _multiBoard, tabItem, OwnerWindow);
         }
 
         private void MapAddVR(TabItem tabItem)
@@ -370,57 +379,151 @@ namespace HaCreator.MapEditor
 
         // ── Ribbon event handlers ─────────────────────────────────────
 
-        private void Ribbon_ShowQuestEditorWindowClicked()
+        private async void Ribbon_ShowQuestEditorWindowClicked()
         {
-            // TODO: port QuestEditor to Avalonia
-            Debug.WriteLine("QuestEditor stub");
+            if (OwnerWindow == null) return;
+            var btnOk = new Button { Content = "OK", IsDefault = true };
+            var win = new Window
+            {
+                Title = "Quest Editor", Width = 400, Height = 160,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Content = new StackPanel
+                {
+                    Margin = new Avalonia.Thickness(12), Spacing = 10,
+                    Children =
+                    {
+                        new TextBlock
+                        {
+                            Text = "The Quest Editor has not yet been ported to Avalonia.\n\n" +
+                                   "Use the original Windows (WPF) version of HaCreator to edit quest data.",
+                            TextWrapping = Avalonia.Media.TextWrapping.Wrap
+                        },
+                        new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal,
+                            HorizontalAlignment = HorizontalAlignment.Right, Children = { btnOk } }
+                    }
+                }
+            };
+            btnOk.Click += (_, _) => win.Close();
+            await win.ShowDialog(OwnerWindow);
         }
 
-        private void Ribbon_ShowMapPropertiesClicked()
+        private async void Ribbon_ShowMapPropertiesClicked()
         {
-            if (_multiBoard.SelectedBoard == null) return;
+            if (_multiBoard.SelectedBoard == null || OwnerWindow == null) return;
             var unsupported = _multiBoard.SelectedBoard.MapInfo.unsupportedInfoProperties;
             var sb = new StringBuilder();
-            int i = 1;
-            foreach (var p in unsupported)
+            if (unsupported.Count == 0)
+                sb.Append("(none)");
+            else
+                foreach (var p in unsupported)
+                    sb.Append(p.Name).Append(" = ").Append(p.WzValue?.ToString() ?? "").AppendLine();
+
+            var txtArea = new TextBox
             {
-                sb.Append(i++).Append(": ").Append(p.Name);
-                sb.Append(", val: ").Append(p.WzValue?.ToString() ?? "").AppendLine();
-            }
-            Debug.WriteLine("Unsupported map properties:\n" + sb);
+                Text = sb.ToString(), IsReadOnly = true, AcceptsReturn = true,
+                MinHeight = 200, FontFamily = new Avalonia.Media.FontFamily("Monospace"), FontSize = 11
+            };
+            var scroll  = new ScrollViewer { Content = txtArea, Height = 220 };
+            var btnOk   = new Button { Content = "OK", IsDefault = true, HorizontalAlignment = HorizontalAlignment.Right };
+            var win = new Window
+            {
+                Title = "Unsupported Map Properties", Width = 480, Height = 320,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Content = new StackPanel
+                {
+                    Margin = new Avalonia.Thickness(12), Spacing = 8,
+                    Children =
+                    {
+                        new TextBlock { Text = "Properties not yet handled by the InfoEditor:" },
+                        scroll, btnOk
+                    }
+                }
+            };
+            btnOk.Click += (_, _) => win.Close();
+            await win.ShowDialog(OwnerWindow);
         }
 
         private string? _lastSaveLoc;
 
-        public void Ribbon_ExportClicked()
+        public async void Ribbon_ExportClicked()
         {
-            // TODO: Avalonia SaveFileDialog
-            Debug.WriteLine("Export stub");
+            Board? board;
+            lock (_multiBoard) { board = _multiBoard.SelectedBoard; }
+            if (board == null || OwnerWindow == null) return;
+
+            var topLevel = TopLevel.GetTopLevel(OwnerWindow);
+            if (topLevel == null) return;
+
+            string defaultName = board.MapInfo.id == -1 ? "map" : board.MapInfo.id.ToString();
+            var file = await topLevel.StorageProvider.SaveFilePickerAsync(new Avalonia.Platform.Storage.FilePickerSaveOptions
+            {
+                Title = "Export Map as HAM",
+                SuggestedFileName = defaultName + ".ham",
+                FileTypeChoices = new[]
+                {
+                    new Avalonia.Platform.Storage.FilePickerFileType("HaCreator Map File") { Patterns = new[] { "*.ham" } }
+                }
+            });
+            if (file == null) return;
+
+            string data;
+            lock (_multiBoard) { data = board.SerializationManager.SerializeBoard(true); }
+            await using var stream = await file.OpenWriteAsync();
+            await using var writer = new System.IO.StreamWriter(stream);
+            await writer.WriteAsync(data);
+            _lastSaveLoc = file.Path.LocalPath;
         }
 
-        private void Ribbon_UserObjsClicked()
+        private async void Ribbon_UserObjsClicked()
         {
+            UserObjectsManager? uom;
             lock (_multiBoard)
             {
-                // TODO: port ManageUserObjects to Avalonia
-                Debug.WriteLine("ManageUserObjects stub");
+                uom = _multiBoard.UserObjects;
                 objPanel?.OnL1Changed(UserObjectsManager.l1);
             }
+            if (uom == null || OwnerWindow == null) return;
+            await ManageUserObjectsDialog.ShowAsync(uom, _multiBoard, OwnerWindow);
         }
 
-        private void Ribbon_FinalizeClicked()
+        private async void Ribbon_FinalizeClicked()
         {
-            // TODO: confirmation dialog
+            bool confirmed = await ConfirmAsync(
+                "Actualize Footholds",
+                "This will regenerate all foothold IDs and connections. Proceed?");
+            if (!confirmed) return;
             lock (_multiBoard)
             {
                 new MapSaver(_multiBoard.SelectedBoard).ActualizeFootholds();
             }
         }
 
-        private void Ribbon_HaRepackerClicked()
+        private async void Ribbon_HaRepackerClicked()
         {
-            // TODO: launch HaRepacker in cross-platform mode
-            Debug.WriteLine("HaRepacker stub");
+            if (OwnerWindow == null) return;
+            var btnOk = new Button { Content = "OK", IsDefault = true };
+            var win = new Window
+            {
+                Title = "Open HaRepacker", Width = 400, Height = 160,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Content = new StackPanel
+                {
+                    Margin = new Avalonia.Thickness(12), Spacing = 10,
+                    Children =
+                    {
+                        new TextBlock
+                        {
+                            Text = "Launch HaRepacker separately from the command line:\n\n" +
+                                   "dotnet run --project HaRepacker/Harepacker-resurrected.csproj",
+                            TextWrapping = Avalonia.Media.TextWrapping.Wrap, FontFamily = new Avalonia.Media.FontFamily("Monospace")
+                        },
+                        new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal,
+                            HorizontalAlignment = HorizontalAlignment.Right, Children = { btnOk } }
+                    }
+                }
+            };
+            btnOk.Click += (_, _) => win.Close();
+            await win.ShowDialog(OwnerWindow);
         }
 
         private bool? GetTypes(ItemTypes visibleTypes, ItemTypes editedTypes, ItemTypes type)
@@ -471,8 +574,27 @@ namespace HaCreator.MapEditor
 
         private void Ribbon_MapSimulationClicked()
         {
-            // TODO: port MapSimulator to Avalonia + MonoGame.DesktopGL
-            Debug.WriteLine("MapSimulator stub");
+            Board board;
+            lock (_multiBoard) { board = _multiBoard.SelectedBoard; }
+            if (board == null) return;
+
+            string titleName = string.Format("{0}:{1}", board.MapInfo.strMapName, board.MapInfo.strStreetName);
+            MapSimulatorLoader.CreateAndShowMapSimulator(board, titleName,
+                loadMapCallback: (mapId) => {
+                    Board loadedBoard = null;
+                    string loadedTitle = string.Empty;
+                    Dispatcher.UIThread.Invoke(() => {
+                        // Try to find a board with matching id; if not, return null
+                        lock (_multiBoard) {
+                            foreach (var b in _multiBoard.Boards) {
+                                if (b.MapInfo.id == mapId) { loadedBoard = b; break; }
+                            }
+                        }
+                        if (loadedBoard != null)
+                            loadedTitle = string.Format("{0}:{1}", loadedBoard.MapInfo.strMapName, loadedBoard.MapInfo.strStreetName);
+                    });
+                    return loadedBoard != null ? Tuple.Create(loadedBoard, loadedTitle) : null;
+                });
         }
 
         private void Ribbon_ParallaxToggled(bool pressed) => UserSettings.emulateParallax = pressed;
@@ -545,16 +667,69 @@ namespace HaCreator.MapEditor
                 Debug.WriteLine("Help file not found.");
         }
 
-        private void Ribbon_AboutClicked()
+        private async void Ribbon_AboutClicked()
         {
-            // TODO: port About dialog to Avalonia
-            Debug.WriteLine("About stub");
+            if (OwnerWindow == null) return;
+            var btnOk = new Button { Content = "OK", HorizontalAlignment = HorizontalAlignment.Center, IsDefault = true };
+            var win = new Window
+            {
+                Title = "About HaCreator", Width = 400, Height = 220,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Content = new StackPanel
+                {
+                    Margin = new Avalonia.Thickness(16), Spacing = 8,
+                    Children =
+                    {
+                        new TextBlock { Text = "HaCreator — MapleStory Map Editor",
+                            FontSize = 16, FontWeight = Avalonia.Media.FontWeight.Bold,
+                            HorizontalAlignment = HorizontalAlignment.Center },
+                        new TextBlock { Text = "Cross-platform port for macOS / Linux / Windows",
+                            HorizontalAlignment = HorizontalAlignment.Center },
+                        new TextBlock { Text = $"Version {System.Reflection.Assembly.GetExecutingAssembly().GetName().Version}",
+                            HorizontalAlignment = HorizontalAlignment.Center, FontSize = 12 },
+                        new TextBlock { Text = "github.com/ajpeng/harepacker-cross-platform",
+                            HorizontalAlignment = HorizontalAlignment.Center,
+                            Foreground = Avalonia.Media.Brushes.RoyalBlue, FontSize = 11 },
+                        new Separator(),
+                        btnOk,
+                    }
+                }
+            };
+            btnOk.Click += (_, _) => win.Close();
+            await win.ShowDialog(OwnerWindow);
         }
 
-        private void Ribbon_RepackClicked()
+        private async void Ribbon_RepackClicked()
         {
-            // TODO: port Repack/PackToWz to Avalonia
-            Debug.WriteLine("Repack stub");
+            if (OwnerWindow == null) return;
+            var btnOk = new Button { Content = "OK", IsDefault = true };
+            var win = new Window
+            {
+                Title = "Repack WZ Files", Width = 420, Height = 180,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Content = new StackPanel
+                {
+                    Margin = new Avalonia.Thickness(12), Spacing = 10,
+                    Children =
+                    {
+                        new TextBlock
+                        {
+                            Text = "WZ repacking is handled by the PackToWz tool.\n\n" +
+                                   "Save your map first (File → Save), then use the " +
+                                   "standalone PackToWz utility to write changes back to .wz files.",
+                            TextWrapping = Avalonia.Media.TextWrapping.Wrap
+                        },
+                        new StackPanel
+                        {
+                            Orientation = Avalonia.Layout.Orientation.Horizontal,
+                            HorizontalAlignment = HorizontalAlignment.Right,
+                            Children = { btnOk }
+                        }
+                    }
+                }
+            };
+            btnOk.Click += (_, _) => win.Close();
+            await win.ShowDialog(OwnerWindow);
         }
 
         private async void Ribbon_SaveClicked()
@@ -604,7 +779,25 @@ namespace HaCreator.MapEditor
             await dlg.ShowDialog(OwnerWindow);
         }
 
-        public void LoadMap(int mapId) => Debug.WriteLine($"LoadMap({mapId}) stub");
+        public async Task ShowFieldSelectorAsync()
+        {
+            if (OwnerWindow == null) return;
+            var dlg = new HaCreator.GUI.FieldSelectorDialog(_multiBoard, _tabs, MakeRightClickHandler());
+            await dlg.ShowDialog(OwnerWindow);
+        }
+
+        public void LoadMap(int mapId)
+        {
+            Dispatcher.UIThread.Post(async () =>
+            {
+                if (OwnerWindow == null) return;
+                var dlg = new HaCreator.GUI.FieldSelectorDialog(
+                    _multiBoard, _tabs, MakeRightClickHandler(),
+                    autoCloseOnSelect: true,
+                    defaultFilter: mapId.ToString("D9"));
+                await dlg.ShowDialog(OwnerWindow);
+            });
+        }
 
         public void LoadMap()
         {
@@ -623,19 +816,81 @@ namespace HaCreator.MapEditor
             }
         }
 
-        private void Ribbon_NewPlatformClicked()
+        private async void Ribbon_NewPlatformClicked()
         {
+            Board? board;
+            SortedSet<int> existingZms;
             lock (_multiBoard)
             {
-                // TODO: port NewPlatform dialog
-                Debug.WriteLine("NewPlatform stub");
+                board = _multiBoard.SelectedBoard;
+                if (board == null || board.SelectedLayerIndex < 0) return;
+                existingZms = new SortedSet<int>(board.Layers[board.SelectedLayerIndex].zMList);
+            }
+
+            // Build dialog outside the lock
+            var lblStatus = new TextBlock { Foreground = Avalonia.Media.Brushes.Red };
+            var nudZm     = new NumericUpDown { Value = 0, Minimum = 0, Maximum = 999999, FormatString = "F0", Width = 130 };
+            var btnOK     = new Button { Content = "OK", IsDefault = true, IsEnabled = !existingZms.Contains(0) };
+            var btnCancel = new Button { Content = "Cancel" };
+
+            nudZm.ValueChanged += (_, _) =>
+            {
+                bool exists = existingZms.Contains((int)(nudZm.Value ?? 0));
+                lblStatus.Text    = exists ? "Platform already exists" : "";
+                btnOK.IsEnabled   = !exists;
+            };
+
+            bool confirmed = false;
+            var win = new Window
+            {
+                Title = "New Platform", Width = 320, Height = 160,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Content = new StackPanel
+                {
+                    Margin = new Avalonia.Thickness(12), Spacing = 8,
+                    Children =
+                    {
+                        LR("Z-value (zm):", nudZm),
+                        lblStatus,
+                        new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal,
+                            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                            Spacing = 6, Children = { btnOK, btnCancel } }
+                    }
+                }
+            };
+            btnOK.Click     += (_, _) => { confirmed = true; win.Close(); };
+            btnCancel.Click += (_, _) => win.Close();
+            await win.ShowDialog(OwnerWindow);
+            if (!confirmed) return;
+
+            int newZm = (int)(nudZm.Value ?? 0);
+            lock (_multiBoard)
+            {
+                if (_multiBoard.SelectedBoard == null || _multiBoard.SelectedBoard.SelectedLayerIndex < 0) return;
+                _multiBoard.SelectedBoard.Layers[_multiBoard.SelectedBoard.SelectedLayerIndex].zMList.Add(newZm);
+                _multiBoard.SelectedBoard.SelectedPlatform = newZm;
+                _ribbon.SetLayers(new System.Collections.ObjectModel.ReadOnlyCollection<Layer>(
+                    _multiBoard.SelectedBoard.Layers));
+                _ribbon.SetSelectedLayer(_multiBoard.SelectedBoard.SelectedLayerIndex,
+                    newZm, _multiBoard.SelectedBoard.SelectedAllLayers,
+                    _multiBoard.SelectedBoard.SelectedAllPlatforms);
             }
         }
 
+        static StackPanel LR(string label, Control ctrl)
+            => new StackPanel
+            {
+                Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8,
+                Children =
+                {
+                    new TextBlock { Text = label, Width = 130, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center },
+                    ctrl
+                }
+            };
+
         private void Ribbon_MapPhysicsClicked()
         {
-            // TODO: port MapPhysicsEditor to Avalonia
-            Debug.WriteLine("MapPhysicsEditor stub");
+            MapPhysicsEditorDialog.ShowAsync(OwnerWindow);
         }
 
         // ── Layer ribbon handlers ─────────────────────────────────────
@@ -822,6 +1077,44 @@ namespace HaCreator.MapEditor
             _hotSwapService?.Dispose();
             _hotSwapService = null;
             _assetUsageTracker = null;
+        }
+
+        // ── Async UI helpers ──────────────────────────────────────────
+
+        private async Task<bool> ConfirmAsync(string title, string message)
+        {
+            if (OwnerWindow == null) return true;
+            bool result = false;
+            var btnYes = new Avalonia.Controls.Button { Content = "Yes", IsDefault = true };
+            var btnNo  = new Avalonia.Controls.Button { Content = "No" };
+            var win = new Avalonia.Controls.Window
+            {
+                Title = title, Width = 340, Height = 140,
+                WindowStartupLocation = Avalonia.Controls.WindowStartupLocation.CenterOwner,
+                Content = new Avalonia.Controls.StackPanel
+                {
+                    Margin = new Avalonia.Thickness(12), Spacing = 10,
+                    Children =
+                    {
+                        new Avalonia.Controls.TextBlock
+                        {
+                            Text = message,
+                            TextWrapping = Avalonia.Media.TextWrapping.Wrap
+                        },
+                        new Avalonia.Controls.StackPanel
+                        {
+                            Orientation = Avalonia.Layout.Orientation.Horizontal,
+                            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                            Spacing = 6,
+                            Children = { btnYes, btnNo }
+                        }
+                    }
+                }
+            };
+            btnYes.Click += (_, _) => { result = true;  win.Close(); };
+            btnNo.Click  += (_, _) => { result = false; win.Close(); };
+            await win.ShowDialog(OwnerWindow);
+            return result;
         }
 
         // ── Accessors ─────────────────────────────────────────────────
