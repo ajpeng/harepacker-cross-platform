@@ -1,6 +1,8 @@
 /* Copyright (c) 2026, ajpeng https://github.com/ajpeng/harepacker-cross-platform */
 
+using Avalonia.Controls;
 using Avalonia.Input;
+using HaCreator.Collections;
 using HaCreator.MapEditor.Input;
 using HaCreator.MapEditor.Text;
 using Microsoft.Xna.Framework;
@@ -44,6 +46,11 @@ namespace HaCreator.MapEditor
         }
 
         public GraphicsDevice? GraphicsDevice { get; set; }
+        public SpriteBatch? SpriteBatch { get; set; }
+        public Texture2D? Pixel { get; set; }
+
+        // Reference to the Avalonia host control for context-menu anchoring
+        public Control? HostControl { get; set; }
 
         public System.Drawing.Size CurrentDXWindowSize { get; set; } = new System.Drawing.Size(800, 600);
 
@@ -67,6 +74,39 @@ namespace HaCreator.MapEditor
         public static int PhysicalToVirtual(int location, int center, int scroll, int origin)
             => location - center + scroll + origin;
 
+        public static int PhysicalToVirtual(int location, int center, int scroll, int origin, float zoom)
+            => (int)(location / zoom) - center + scroll + origin;
+
+        /// <summary>Returns true if the selected board has a real layer selected; posts a warning dialog if not.</summary>
+        public bool AssertLayerSelected()
+        {
+            if (SelectedBoard != null && SelectedBoard.SelectedLayerIndex != -1) return true;
+            Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
+            {
+                var owner = (Avalonia.Controls.Window?)Program.HaEditorWindow;
+                var btn = new Avalonia.Controls.Button { Content = "OK", IsDefault = true,
+                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right };
+                var win = new Avalonia.Controls.Window
+                {
+                    Title = "No Layer Selected", Width = 320, Height = 130,
+                    WindowStartupLocation = Avalonia.Controls.WindowStartupLocation.CenterOwner,
+                    Content = new Avalonia.Controls.StackPanel
+                    {
+                        Margin = new Avalonia.Thickness(12), Spacing = 10,
+                        Children =
+                        {
+                            new Avalonia.Controls.TextBlock { Text = "Please select a layer first." },
+                            btn
+                        }
+                    }
+                };
+                btn.Click += (_, _) => win.Close();
+                if (owner != null) await win.ShowDialog(owner);
+                else win.Show();
+            });
+            return false;
+        }
+
         public bool IsItemInRange(int x, int y, int w, int h, int xshift, int yshift)
         {
             if (CurrentDXWindowSize.Width == 0) return true;
@@ -81,13 +121,48 @@ namespace HaCreator.MapEditor
         // Tracks whether Ctrl is currently held (updated by the Avalonia host key handler)
         public bool CtrlHeld { get; set; }
 
-        public void SetHScrollbarValue(int value) { }
-        public void SetVScrollbarValue(int value) { }
-        public void AddHScrollbarValue(int value) { } // TODO: update hScroll on SelectedBoard
-        public void AddVScrollbarValue(int value) { } // TODO: update vScroll on SelectedBoard
-        public void AdjustScrollBars() { }
-        public void OnMinimapStateChanged(Board board, bool hasMm) { }
-        public void OnSelectedItemChanged(BoardItem? selectedItem) { }
+        public void SetHScrollbarValue(int value)
+        {
+            if (SelectedBoard != null)
+                SelectedBoard.hScroll = value;
+        }
+
+        public void SetVScrollbarValue(int value)
+        {
+            if (SelectedBoard != null)
+                SelectedBoard.vScroll = value;
+        }
+
+        /// <summary>Scrolls horizontally by <paramref name="delta"/>. Returns true if the scroll position changed.</summary>
+        public bool AddHScrollbarValue(int delta)
+        {
+            if (SelectedBoard == null) return false;
+            int max = Math.Max(0, (SelectedBoard.MapSize.X - CurrentDXWindowSize.Width) / 2);
+            int newVal = Math.Clamp(SelectedBoard.hScroll + delta, -max, max);
+            if (newVal == SelectedBoard.hScroll) return false;
+            SelectedBoard.hScroll = newVal;
+            return true;
+        }
+
+        /// <summary>Scrolls vertically by <paramref name="delta"/>. Returns true if the scroll position changed.</summary>
+        public bool AddVScrollbarValue(int delta)
+        {
+            if (SelectedBoard == null) return false;
+            int max = Math.Max(0, (SelectedBoard.MapSize.Y - CurrentDXWindowSize.Height) / 2);
+            int newVal = Math.Clamp(SelectedBoard.vScroll + delta, -max, max);
+            if (newVal == SelectedBoard.vScroll) return false;
+            SelectedBoard.vScroll = newVal;
+            return true;
+        }
+
+        public void AdjustScrollBars()
+        {
+            if (SelectedBoard == null) return;
+            MaxHScroll = Math.Max(0, (SelectedBoard.MapSize.X - CurrentDXWindowSize.Width)  / 2);
+            MaxVScroll = Math.Max(0, (SelectedBoard.MapSize.Y - CurrentDXWindowSize.Height) / 2);
+        }
+        public void OnMinimapStateChanged(Board board, bool hasMm) => MinimapStateChanged?.Invoke(this, hasMm);
+        public void OnSelectedItemChanged(BoardItem? selectedItem) => SelectedItemChanged?.Invoke(selectedItem);
         public void LayerTSChanged(Layer layer) { OnLayerTSChanged?.Invoke(layer); }
 
         // Fire helpers for input events
@@ -100,7 +175,11 @@ namespace HaCreator.MapEditor
         public void OnLoadRequested()                        => LoadRequested?.Invoke();
         public void OnCloseTabRequested()                    => CloseTabRequested?.Invoke();
         public void OnSwitchTabRequested(bool shift)         => SwitchTabRequested?.Invoke(this, shift);
-        public void ShowContextMenuAtPointer(Avalonia.Controls.ContextMenu menu) { } // TODO: implement with host control
+        public void ShowContextMenuAtPointer(Avalonia.Controls.ContextMenu menu)
+        {
+            if (HostControl != null)
+                menu.Open(HostControl);
+        }
 
         public static bool IsItemUnderRectangle(BoardItem item, Microsoft.Xna.Framework.Rectangle rect)
             => rect.Contains(new Microsoft.Xna.Framework.Point(item.X, item.Y));
@@ -108,7 +187,9 @@ namespace HaCreator.MapEditor
         public static bool IsPointInsideRectangle(Microsoft.Xna.Framework.Point point, int left, int top, int right, int bottom)
             => point.X >= left && point.X <= right && point.Y >= top && point.Y <= bottom;
 
-        public void OnBoardRemoved(Board board) { }
+        public void OnBoardRemoved(Board board) => BoardRemoved?.Invoke(board, EventArgs.Empty);
+        public void OnImageDropped(Board board, SkiaSharp.SKBitmap bmp, string name,
+            Microsoft.Xna.Framework.Point pos) => ImageDropped?.Invoke(board, bmp, name, pos);
         public void UndoListChanged() { OnUndoListChanged?.Invoke(); }
         public void RedoListChanged() { OnRedoListChanged?.Invoke(); }
 
@@ -119,10 +200,248 @@ namespace HaCreator.MapEditor
         public delegate void LayerTSChangedDelegate(Layer layer);
         public event LayerTSChangedDelegate? OnLayerTSChanged;
 
-        public void DrawRectangle(SpriteBatch sprite, Rectangle rect, Color color) { }
-        public void FillRectangle(SpriteBatch sprite, Rectangle rect, Color color) { }
-        public void DrawLine(SpriteBatch sprite, Vector2 start, Vector2 end, Color color) { }
-        public void DrawDot(SpriteBatch sprite, int x, int y, Color color, int dotSize) { }
+        public void DrawLine(SpriteBatch sprite, Vector2 start, Vector2 end, Color color)
+        {
+            if (Pixel == null) return;
+            int len = (int)Vector2.Distance(start, end);
+            if (len <= 0) return;
+            float rotation = (float)Math.Atan2(end.Y - start.Y, end.X - start.X);
+            sprite.Draw(Pixel,
+                new Rectangle((int)start.X, (int)start.Y, len, Math.Max(1, UserSettings.LineWidth)),
+                null, color, rotation, Vector2.Zero, SpriteEffects.None, 1f);
+        }
+
+        public void DrawRectangle(SpriteBatch sprite, Rectangle rect, Color color)
+        {
+            var tl = new Vector2(rect.Left,  rect.Top);
+            var tr = new Vector2(rect.Right, rect.Top);
+            var br = new Vector2(rect.Right, rect.Bottom);
+            var bl = new Vector2(rect.Left,  rect.Bottom);
+            DrawLine(sprite, tl, tr, color);
+            DrawLine(sprite, tr, br, color);
+            DrawLine(sprite, br, bl, color);
+            DrawLine(sprite, bl, tl, color);
+        }
+
+        public void FillRectangle(SpriteBatch sprite, Rectangle rect, Color color)
+        {
+            if (Pixel == null) return;
+            sprite.Draw(Pixel, rect, color);
+        }
+
+        public void DrawDot(SpriteBatch sprite, int x, int y, Color color, int dotSize)
+        {
+            int half = UserSettings.DotWidth * dotSize;
+            FillRectangle(sprite, new Rectangle(x - half, y - half, half * 2, half * 2), color);
+        }
+
+        /// <summary>The virtual map size of the currently selected board, or Point.Zero if none.</summary>
+        public Point MapSize => SelectedBoard?.MapSize ?? Point.Zero;
+
+        // ── Rendering ─────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Renders the currently selected board using the provided SpriteBatch and pixel texture.
+        /// Called by MapEditorGame.Draw() on the MonoGame game thread.
+        /// GraphicsDevice must already have a RenderTarget set before calling.
+        /// </summary>
+        public void RenderFrame(SpriteBatch sprite, Texture2D pixel)
+        {
+            // Temporarily set Pixel so Draw* helpers work
+            Pixel = pixel;
+
+            float zoom = SelectedBoard?.Zoom ?? 1.0f;
+
+            // Pass 1 — backgrounds (no zoom, stays at fixed screen position)
+            if (SelectedBoard != null)
+            {
+                sprite.Begin(SpriteSortMode.Immediate, BlendState.NonPremultiplied);
+                lock (this) { SelectedBoard?.RenderBackgrounds(sprite); }
+                sprite.End();
+            }
+
+            // Pass 2 — main layer with zoom transform
+            sprite.Begin(SpriteSortMode.Immediate, BlendState.NonPremultiplied,
+                null, null, null, null, Matrix.CreateScale(zoom));
+            if (SelectedBoard != null)
+            {
+                lock (this)
+                {
+                    if (SelectedBoard != null)
+                    {
+                        SelectedBoard.RenderBoard(sprite);
+                        var mapSz = SelectedBoard.MapSize;
+                        var wnd   = CurrentDXWindowSize;
+                        if (mapSz.X < wnd.Width)
+                            DrawLine(sprite, new Vector2(mapSz.X, 0), new Vector2(mapSz.X, wnd.Height), Color.Black);
+                        if (mapSz.Y < wnd.Height)
+                            DrawLine(sprite, new Vector2(0, mapSz.Y), new Vector2(wnd.Width, mapSz.Y), Color.Black);
+                    }
+                }
+            }
+            sprite.End();
+
+            // Pass 3 — front backgrounds (no zoom)
+            if (SelectedBoard != null)
+            {
+                sprite.Begin(SpriteSortMode.Immediate, BlendState.NonPremultiplied);
+                lock (this) { SelectedBoard?.RenderFrontBackgrounds(sprite); }
+                sprite.End();
+            }
+
+            // Pass 4 — minimap overlay (no zoom)
+            if (SelectedBoard != null)
+            {
+                sprite.Begin(SpriteSortMode.Immediate, BlendState.NonPremultiplied);
+                lock (this) { SelectedBoard?.RenderMinimap(sprite); }
+                sprite.End();
+            }
+        }
+
+        // ── Input handling (called by MapEditorControl) ────────────────────
+
+        public void HandleMouseMove(int x, int y)
+        {
+            if (SelectedBoard == null) return;
+            lock (this)
+            {
+                float zoom = SelectedBoard.Zoom;
+                int physX = VirtualToPhysical(SelectedBoard.Mouse.X, SelectedBoard.CenterPoint.X, SelectedBoard.hScroll, 0, zoom);
+                int physY = VirtualToPhysical(SelectedBoard.Mouse.Y, SelectedBoard.CenterPoint.Y, SelectedBoard.vScroll, 0, zoom);
+                if (physX == x && physY == y) return;
+
+                var oldPos = new Point(SelectedBoard.Mouse.X, SelectedBoard.Mouse.Y);
+                var newPos = new Point(
+                    PhysicalToVirtual(x, SelectedBoard.CenterPoint.X, SelectedBoard.hScroll, 0, zoom),
+                    PhysicalToVirtual(y, SelectedBoard.CenterPoint.Y, SelectedBoard.vScroll, 0, zoom));
+                SelectedBoard.Mouse.Move(newPos.X, newPos.Y);
+                MouseMoved?.Invoke(SelectedBoard, oldPos, newPos, new Point(x, y));
+            }
+        }
+
+        public void HandleMouseDown(int x, int y, bool left, bool right)
+        {
+            if (SelectedBoard == null) return;
+            HandleMouseMove(x, y);
+            lock (this)
+            {
+                float zoom = SelectedBoard.Zoom;
+                var realPos = new Point(x, y);
+                var virtPos = new Point(
+                    PhysicalToVirtual(x, SelectedBoard.CenterPoint.X, SelectedBoard.hScroll, 0, zoom),
+                    PhysicalToVirtual(y, SelectedBoard.CenterPoint.Y, SelectedBoard.vScroll, 0, zoom));
+                SelectedBoard.Mouse.IsDown = true;
+                if (left)
+                {
+                    var objs = GetObjectsUnderPoint(realPos, out bool selHigher);
+                    LeftMouseDown?.Invoke(SelectedBoard, objs.NonSelectedItem, objs.SelectedItem, realPos, virtPos, selHigher);
+                }
+                else if (right)
+                {
+                    RightMouseClick?.Invoke(SelectedBoard, GetObjectUnderPoint(realPos), realPos, virtPos, SelectedBoard.Mouse.State);
+                }
+            }
+        }
+
+        public void HandleMouseUp(int x, int y, bool left, bool right)
+        {
+            if (SelectedBoard == null) return;
+            lock (this)
+            {
+                float zoom = SelectedBoard.Zoom;
+                var realPos = new Point(x, y);
+                var virtPos = new Point(
+                    PhysicalToVirtual(x, SelectedBoard.CenterPoint.X, SelectedBoard.hScroll, 0, zoom),
+                    PhysicalToVirtual(y, SelectedBoard.CenterPoint.Y, SelectedBoard.vScroll, 0, zoom));
+                SelectedBoard.Mouse.IsDown = false;
+                if (left)
+                {
+                    var objs = GetObjectsUnderPoint(realPos, out bool selHigher);
+                    LeftMouseUp?.Invoke(SelectedBoard, objs.NonSelectedItem, objs.SelectedItem, realPos, virtPos, selHigher);
+                }
+            }
+        }
+
+        public void HandleMouseDoubleClick(int x, int y)
+        {
+            if (SelectedBoard == null) return;
+            lock (this)
+            {
+                float zoom = SelectedBoard.Zoom;
+                var realPos = new Point(x, y);
+                var virtPos = new Point(
+                    PhysicalToVirtual(x, SelectedBoard.CenterPoint.X, SelectedBoard.hScroll, 0, zoom),
+                    PhysicalToVirtual(y, SelectedBoard.CenterPoint.Y, SelectedBoard.vScroll, 0, zoom));
+                MouseDoubleClick?.Invoke(SelectedBoard, GetObjectUnderPoint(realPos), realPos, virtPos);
+            }
+        }
+
+        public void HandleMouseWheel(int delta)
+        {
+            if (!AddHScrollbarValue(delta))
+                AddVScrollbarValue(delta);
+        }
+
+        public void HandleKeyDown(bool ctrl, bool shift, bool alt, Key key)
+        {
+            if (SelectedBoard == null) return;
+            lock (this)
+            {
+                ShortcutKeyPressed?.Invoke(SelectedBoard, ctrl, shift, alt, key);
+            }
+        }
+
+        // ── Hit testing ───────────────────────────────────────────────────
+
+        private void GetObjsUnderPointFromList(
+            Collections.IMapleList list, Point virtualPos,
+            ref BoardItem? item, ref BoardItem? selected, ref bool selHigher)
+        {
+            if (!list.IsItem || SelectedBoard == null) return;
+            var sel = SelectedBoard.GetUserSelectionInfo();
+
+            for (int i = 0; i < list.Count; i++)
+            {
+                var bi = (BoardItem)list[i];
+                if (list.ListType == MapleLib.WzLib.WzStructure.Data.ItemTypes.None)
+                {
+                    if ((SelectedBoard.EditedTypes & bi.Type) != bi.Type) continue;
+                }
+                else
+                {
+                    if ((SelectedBoard.EditedTypes & list.ListType) != list.ListType) continue;
+                }
+                if (bi is Mouse) continue;
+                if (!bi.CheckIfLayerSelected(sel)) continue;
+                if (!IsPointInsideRectangle(virtualPos, bi.Left, bi.Top, bi.Right, bi.Bottom)) continue;
+                if (bi.IsPixelTransparent(virtualPos.X - bi.Left, virtualPos.Y - bi.Top)) continue;
+
+                if (bi.Selected) { selected = bi; selHigher = true; }
+                else             { item     = bi; selHigher = false; }
+            }
+        }
+
+        internal BoardItemPair GetObjectsUnderPoint(Point physical, out bool selHigher)
+        {
+            selHigher = false;
+            if (SelectedBoard == null) return new BoardItemPair(null, null);
+            float zoom = SelectedBoard.Zoom;
+            var virtualPos = new Point(
+                PhysicalToVirtual(physical.X, SelectedBoard.CenterPoint.X, SelectedBoard.hScroll, 0, zoom),
+                PhysicalToVirtual(physical.Y, SelectedBoard.CenterPoint.Y, SelectedBoard.vScroll, 0, zoom));
+            BoardItem? item = null, selected = null;
+            foreach (var list in SelectedBoard.BoardItems.AllItemLists)
+                GetObjsUnderPointFromList(list, virtualPos, ref item, ref selected, ref selHigher);
+            return new BoardItemPair(item, selected);
+        }
+
+        private BoardItem? GetObjectUnderPoint(Point physical)
+        {
+            var pair = GetObjectsUnderPoint(physical, out bool selHigher);
+            if (pair.SelectedItem == null) return pair.NonSelectedItem;
+            if (pair.NonSelectedItem == null) return pair.SelectedItem;
+            return selHigher ? pair.SelectedItem : pair.NonSelectedItem;
+        }
 
         // ── Properties required by HaCreatorStateManager ─────────────
 
@@ -172,7 +491,6 @@ namespace HaCreator.MapEditor
         public event BoardItemRefDelegate? OnBringToFrontClicked;
         public event BoardItemDelegate? OnEditBaseClicked;
         public event BoardItemDelegate? OnEditInstanceClicked;
-        public event LayerDelegate? OnLayerTSChanged2;  // separate from the layer-TS delegate above
         public event BoardItemRefDelegate? OnSendToBackClicked;
         public event Action? ReturnToSelectionState;
         public event BoardItemDelegate? SelectedItemChanged;
@@ -182,7 +500,7 @@ namespace HaCreator.MapEditor
         public event Action? LoadRequested;
         public event Action? CloseTabRequested;
         public event SwitchTabDelegate? SwitchTabRequested;
-        public event Action? BackupCheck;
+        // BackupCheck removed — driven by BackupManager's internal timer
         public event BoardEventDelegate? BoardRemoved;
         public event MinimapDelegate? MinimapStateChanged;
         public event LeftMouseDownDelegate? LeftMouseDown;

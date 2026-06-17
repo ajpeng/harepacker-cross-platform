@@ -1,283 +1,306 @@
-﻿using HaCreator.MapEditor;
+/* Copyright (c) 2026, ajpeng https://github.com/ajpeng/harepacker-cross-platform */
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Interactivity;
+using Avalonia.Layout;
+using Avalonia.Threading;
+using HaCreator.MapEditor;
 using HaCreator.MapEditor.Info;
 using HaCreator.Wz;
 using MapleLib.WzLib.WzStructure.Data;
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
 using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
-using System.Windows.Forms;
-using WeifenLuo.WinFormsUI.Docking;
 
 namespace HaCreator.GUI.EditorPanels
 {
-    public partial class LifePanel : UserControl
+    /// <summary>
+    /// Avalonia code-only UserControl that lets the user browse and select
+    /// life objects (Mobs, NPCs, Reactors) to place on the map.
+    /// Replaces the WinForms LifePanel.
+    /// </summary>
+    public class LifePanel : UserControl
     {
-        private readonly List<string> reactors = new();
-        private readonly List<string> npcs = new();
-        private readonly List<string> mobs = new();
+        // ── Data lists ──────────────────────────────────────────────────
 
-        private HaCreatorStateManager hcsm;
-        private HotSwapRefreshService _hotSwapService;
+        private readonly List<string> _reactors = new();
+        private readonly List<string> _npcs = new();
+        private readonly List<string> _mobs = new();
+
+        // ── State ────────────────────────────────────────────────────────
+
+        private HaCreatorStateManager? _hcsm;
+        private HotSwapRefreshService? _hotSwapService;
+
+        // ── Controls ────────────────────────────────────────────────────
+
+        private readonly RadioButton _mobRButton;
+        private readonly RadioButton _npcRButton;
+        private readonly RadioButton _reactorRButton;
+        private readonly TextBox _searchBox;
+        private readonly ListBox _listBox;
+
+        // ── Construction ─────────────────────────────────────────────────
 
         public LifePanel()
         {
-            InitializeComponent();
+            // Radio buttons
+            _mobRButton      = new RadioButton { Content = "Mob",     GroupName = "LifeMode", IsChecked = true };
+            _npcRButton      = new RadioButton { Content = "NPC",     GroupName = "LifeMode" };
+            _reactorRButton  = new RadioButton { Content = "Reactor", GroupName = "LifeMode" };
+
+            var radioPanel = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 8,
+                Margin = new Thickness(4)
+            };
+            radioPanel.Children.Add(_mobRButton);
+            radioPanel.Children.Add(_npcRButton);
+            radioPanel.Children.Add(_reactorRButton);
+
+            // Search box
+            _searchBox = new TextBox
+            {
+                Watermark = "Search…",
+                Margin = new Thickness(4, 2, 4, 2)
+            };
+
+            // List box
+            _listBox = new ListBox
+            {
+                Margin = new Thickness(4, 2, 4, 4),
+                [Grid.RowProperty] = 2
+            };
+
+            // Layout: outer DockPanel → Grid (radio | search | list)
+            var grid = new Grid();
+            grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+            grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+            grid.RowDefinitions.Add(new RowDefinition(new GridLength(1, GridUnitType.Star)));
+
+            Grid.SetRow(radioPanel, 0);
+            Grid.SetRow(_searchBox,  1);
+            Grid.SetRow(_listBox,    2);
+
+            grid.Children.Add(radioPanel);
+            grid.Children.Add(_searchBox);
+            grid.Children.Add(_listBox);
+
+            Content = grid;
+
+            // Wire events
+            _mobRButton.IsCheckedChanged     += OnModeChanged;
+            _npcRButton.IsCheckedChanged     += OnModeChanged;
+            _reactorRButton.IsCheckedChanged += OnModeChanged;
+            _searchBox.TextChanged           += OnSearchTextChanged;
+            _listBox.SelectionChanged        += OnListBoxSelectionChanged;
         }
 
+        // ── Public API ───────────────────────────────────────────────────
+
+        /// <summary>
+        /// Populates the data lists from InfoManager and registers this panel
+        /// with the state manager.
+        /// </summary>
         public void Initialize(HaCreatorStateManager hcsm)
         {
-            this.hcsm = hcsm;
+            _hcsm = hcsm;
             hcsm.SetLifePanel(this);
 
-            foreach (KeyValuePair<string, ReactorInfo> entry in Program.InfoManager.Reactors)
+            // Reactors: "id name(name)" format
+            foreach (var entry in Program.InfoManager.Reactors)
             {
-                string reactorId = entry.Value.ID;
+                string reactorId   = entry.Value.ID;
                 string reactorName = entry.Value.Name;
-
-                string combinedName = string.Format("{0} {1}", 
-                    reactorId,
-                    reactorName == string.Empty ? string.Empty : string.Format("({0})", reactorName));
-
-                reactors.Add(combinedName);
+                string combined    = reactorName == string.Empty
+                    ? reactorId
+                    : $"{reactorId} ({reactorName})";
+                _reactors.Add(combined);
             }
-            foreach (KeyValuePair<string, Tuple<string, string>> entry in Program.InfoManager.NpcNameCache)
+
+            // NPCs: "id - name (desc)" format
+            foreach (var entry in Program.InfoManager.NpcNameCache)
             {
                 string npcName = entry.Value.Item1;
                 string npcDesc = entry.Value.Item2;
-
-                string combinedName = string.Format("{0} - {1} {2}", 
-                    entry.Key, 
-                    npcName,
-                    npcDesc == string.Empty ? string.Empty : string.Format("({0})", npcDesc));
-
-                npcs.Add(combinedName);
+                string combined = npcDesc == string.Empty
+                    ? $"{entry.Key} - {npcName}"
+                    : $"{entry.Key} - {npcName} ({npcDesc})";
+                _npcs.Add(combined);
             }
-            foreach (KeyValuePair<string, string> entry in Program.InfoManager.MobNameCache)
+
+            // Mobs: "id - name" format
+            foreach (var entry in Program.InfoManager.MobNameCache)
             {
-                mobs.Add(entry.Key + " - " + entry.Value);
+                _mobs.Add($"{entry.Key} - {entry.Value}");
             }
 
             ReloadLifeList();
         }
 
-        private void lifeModeChanged(object sender, EventArgs e)
-        {
-            ReloadLifeList();
-        }
-
-        public static bool ContainsIgnoreCase(string haystack, string needle)
-        {
-            return haystack.IndexOf(needle, StringComparison.OrdinalIgnoreCase) != -1;
-        }
-
-        private void ReloadLifeList()
-        {
-            string searchText = lifeSearchBox.Text;
-            bool getAll = searchText == "";
-            lifeListBox.Items.Clear();
-            List<string> items = [];
-            if (reactorRButton.Checked)
-            {
-                items.AddRange(getAll ? reactors : reactors.Where(x => ContainsIgnoreCase(x, searchText)));
-            }
-            else if (npcRButton.Checked)
-            {
-                items.AddRange(getAll ? npcs : npcs.Where(x => ContainsIgnoreCase(x, searchText)));
-            }
-            else if (mobRButton.Checked)
-            {
-                items.AddRange(getAll ? mobs : mobs.Where(x => ContainsIgnoreCase(x, searchText)));
-            }
-            items.Sort();
-            lifeListBox.Items.AddRange(items.Cast<object>().ToArray());
-        }
-
-        private void lifeListBox_SelectedValueChanged(object sender, EventArgs e)
-        {
-            lock (hcsm.MultiBoard)
-            {
-                lifePictureBox.Image = new Bitmap(1, 1);
-                if (lifeListBox.SelectedItem == null) 
-                    return;
-
-                if (reactorRButton.Checked) // is reactor
-                {
-                    string reactorIdName = (string)lifeListBox.SelectedItem;
-
-                    const string regexPattern = @"^\d+"; // "1002009 (메이플아일랜드 범용리엑터)"
-                    string number = Regex.Match(reactorIdName, regexPattern).Value;
-
-                    ReactorInfo info = Program.InfoManager.Reactors[number];
-                    lifePictureBox.Image = new Bitmap(info.Image);
-                    hcsm.EnterEditMode(ItemTypes.Reactors);
-                    hcsm.MultiBoard.SelectedBoard.Mouse.SetHeldInfo(info);
-                }
-                else if (npcRButton.Checked) // npc
-                {
-                    string id = ((string)lifeListBox.SelectedItem).Substring(0, ((string)lifeListBox.SelectedItem).IndexOf(" - "));
-                    NpcInfo info = NpcInfo.Get(id);
-                    if (info == null)
-                    {
-                        lifePictureBox.Image = null;
-                        return;
-                    }
-                    if(info.Height==1 && info.Width == 1)
-                    {
-                        info.Image = global::HaCreator.Properties.Resources.placeholder;
-                    }
-                    lifePictureBox.Image = new Bitmap(info.Image);
-                    hcsm.EnterEditMode(ItemTypes.NPCs);
-                    hcsm.MultiBoard.SelectedBoard.Mouse.SetHeldInfo(info);
-                }
-                else if (mobRButton.Checked) // mobs
-                {
-                    string id = ((string)lifeListBox.SelectedItem).Substring(0, ((string)lifeListBox.SelectedItem).IndexOf(" - "));
-                    MobInfo info = MobInfo.Get(id);
-                    if (info == null)
-                    {
-                        lifePictureBox.Image = null;
-                        return;
-                    }
-                    lifePictureBox.Image = new Bitmap(info.Image);
-                    hcsm.EnterEditMode(ItemTypes.Mobs);
-                    hcsm.MultiBoard.SelectedBoard.Mouse.SetHeldInfo(info);
-                }
-            }
-        }
-
-        #region Hot Swap
         /// <summary>
-        /// Subscribes to hot swap events from the HotSwapRefreshService
+        /// Subscribes to hot-swap life-data refresh events.
         /// </summary>
-        /// <param name="refreshService">The hot swap service to subscribe to</param>
         public void SubscribeToHotSwap(HotSwapRefreshService refreshService)
         {
             if (_hotSwapService != null)
-            {
                 _hotSwapService.LifeDataChanged -= OnLifeDataChanged;
-            }
 
             _hotSwapService = refreshService;
 
             if (_hotSwapService != null)
-            {
                 _hotSwapService.LifeDataChanged += OnLifeDataChanged;
-            }
         }
 
-        /// <summary>
-        /// Handles life data change events
-        /// </summary>
-        private void OnLifeDataChanged(object sender, LifeDataChangedEventArgs e)
+        // ── Hot-swap handlers ────────────────────────────────────────────
+
+        private void OnLifeDataChanged(object? sender, LifeDataChangedEventArgs e)
         {
-            if (InvokeRequired)
-            {
-                BeginInvoke(new Action(() => HandleLifeDataChange(e)));
-                return;
-            }
-            HandleLifeDataChange(e);
+            Dispatcher.UIThread.Post(() => HandleLifeDataChange(e));
         }
 
-        /// <summary>
-        /// Handles the life data change on the UI thread
-        /// </summary>
         private void HandleLifeDataChange(LifeDataChangedEventArgs e)
         {
             switch (e.LifeType)
             {
-                case Wz.LifeType.Mob:
-                    RefreshMobList();
-                    break;
-                case Wz.LifeType.Npc:
-                    RefreshNpcList();
-                    break;
-                case Wz.LifeType.Reactor:
-                    RefreshReactorList();
-                    break;
+                case LifeType.Mob:      RefreshMobList();      break;
+                case LifeType.Npc:      RefreshNpcList();      break;
+                case LifeType.Reactor:  RefreshReactorList();  break;
             }
         }
 
-        /// <summary>
-        /// Refreshes the mob list from InfoManager
-        /// </summary>
         public void RefreshMobList()
         {
-            mobs.Clear();
-            // Create snapshot to avoid collection modified exception during enumeration
-            var mobSnapshot = Program.InfoManager.MobNameCache.ToList();
-            foreach (KeyValuePair<string, string> entry in mobSnapshot)
-            {
-                mobs.Add(entry.Key + " - " + entry.Value);
-            }
+            _mobs.Clear();
+            foreach (var entry in Program.InfoManager.MobNameCache.ToList())
+                _mobs.Add($"{entry.Key} - {entry.Value}");
 
-            // Refresh display if mobs are currently shown
-            if (mobRButton.Checked)
-            {
+            if (_mobRButton.IsChecked == true)
                 ReloadLifeList();
-            }
         }
 
-        /// <summary>
-        /// Refreshes the NPC list from InfoManager
-        /// </summary>
         public void RefreshNpcList()
         {
-            npcs.Clear();
-            // Create snapshot to avoid collection modified exception during enumeration
-            var npcSnapshot = Program.InfoManager.NpcNameCache.ToList();
-            foreach (KeyValuePair<string, Tuple<string, string>> entry in npcSnapshot)
+            _npcs.Clear();
+            foreach (var entry in Program.InfoManager.NpcNameCache.ToList())
             {
                 string npcName = entry.Value.Item1;
                 string npcDesc = entry.Value.Item2;
-
-                string combinedName = string.Format("{0} - {1} {2}",
-                    entry.Key,
-                    npcName,
-                    npcDesc == string.Empty ? string.Empty : string.Format("({0})", npcDesc));
-
-                npcs.Add(combinedName);
+                string combined = npcDesc == string.Empty
+                    ? $"{entry.Key} - {npcName}"
+                    : $"{entry.Key} - {npcName} ({npcDesc})";
+                _npcs.Add(combined);
             }
 
-            // Refresh display if NPCs are currently shown
-            if (npcRButton.Checked)
-            {
+            if (_npcRButton.IsChecked == true)
                 ReloadLifeList();
-            }
         }
 
-        /// <summary>
-        /// Refreshes the reactor list from InfoManager
-        /// </summary>
         public void RefreshReactorList()
         {
-            reactors.Clear();
-            // Create snapshot to avoid collection modified exception during enumeration
-            var reactorSnapshot = Program.InfoManager.Reactors.ToList();
-            foreach (KeyValuePair<string, ReactorInfo> entry in reactorSnapshot)
+            _reactors.Clear();
+            foreach (var entry in Program.InfoManager.Reactors.ToList())
             {
-                string reactorId = entry.Value.ID;
+                string reactorId   = entry.Value.ID;
                 string reactorName = entry.Value.Name;
-
-                string combinedName = string.Format("{0} {1}",
-                    reactorId,
-                    reactorName == string.Empty ? string.Empty : string.Format("({0})", reactorName));
-
-                reactors.Add(combinedName);
+                string combined    = reactorName == string.Empty
+                    ? reactorId
+                    : $"{reactorId} ({reactorName})";
+                _reactors.Add(combined);
             }
 
-            // Refresh display if reactors are currently shown
-            if (reactorRButton.Checked)
-            {
+            if (_reactorRButton.IsChecked == true)
                 ReloadLifeList();
+        }
+
+        // ── Private helpers ──────────────────────────────────────────────
+
+        private static bool ContainsIgnoreCase(string haystack, string needle) =>
+            haystack.IndexOf(needle, StringComparison.OrdinalIgnoreCase) >= 0;
+
+        private void ReloadLifeList()
+        {
+            string searchText = _searchBox.Text ?? string.Empty;
+            bool getAll = searchText == string.Empty;
+
+            IEnumerable<string> source;
+            if (_reactorRButton.IsChecked == true)
+                source = _reactors;
+            else if (_npcRButton.IsChecked == true)
+                source = _npcs;
+            else
+                source = _mobs;
+
+            var items = (getAll ? source : source.Where(x => ContainsIgnoreCase(x, searchText)))
+                        .OrderBy(x => x)
+                        .ToList();
+
+            _listBox.SelectionChanged -= OnListBoxSelectionChanged;
+            _listBox.ItemsSource = items;
+            _listBox.SelectionChanged += OnListBoxSelectionChanged;
+        }
+
+        // ── Event handlers ────────────────────────────────────────────────
+
+        private void OnModeChanged(object? sender, RoutedEventArgs e)
+        {
+            // Only fire when a button becomes checked (not when it becomes unchecked)
+            if (sender is RadioButton rb && rb.IsChecked == true)
+                ReloadLifeList();
+        }
+
+        private void OnSearchTextChanged(object? sender, TextChangedEventArgs e) =>
+            ReloadLifeList();
+
+        private void OnListBoxSelectionChanged(object? sender, SelectionChangedEventArgs e)
+        {
+            if (_hcsm == null) return;
+            if (_listBox.SelectedItem is not string item) return;
+
+            lock (_hcsm.MultiBoard)
+            {
+                Board? board = _hcsm.MultiBoard.SelectedBoard;
+                if (board == null) return;
+
+                if (_reactorRButton.IsChecked == true)
+                {
+                    // Extract the numeric ID prefix: e.g. "1002009 (some name)"
+                    string number = Regex.Match(item, @"^\d+").Value;
+                    if (string.IsNullOrEmpty(number)) return;
+
+                    if (!Program.InfoManager.Reactors.TryGetValue(number, out ReactorInfo? info) || info == null)
+                        return;
+
+                    _hcsm.EnterEditMode(ItemTypes.Reactors);
+                    board.Mouse.SetHeldInfo(info);
+                }
+                else if (_npcRButton.IsChecked == true)
+                {
+                    int sepIdx = item.IndexOf(" - ", StringComparison.Ordinal);
+                    if (sepIdx < 0) return;
+                    string id = item.Substring(0, sepIdx);
+
+                    NpcInfo? info = NpcInfo.Get(id);
+                    if (info == null) return;
+
+                    _hcsm.EnterEditMode(ItemTypes.NPCs);
+                    board.Mouse.SetHeldInfo(info);
+                }
+                else // mob
+                {
+                    int sepIdx = item.IndexOf(" - ", StringComparison.Ordinal);
+                    if (sepIdx < 0) return;
+                    string id = item.Substring(0, sepIdx);
+
+                    MobInfo? info = MobInfo.Get(id);
+                    if (info == null) return;
+
+                    _hcsm.EnterEditMode(ItemTypes.Mobs);
+                    board.Mouse.SetHeldInfo(info);
+                }
             }
         }
-        #endregion
     }
 }

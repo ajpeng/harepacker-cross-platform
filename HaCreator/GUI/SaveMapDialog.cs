@@ -10,6 +10,7 @@ using MapleLib.WzLib.WzStructure.Data;
 using System;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace HaCreator.GUI
 {
@@ -153,13 +154,16 @@ namespace HaCreator.GUI
             _saveButton.IsEnabled = true;
         }
 
-        private void SaveButton_Click(object? sender, RoutedEventArgs e)
+        private async void SaveButton_Click(object? sender, RoutedEventArgs e)
         {
-            // Flush user objects (stub: skip confirmation dialog for now)
-            if (_board.ParentControl.UserObjects.NewObjects.Count > 0)
+            if (_board.ParentControl.UserObjects?.NewObjects.Count > 0)
             {
-                Debug.WriteLine("[SaveMapDialog] Flushing unsaved user objects without confirmation (TODO: dialog)");
-                _board.ParentControl.UserObjects.Flush();
+                bool flush = await ConfirmAsync(
+                    "Save User Objects",
+                    "There are new user objects that have not been saved to the WZ file.\n" +
+                    "Flush them now (they will be embedded in the map)?");
+                if (flush)
+                    _board.ParentControl.UserObjects.Flush();
             }
 
             MapType type = GetMapType();
@@ -184,6 +188,33 @@ namespace HaCreator.GUI
                 Debug.WriteLine($"[SaveMapDialog] Saved map: {_board.MapInfo.strMapName}");
             }
             Close();
+        }
+
+        private async System.Threading.Tasks.Task<bool> ConfirmAsync(string title, string message)
+        {
+            bool result = false;
+            var btnYes = new Button { Content = "Yes", IsDefault = true };
+            var btnNo  = new Button { Content = "No",  IsCancel  = true };
+            var win = new Window
+            {
+                Title = title, Width = 380, Height = 170,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Content = new StackPanel
+                {
+                    Margin = new Avalonia.Thickness(12), Spacing = 10,
+                    Children =
+                    {
+                        new TextBlock { Text = message, TextWrapping = Avalonia.Media.TextWrapping.Wrap },
+                        new StackPanel { Orientation = Orientation.Horizontal,
+                            HorizontalAlignment = HorizontalAlignment.Right, Spacing = 6,
+                            Children = { btnYes, btnNo } }
+                    }
+                }
+            };
+            btnYes.Click += (_, _) => { result = true;  win.Close(); };
+            btnNo.Click  += (_, _) => { result = false; win.Close(); };
+            await win.ShowDialog(this);
+            return result;
         }
     }
 }

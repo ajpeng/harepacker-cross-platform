@@ -1,161 +1,234 @@
-﻿using HaCreator.MapEditor;
+/* Copyright (c) 2026, ajpeng https://github.com/ajpeng/harepacker-cross-platform */
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Interactivity;
+using Avalonia.Layout;
+using HaCreator.MapEditor;
 using System;
-using System.Windows.Forms;
 
 namespace HaCreator.GUI.EditorPanels
 {
-    public partial class BlackBorderPanel : UserControl
+    /// <summary>
+    /// Avalonia code-only UserControl for configuring per-board black border
+    /// (LBTop / LBBottom / LBSide) values.
+    /// Replaces the WinForms BlackBorderPanel.
+    /// </summary>
+    public class BlackBorderPanel : UserControl
     {
-        private HaCreatorStateManager hcsm;
+        // ── State ────────────────────────────────────────────────────────
+
+        private HaCreatorStateManager? _hcsm;
+
+        // ── Controls ─────────────────────────────────────────────────────
+
+        private readonly CheckBox        _checkTop;
+        private readonly NumericUpDown   _nudTop;
+        private readonly CheckBox        _checkBottom;
+        private readonly NumericUpDown   _nudBottom;
+        private readonly CheckBox        _checkSide;
+        private readonly NumericUpDown   _nudSide;
+
+        // Suppress re-entrant updates while we push board data into the controls
+        private bool _updatingControls;
+
+        // ── Construction ──────────────────────────────────────────────────
 
         public BlackBorderPanel()
         {
-            InitializeComponent();
-        }
-
-        public void Initialize(HaCreatorStateManager hcsm)
-        {
-            this.hcsm = hcsm;
-            this.hcsm.SetBlackBorderPanel(this);
-        }
-
-        public void UpdateBoardData()
-        {
-            var selectedBoard = hcsm.MultiBoard.SelectedBoard;
-            if (selectedBoard == null)
-                return; // No board selected 
-
-            // Bottom
-            if (selectedBoard.MapInfo.LBBottom != null && selectedBoard.MapInfo.LBBottom.Value != 0)
+            // ── Top row ──
+            _checkTop = new CheckBox { Content = "Top",    Margin = new Thickness(4, 4, 8, 4), VerticalAlignment = VerticalAlignment.Center };
+            _nudTop   = new NumericUpDown
             {
-                checkBox_bottom.Checked = true;
-                numericUpDown_bottom.Value = selectedBoard.MapInfo.LBBottom.Value;
-            }
-            else
+                Minimum         = 0,
+                Maximum         = 9999,
+                Value           = 0,
+                IsEnabled       = false,
+                Width           = 80,
+                Margin          = new Thickness(0, 4, 4, 4),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            // ── Bottom row ──
+            _checkBottom = new CheckBox { Content = "Bottom", Margin = new Thickness(4, 4, 8, 4), VerticalAlignment = VerticalAlignment.Center };
+            _nudBottom   = new NumericUpDown
             {
-                checkBox_bottom.Checked = false;
-            }
-            numericUpDown_bottom.Enabled = checkBox_bottom.Checked;
+                Minimum         = 0,
+                Maximum         = 9999,
+                Value           = 0,
+                IsEnabled       = false,
+                Width           = 80,
+                Margin          = new Thickness(0, 4, 4, 4),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            // ── Side row ──
+            _checkSide = new CheckBox { Content = "Side", Margin = new Thickness(4, 4, 8, 4), VerticalAlignment = VerticalAlignment.Center };
+            _nudSide   = new NumericUpDown
+            {
+                Minimum         = 0,
+                Maximum         = 9999,
+                Value           = 0,
+                IsEnabled       = false,
+                Width           = 80,
+                Margin          = new Thickness(0, 4, 4, 4),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            // ── Layout ──
+
+            // 3 rows × 2 cols: [CheckBox | NumericUpDown]
+            var grid = new Grid { Margin = new Thickness(4) };
+            grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+            grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+            grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+            grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+            grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
 
             // Top
-            if (selectedBoard.MapInfo.LBTop != null && selectedBoard.MapInfo.LBTop.Value != 0)
-            {
-                checkBox_top.Checked = true;
-                numericUpDown_top.Value = selectedBoard.MapInfo.LBTop.Value;
-            }
-            else
-            {
-                checkBox_top.Checked = false;
-            }
-            numericUpDown_top.Enabled = checkBox_top.Checked;
-
+            Grid.SetRow(_checkTop, 0); Grid.SetColumn(_checkTop, 0);
+            Grid.SetRow(_nudTop,   0); Grid.SetColumn(_nudTop,   1);
+            // Bottom
+            Grid.SetRow(_checkBottom, 1); Grid.SetColumn(_checkBottom, 0);
+            Grid.SetRow(_nudBottom,   1); Grid.SetColumn(_nudBottom,   1);
             // Side
-            if (selectedBoard.MapInfo.LBSide != null && selectedBoard.MapInfo.LBSide.Value != 0)
-            {
-                checkBox_side.Checked = true;
-                numericUpDown_side.Value = selectedBoard.MapInfo.LBSide.Value;
-            }
-            else
-            {
-                checkBox_side.Checked = false;
-            }
-            numericUpDown_side.Enabled = checkBox_side.Checked;
+            Grid.SetRow(_checkSide, 2); Grid.SetColumn(_checkSide, 0);
+            Grid.SetRow(_nudSide,   2); Grid.SetColumn(_nudSide,   1);
+
+            grid.Children.Add(_checkTop);    grid.Children.Add(_nudTop);
+            grid.Children.Add(_checkBottom); grid.Children.Add(_nudBottom);
+            grid.Children.Add(_checkSide);   grid.Children.Add(_nudSide);
+
+            Content = grid;
+
+            // ── Wire events ──
+            _checkTop.IsCheckedChanged    += OnTopCheckedChanged;
+            _checkBottom.IsCheckedChanged += OnBottomCheckedChanged;
+            _checkSide.IsCheckedChanged   += OnSideCheckedChanged;
+
+            _nudTop.ValueChanged    += OnTopValueChanged;
+            _nudBottom.ValueChanged += OnBottomValueChanged;
+            _nudSide.ValueChanged   += OnSideValueChanged;
         }
 
-        private void checkBox_top_CheckedChanged(object sender, EventArgs e)
+        // ── Public API ────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Stores the state manager reference and registers this panel with it.
+        /// </summary>
+        public void Initialize(HaCreatorStateManager hcsm)
         {
-            numericUpDown_top.Enabled = checkBox_top.Checked;
-
-            if (!checkBox_top.Checked)
-            {
-                numericUpDown_top.Value = 0;
-
-                var selectedBoard = hcsm.MultiBoard.SelectedBoard;
-                if (selectedBoard == null)
-                    return; // No board selected 
-                selectedBoard.MapInfo.LBTop = 0;
-            }
-        }
-
-        private void checkBox_bottom_CheckedChanged(object sender, EventArgs e)
-        {
-            numericUpDown_bottom.Enabled = checkBox_bottom.Checked;
-
-            if (!checkBox_bottom.Checked)
-            {
-                numericUpDown_bottom.Value = 0;
-
-                var selectedBoard = hcsm.MultiBoard.SelectedBoard;
-                if (selectedBoard == null)
-                    return; // No board selected 
-                selectedBoard.MapInfo.LBBottom = 0;
-            }
-        }
-
-        private void checkBox_side_CheckedChanged(object sender, EventArgs e)
-        {
-            numericUpDown_side.Enabled = checkBox_side.Checked;
-
-            if (!checkBox_side.Checked)
-            {
-                numericUpDown_side.Value = 0;
-
-                var selectedBoard = hcsm.MultiBoard.SelectedBoard;
-                if (selectedBoard == null)
-                    return; // No board selected 
-                selectedBoard.MapInfo.LBSide = 0;
-            }
+            _hcsm = hcsm;
+            hcsm.SetBlackBorderPanel(this);
         }
 
         /// <summary>
-        /// On numericUpDown_bottom key up, update the selected board's bottom black border value.
+        /// Reads LBTop / LBBottom / LBSide from the currently selected board and
+        /// updates the controls accordingly. Called whenever the active board changes.
         /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void numericUpDown_bottom_KeyUp(object sender, KeyEventArgs e)
+        public void UpdateBoardData()
         {
-            var selectedBoard = hcsm.MultiBoard.SelectedBoard;
-            if (selectedBoard == null)
-                return; // No board selected 
+            if (_hcsm == null) return;
+            var board = _hcsm.MultiBoard.SelectedBoard;
+            if (board == null) return;
 
-            if (int.TryParse(numericUpDown_bottom.Text, out int newValue))
+            _updatingControls = true;
+            try
             {
-                selectedBoard.MapInfo.LBBottom = checkBox_bottom.Checked ? newValue : null;
+                // Top
+                int? top = board.MapInfo.LBTop;
+                _checkTop.IsChecked = top.HasValue && top.Value != 0;
+                _nudTop.Value       = top.HasValue ? top.Value : 0;
+                _nudTop.IsEnabled   = _checkTop.IsChecked == true;
+
+                // Bottom
+                int? bottom = board.MapInfo.LBBottom;
+                _checkBottom.IsChecked = bottom.HasValue && bottom.Value != 0;
+                _nudBottom.Value       = bottom.HasValue ? bottom.Value : 0;
+                _nudBottom.IsEnabled   = _checkBottom.IsChecked == true;
+
+                // Side
+                int? side = board.MapInfo.LBSide;
+                _checkSide.IsChecked = side.HasValue && side.Value != 0;
+                _nudSide.Value       = side.HasValue ? side.Value : 0;
+                _nudSide.IsEnabled   = _checkSide.IsChecked == true;
+            }
+            finally
+            {
+                _updatingControls = false;
             }
         }
 
-        /// <summary>
-        /// On numericUpDown_top key up, update the selected board's top black border value.
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void numericUpDown_top_KeyUp(object sender, KeyEventArgs e)
-        {
-            var selectedBoard = hcsm.MultiBoard.SelectedBoard;
-            if (selectedBoard == null)
-                return; // No board selected 
+        // ── Checkbox handlers ─────────────────────────────────────────────
 
-            if (int.TryParse(numericUpDown_top.Text, out int newValue))
+        private void OnTopCheckedChanged(object? sender, RoutedEventArgs e)
+        {
+            if (_updatingControls) return;
+            bool isChecked = _checkTop.IsChecked == true;
+            _nudTop.IsEnabled = isChecked;
+
+            if (!isChecked)
             {
-                selectedBoard.MapInfo.LBTop = checkBox_top.Checked ? newValue : null;
+                _nudTop.Value = 0;
+                var board = _hcsm?.MultiBoard.SelectedBoard;
+                if (board != null) board.MapInfo.LBTop = null;
             }
         }
 
-        /// <summary>
-        /// On numericUpDown_side key up, update the selected board's side black border value.
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void numericUpDown_side_KeyUp(object sender, KeyEventArgs e)
+        private void OnBottomCheckedChanged(object? sender, RoutedEventArgs e)
         {
-            var selectedBoard = hcsm.MultiBoard.SelectedBoard;
-            if (selectedBoard == null)
-                return; // No board selected 
+            if (_updatingControls) return;
+            bool isChecked = _checkBottom.IsChecked == true;
+            _nudBottom.IsEnabled = isChecked;
 
-            if (int.TryParse(numericUpDown_side.Text, out int newValue))
+            if (!isChecked)
             {
-                selectedBoard.MapInfo.LBSide = checkBox_side.Checked ? newValue : null;
+                _nudBottom.Value = 0;
+                var board = _hcsm?.MultiBoard.SelectedBoard;
+                if (board != null) board.MapInfo.LBBottom = null;
             }
+        }
+
+        private void OnSideCheckedChanged(object? sender, RoutedEventArgs e)
+        {
+            if (_updatingControls) return;
+            bool isChecked = _checkSide.IsChecked == true;
+            _nudSide.IsEnabled = isChecked;
+
+            if (!isChecked)
+            {
+                _nudSide.Value = 0;
+                var board = _hcsm?.MultiBoard.SelectedBoard;
+                if (board != null) board.MapInfo.LBSide = null;
+            }
+        }
+
+        // ── NumericUpDown value-change handlers ───────────────────────────
+
+        private void OnTopValueChanged(object? sender, NumericUpDownValueChangedEventArgs e)
+        {
+            if (_updatingControls) return;
+            if (_checkTop.IsChecked != true) return;
+            var board = _hcsm?.MultiBoard.SelectedBoard;
+            if (board != null)
+                board.MapInfo.LBTop = _nudTop.Value.HasValue ? (int?)((int)_nudTop.Value.Value) : null;
+        }
+
+        private void OnBottomValueChanged(object? sender, NumericUpDownValueChangedEventArgs e)
+        {
+            if (_updatingControls) return;
+            if (_checkBottom.IsChecked != true) return;
+            var board = _hcsm?.MultiBoard.SelectedBoard;
+            if (board != null)
+                board.MapInfo.LBBottom = _nudBottom.Value.HasValue ? (int?)((int)_nudBottom.Value.Value) : null;
+        }
+
+        private void OnSideValueChanged(object? sender, NumericUpDownValueChangedEventArgs e)
+        {
+            if (_updatingControls) return;
+            if (_checkSide.IsChecked != true) return;
+            var board = _hcsm?.MultiBoard.SelectedBoard;
+            if (board != null)
+                board.MapInfo.LBSide = _nudSide.Value.HasValue ? (int?)((int)_nudSide.Value.Value) : null;
         }
     }
 }

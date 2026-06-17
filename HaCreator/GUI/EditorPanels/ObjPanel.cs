@@ -1,589 +1,552 @@
-﻿using HaCreator.CustomControls;
+/* Copyright (c) 2026, ajpeng https://github.com/ajpeng/harepacker-cross-platform */
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Layout;
+using Avalonia.Media;
+using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using HaCreator.MapEditor;
 using HaCreator.MapEditor.Info;
+using HaCreator.Wz;
 using MapleLib.WzLib;
 using MapleLib.WzLib.WzProperties;
 using MapleLib.WzLib.WzStructure.Data;
+using SkiaSharp;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.IO;
 using System.Linq;
-using System.Reflection;
-using System.Resources;
-using System.Threading.Tasks;
-using System.Windows.Forms;
-using System.Xml.Linq;
-using Xceed.Wpf.AvalonDock.Controls;
-using HaCreator.Wz;
 
 namespace HaCreator.GUI.EditorPanels
 {
-    public partial class ObjPanel : UserControl
+    public class ObjPanel : UserControl
     {
-        private HaCreatorStateManager hcsm;
-        private HotSwapRefreshService _hotSwapService;
+        private HaCreatorStateManager? _hcsm;
+        private HotSwapRefreshService? _hotSwapService;
 
-        // ContextMenuStrip for the 'obj'
-        private readonly ContextMenuStrip contextMenu = new ContextMenuStrip();
+        private readonly ListBox _setListBox;
+        private readonly ListBox _l0ListBox;
+        private readonly ListBox _l1ListBox;
+        private readonly WrapPanel _thumbGrid;
+        private readonly Button _addImageBtn;
 
-        /// <summary>
-        /// Constructor
-        /// </summary>
         public ObjPanel()
         {
-            InitializeComponent();
+            _setListBox = new ListBox { Height = 140 };
+            _l0ListBox  = new ListBox { Height = 140 };
+            _l1ListBox  = new ListBox { Height = 140 };
 
-            // context menu
-            ToolStripMenuItem saveItem = new ToolStripMenuItem(this.ResourceManager.GetString("ContextStripMenu_Save"));
-            saveItem.Click += saveItem_Click;
+            _thumbGrid = new WrapPanel { Orientation = Orientation.Horizontal };
 
-            ToolStripMenuItem deleteItem = new ToolStripMenuItem(this.ResourceManager.GetString("ContextStripMenu_Delete"));
-            deleteItem.Click += DeleteItem_Click;
+            _addImageBtn = new Button
+            {
+                Content = "Add Image",
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                Margin = new Thickness(2)
+            };
 
-            ToolStripMenuItem aiUpscaleItem = new ToolStripMenuItem(this.ResourceManager.GetString("ContextStripMenu_AIUpscale"));
-            aiUpscaleItem.Click += aiUpscaleItem_Click;
+            var listRow = new Grid { Margin = new Thickness(0, 0, 0, 4) };
+            listRow.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
+            listRow.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
+            listRow.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
 
-            contextMenu.Items.Add(saveItem);
-            contextMenu.Items.Add(deleteItem);
-            contextMenu.Items.Add(aiUpscaleItem);
+            var setCol = MakeLabeledList("Set", _setListBox);
+            var l0Col  = MakeLabeledList("L0", _l0ListBox);
+            var l1Col  = MakeLabeledList("L1", _l1ListBox);
 
-            // localisation
-            button_addImage.Text = this.ResourceManager.GetString("Button_AddImage");
+            Grid.SetColumn(setCol, 0);
+            Grid.SetColumn(l0Col,  1);
+            Grid.SetColumn(l1Col,  2);
+
+            listRow.Children.Add(setCol);
+            listRow.Children.Add(l0Col);
+            listRow.Children.Add(l1Col);
+
+            var root = new Grid();
+            root.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+            root.RowDefinitions.Add(new RowDefinition(new GridLength(1, GridUnitType.Star)));
+            root.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+
+            Grid.SetRow(listRow,    0);
+            Grid.SetRow(new ScrollViewer
+            {
+                Content = _thumbGrid,
+                HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+                VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto
+            }, 1);
+            Grid.SetRow(_addImageBtn, 2);
+
+            var scroll = new ScrollViewer
+            {
+                Content = _thumbGrid,
+                HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+                VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto
+            };
+            Grid.SetRow(scroll, 1);
+
+            root.Children.Add(listRow);
+            root.Children.Add(scroll);
+            root.Children.Add(_addImageBtn);
+
+            Content = root;
+            _addImageBtn.IsEnabled = false;
+
+            _setListBox.SelectionChanged += OnSetSelectionChanged;
+            _l0ListBox.SelectionChanged  += OnL0SelectionChanged;
+            _l1ListBox.SelectionChanged  += OnL1SelectionChanged;
+            _addImageBtn.Click           += OnAddImageClick;
         }
 
-        /// <summary>
-        /// Init
-        /// </summary>
-        /// <param name="hcsm"></param>
+        private static StackPanel MakeLabeledList(string header, ListBox list)
+        {
+            return new StackPanel
+            {
+                Margin = new Thickness(1),
+                Children =
+                {
+                    new TextBlock { Text = header, FontSize = 11, Margin = new Thickness(0, 0, 0, 2) },
+                    list
+                }
+            };
+        }
+
         public void Initialize(HaCreatorStateManager hcsm)
         {
-            this.hcsm = hcsm;
+            _hcsm = hcsm;
             hcsm.SetObjPanel(this);
 
-            List<string> sortedObjSets = Program.InfoManager.ObjectSets.Keys.OrderBy(k => k).ToList();
-            foreach (string oS in sortedObjSets)
-            {
-                objSetListBox.Items.Add(oS);
-            }
-        }
-
-        /// <summary>
-        /// On obj selection changed
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void objSetListBox_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            if (objSetListBox.SelectedItem == null)
-                return;
-
-            objL0ListBox.Items.Clear();
-            objL1ListBox.Items.Clear();
-            objImagesContainer.Controls.Clear();
-            WzImage oSImage = Program.InfoManager.GetObjectSet((string)objSetListBox.SelectedItem);
-            if (oSImage == null)
-                return;
-            foreach (WzImageProperty l0Prop in oSImage.WzProperties)
-            {
-                objL0ListBox.Items.Add(l0Prop.Name);
-            }
-            // select the first item automatically
-            if (objL0ListBox.Items.Count > 0)
-            {
-                objL0ListBox.SelectedIndex = 0;
-            }
-        }
-
-        /// <summary>
-        /// On L0 selection changed
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void objL0ListBox_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            if (objL0ListBox.SelectedItem == null)
-                return;
-
-            objL1ListBox.Items.Clear();
-            objImagesContainer.Controls.Clear();
-            WzImage oSImage = Program.InfoManager.GetObjectSet((string)objSetListBox.SelectedItem);
-            if (oSImage == null)
-                return;
-            WzImageProperty l0Prop = oSImage[(string)objL0ListBox.SelectedItem];
-            foreach (WzImageProperty l1Prop in l0Prop.WzProperties)
-            {
-                objL1ListBox.Items.Add(l1Prop.Name);
-            }
-            // select the first item automatically
-            if (objL1ListBox.Items.Count > 0)
-            {
-                objL1ListBox.SelectedIndex = 0;
-            }
-        }
-
-        /// <summary>
-        /// On L1 selection changed
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void objL1ListBox_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            lock (hcsm.MultiBoard)
-            {
-                if (objL1ListBox.SelectedItem == null)
-                    return;
-
-                objImagesContainer.Controls.Clear();
-                WzImage oSImage = Program.InfoManager.GetObjectSet((string)objSetListBox.SelectedItem);
-                if (oSImage == null)
-                    return;
-                WzImageProperty l1Prop = oSImage[(string)objL0ListBox.SelectedItem]?[(string)objL1ListBox.SelectedItem];
-
-                foreach (WzSubProperty l2Prop in l1Prop.WzProperties)
-                {
-                    try
-                    {
-                        ObjectInfo info = ObjectInfo.Get((string)objSetListBox.SelectedItem, (string)objL0ListBox.SelectedItem, (string)objL1ListBox.SelectedItem, l2Prop.Name);
-                        Bitmap image = info.Image;
-                        ImageViewer item = objImagesContainer.Add(image, l2Prop.Name, true);
-
-                        item.Tag = info;
-                        item.MouseDown += new MouseEventHandler(objItem_Click);
-                        item.MouseUp += new MouseEventHandler(ImageViewer.item_MouseUp);
-                        item.MaxHeight = UserSettings.ImageViewerHeight;
-                        item.MaxWidth = UserSettings.ImageViewerWidth;
-                    }
-                    catch (InvalidCastException)
-                    {
-                        return;
-                    }
-                }
-            }
-            // Enable add image button after a L1 is selected
-            button_addImage.Enabled = true;
+            foreach (string oS in Program.InfoManager.ObjectSets.Keys.OrderBy(k => k))
+                _setListBox.Items.Add(oS);
         }
 
         public void OnL1Changed(string l1)
         {
-            if ((string)objL1ListBox.SelectedItem == l1)
-                objL1ListBox_SelectedIndexChanged(null, null);
+            if (_l1ListBox.SelectedItem is string cur && cur == l1)
+                LoadThumbnails();
         }
 
-        private void objItem_Click(object sender, MouseEventArgs e)
+        public void SubscribeToHotSwap(HotSwapRefreshService svc)
         {
-            if (e.Button == MouseButtons.Right) // context menu when right clicked
-            {
-                // Show context menu for delete option
-                ShowContextMenu((ImageViewer)sender, e.Location);
-            }
-            else if (e.Button == MouseButtons.Left)
-            {
-                lock (hcsm.MultiBoard)
-                {
-                    if (!hcsm.MultiBoard.AssertLayerSelected())
-                    {
-                        return;
-                    }
-                    hcsm.EnterEditMode(ItemTypes.Objects);
-                    hcsm.MultiBoard.SelectedBoard.Mouse.SetHeldInfo((ObjectInfo)((ImageViewer)sender).Tag);
-                    hcsm.MultiBoard.Focus();
-                    ((ImageViewer)sender).IsActive = true;
-                }
-            }
+            if (_hotSwapService != null)
+                _hotSwapService.ObjectSetChanged -= OnObjectSetChanged;
+
+            _hotSwapService = svc;
+
+            if (_hotSwapService != null)
+                _hotSwapService.ObjectSetChanged += OnObjectSetChanged;
         }
 
-        /// <summary>
-        /// Adds an image to the obj
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void button_addImage_Click(object sender, EventArgs e)
+        private void OnSetSelectionChanged(object? sender, SelectionChangedEventArgs e)
         {
-            if (objSetListBox.SelectedItem == null || objL0ListBox.SelectedItem == null || objL1ListBox.SelectedItem == null)
-            {
-                MessageBox.Show(this.ResourceManager.GetString("SelectAnImageBefore"), this.ResourceManager.GetString("SelectAnImageBeforeTitle"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
+            if (_setListBox.SelectedItem is not string) return;
 
-            using (OpenFileDialog openFileDialog = new OpenFileDialog())
-            {
-                //openFileDialog.Filter = "Image Files (*.png;*.jpg;*.jpeg;*.gif;*.bmp)|*.png;*.jpg;*.jpeg;*.gif;*.bmp";
-                openFileDialog.Filter = "Image Files (*.png;*.jpg;*.jpeg)|*.png;*.jpg;*.jpeg";
-                openFileDialog.Title = this.ResourceManager.GetString("SelectAnImageToAdd");
+            _l0ListBox.Items.Clear();
+            _l1ListBox.Items.Clear();
+            _thumbGrid.Children.Clear();
+            _addImageBtn.IsEnabled = false;
 
-                if (openFileDialog.ShowDialog() == DialogResult.OK)
+            WzImage? oSImage = Program.InfoManager.GetObjectSet((string)_setListBox.SelectedItem);
+            if (oSImage == null) return;
+
+            foreach (WzImageProperty l0Prop in oSImage.WzProperties)
+                _l0ListBox.Items.Add(l0Prop.Name);
+
+            if (_l0ListBox.Items.Count > 0)
+                _l0ListBox.SelectedIndex = 0;
+        }
+
+        private void OnL0SelectionChanged(object? sender, SelectionChangedEventArgs e)
+        {
+            if (_l0ListBox.SelectedItem is not string || _setListBox.SelectedItem is not string) return;
+
+            _l1ListBox.Items.Clear();
+            _thumbGrid.Children.Clear();
+            _addImageBtn.IsEnabled = false;
+
+            WzImage? oSImage = Program.InfoManager.GetObjectSet((string)_setListBox.SelectedItem);
+            if (oSImage == null) return;
+
+            WzImageProperty? l0Prop = oSImage[(string)_l0ListBox.SelectedItem];
+            if (l0Prop == null) return;
+
+            foreach (WzImageProperty l1Prop in l0Prop.WzProperties)
+                _l1ListBox.Items.Add(l1Prop.Name);
+
+            if (_l1ListBox.Items.Count > 0)
+                _l1ListBox.SelectedIndex = 0;
+        }
+
+        private void OnL1SelectionChanged(object? sender, SelectionChangedEventArgs e)
+        {
+            LoadThumbnails();
+        }
+
+        private void LoadThumbnails()
+        {
+            if (_hcsm == null) return;
+            if (_setListBox.SelectedItem is not string setName) return;
+            if (_l0ListBox.SelectedItem is not string l0Name) return;
+            if (_l1ListBox.SelectedItem is not string l1Name) return;
+
+            var buttons = new List<Button>();
+
+            lock (_hcsm.MultiBoard)
+            {
+                WzImage? oSImage = Program.InfoManager.GetObjectSet(setName);
+                if (oSImage == null) return;
+
+                WzImageProperty? l1Prop = oSImage[l0Name]?[l1Name];
+                if (l1Prop == null) return;
+
+                foreach (WzSubProperty l2Prop in l1Prop.WzProperties.OfType<WzSubProperty>())
                 {
                     try
                     {
-                        Bitmap newImage = new(openFileDialog.FileName);
-                        string imageName = System.IO.Path.GetFileNameWithoutExtension(openFileDialog.FileName);
+                        ObjectInfo info = ObjectInfo.Get(setName, l0Name, l1Name, l2Prop.Name);
+                        SKBitmap? sk = info.Image;
+                        var bmp = SkBitmapToAvalonia(sk);
 
-                        string objSetName = (string)objSetListBox.SelectedItem;
-                        string l0Name = (string)objL0ListBox.SelectedItem;
-                        string l1Name = (string)objL1ListBox.SelectedItem;
-
-                        // Get the L1 property
-                        WzImage oSImage = Program.InfoManager.GetObjectSet(objSetName);
-                        if (oSImage == null)
-                            return;
-                        WzImageProperty l1Prop = oSImage[l0Name]?[l1Name];
-
-                        // Generate a unique name for the new object
-                        string newObjL2Name = GenerateUniqueObjectName(objSetName, l0Name, l1Name);
-
-                        ObjectInfo newObjectInfo;
-                        WzImageProperty newL2Prop_;
-
-                        // Create a new WzSubProperty for the L2 object
-                        WzSubProperty newL2Prop = new WzSubProperty(newObjL2Name);
-
-                        // Add necessary properties to the new L2 object
-                        newL2Prop["z"] = new WzIntProperty("z", 0); // Default z-index
-                        WzCanvasProperty canvasProp = new WzCanvasProperty("0");
-                        canvasProp.PngProperty = new WzPngProperty();
-                        canvasProp.PngProperty.PNG = newImage;
-                        newL2Prop["0"] = canvasProp;
-
-                        newL2Prop_ = newL2Prop;
-
-                        // Add the new L2 property to the L1 property
-                        l1Prop.WzProperties.Add(newL2Prop);
-
-                        // there's no fixed place or consistency in the WZ
-                        // sometimes its at the top-center
-                        // sometimes bottom-left or bottom-right
-                        // it depends on nexon-devs, better off making this automatic for the user.
-                        Point point = new Point(newImage.Width / 2, newImage.Height); // set at bottom-center
-
-                        // Create a new ObjectInfo
-                        newObjectInfo = new ObjectInfo(newImage, point, objSetName, l0Name, l1Name, newObjL2Name, newL2Prop);
-
-                        // Add the new image to the objImagesContainer
-                        ImageViewer newItem = objImagesContainer.Add(newImage, newObjL2Name, true);
-                        newItem.Tag = newObjectInfo;
-                        newItem.MouseDown += new MouseEventHandler(objItem_Click);
-                        newItem.MouseUp += new MouseEventHandler(ImageViewer.item_MouseUp);
-                        newItem.MaxHeight = UserSettings.ImageViewerHeight;
-                        newItem.MaxWidth = UserSettings.ImageViewerWidth;
-
-                        // flag WZ files changed to save it
-                        WzObject topMostWzDir = l1Prop.GetTopMostWzDirectory();
-                        WzObject topMostWzImg = l1Prop.GetTopMostWzImage();
-                        Program.WzManager.SetWzFileUpdated(topMostWzDir.Name, topMostWzImg as WzImage);
-
-                        MessageBox.Show(
-                            string.Format(this.ResourceManager.GetString("ImageAddSuccessful"), openFileDialog.FileName, newObjL2Name), 
-                            this.ResourceManager.GetString("ImageAddSuccessfulTitle"), MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        Button btn = MakeThumb(bmp, l2Prop.Name, info);
+                        WireItemEvents(btn, info, l1Prop);
+                        buttons.Add(btn);
                     }
-                    catch (Exception ex)
-                    {
-                        MessageBox.Show($"Error adding image: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    }
+                    catch (InvalidCastException) { break; }
+                    catch { }
                 }
+            }
+
+            Dispatcher.UIThread.Post(() =>
+            {
+                _thumbGrid.Children.Clear();
+                foreach (var b in buttons)
+                    _thumbGrid.Children.Add(b);
+                _addImageBtn.IsEnabled = true;
+            });
+        }
+
+        private void WireItemEvents(Button btn, ObjectInfo info, WzImageProperty l1Prop)
+        {
+            btn.Click += (_, _) =>
+            {
+                if (_hcsm == null) return;
+                lock (_hcsm.MultiBoard)
+                {
+                    if (!_hcsm.MultiBoard.AssertLayerSelected()) return;
+                    _hcsm.EnterEditMode(ItemTypes.Objects);
+                    _hcsm.MultiBoard.SelectedBoard!.Mouse.SetHeldInfo(info);
+                    _hcsm.MultiBoard.Focus();
+                }
+            };
+
+            var ctx = new ContextMenu();
+
+            var saveItem = new MenuItem { Header = "Save" };
+            saveItem.Click += async (_, _) => await SaveObjectImage(info);
+
+            var deleteItem = new MenuItem { Header = "Delete" };
+            deleteItem.Click += async (_, _) => await DeleteObject(btn, info, l1Prop);
+
+            ctx.Items.Add(saveItem);
+            ctx.Items.Add(deleteItem);
+            btn.ContextMenu = ctx;
+        }
+
+        private async System.Threading.Tasks.Task SaveObjectImage(ObjectInfo info)
+        {
+            if (info.Image == null) return;
+
+            var top = TopLevel.GetTopLevel(this);
+            if (top == null) return;
+
+            var file = await top.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = "Save image",
+                SuggestedFileName = $"{info.oS}.{info.l0}.{info.l1}.{info.l2}",
+                FileTypeChoices = new[]
+                {
+                    new FilePickerFileType("PNG") { Patterns = ["*.png"] }
+                }
+            });
+
+            if (file == null) return;
+
+            try
+            {
+                await using var stream = await file.OpenWriteAsync();
+                using var encoded = info.Image.Encode(SKEncodedImageFormat.Png, 100);
+                encoded.SaveTo(stream);
+            }
+            catch { }
+        }
+
+        private async System.Threading.Tasks.Task DeleteObject(Button btn, ObjectInfo info, WzImageProperty l1Prop)
+        {
+            if (!await ShowConfirmAsync("Delete this object?")) return;
+
+            WzImageProperty? removeL2 = l1Prop[info.l2];
+            if (removeL2 != null && l1Prop.WzProperties.Contains(removeL2))
+            {
+                l1Prop.WzProperties.Remove(removeL2);
+
+                WzObject? topDir = l1Prop.GetTopMostWzDirectory();
+                WzObject? topImg = l1Prop.GetTopMostWzImage();
+                if (topDir != null && topImg is WzImage wzImg)
+                    Program.WzManager.SetWzFileUpdated(topDir.Name, wzImg);
+
+                Dispatcher.UIThread.Post(() => _thumbGrid.Children.Remove(btn));
             }
         }
 
-        /// <summary>
-        /// Generates a new object name for the image
-        /// 0,1,2,3,4,5,6 ...
-        /// </summary>
-        /// <param name="objSetName"></param>
-        /// <param name="l0Name"></param>
-        /// <param name="l1Name"></param>
-        /// <returns></returns>
-        private string GenerateUniqueObjectName(string objSetName, string l0Name, string l1Name)
+        private async void OnAddImageClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
-            int counter = 1;
-            WzImage oSImage = Program.InfoManager.GetObjectSet(objSetName);
-            if (oSImage == null)
-                return counter.ToString();
-            WzImageProperty l1Prop = oSImage[l0Name]?[l1Name];
-            while (l1Prop.WzProperties.Any(p => p.Name == counter.ToString()))
+            if (_setListBox.SelectedItem is not string setName) return;
+            if (_l0ListBox.SelectedItem is not string l0Name) return;
+            if (_l1ListBox.SelectedItem is not string l1Name) return;
+
+            var top = TopLevel.GetTopLevel(this);
+            if (top == null) return;
+
+            var files = await top.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
             {
-                counter++;
+                Title = "Select image to add",
+                AllowMultiple = false,
+                FileTypeFilter = new[]
+                {
+                    new FilePickerFileType("Images") { Patterns = ["*.png", "*.jpg", "*.jpeg"] }
+                }
+            });
+
+            if (files.Count == 0) return;
+            string filePath = files[0].TryGetLocalPath() ?? string.Empty;
+            if (string.IsNullOrEmpty(filePath)) return;
+
+            try
+            {
+                SKBitmap? newImage = SKBitmap.Decode(filePath);
+                if (newImage == null) return;
+
+                WzImage? oSImage = Program.InfoManager.GetObjectSet(setName);
+                if (oSImage == null) return;
+                WzImageProperty? l1Prop = oSImage[l0Name]?[l1Name];
+                if (l1Prop == null) return;
+
+                string newName = GenerateUniqueObjName(setName, l0Name, l1Name);
+
+                WzSubProperty newL2 = new WzSubProperty(newName);
+                newL2["z"] = new WzIntProperty("z", 0);
+                WzCanvasProperty canvas = new WzCanvasProperty("0");
+                canvas.PngProperty = new WzPngProperty();
+                canvas.PngProperty.PNG = newImage;
+                newL2["0"] = canvas;
+                l1Prop.WzProperties.Add(newL2);
+
+                System.Drawing.Point origin = new System.Drawing.Point(newImage.Width / 2, newImage.Height);
+                ObjectInfo newInfo = new ObjectInfo(newImage, origin, setName, l0Name, l1Name, newName, newL2);
+
+                WzObject? topDir = l1Prop.GetTopMostWzDirectory();
+                WzObject? topImg = l1Prop.GetTopMostWzImage();
+                if (topDir != null && topImg is WzImage wzImg)
+                    Program.WzManager.SetWzFileUpdated(topDir.Name, wzImg);
+
+                var bmp = SkBitmapToAvalonia(newImage);
+                Button btn = MakeThumb(bmp, newName, newInfo);
+                WireItemEvents(btn, newInfo, l1Prop);
+                _thumbGrid.Children.Add(btn);
             }
+            catch (Exception ex)
+            {
+                await ShowAlertAsync($"Error adding image: {ex.Message}");
+            }
+        }
+
+        private string GenerateUniqueObjName(string setName, string l0, string l1)
+        {
+            WzImage? oSImage = Program.InfoManager.GetObjectSet(setName);
+            WzImageProperty? l1Prop = oSImage?[l0]?[l1];
+            int counter = 1;
+            while (l1Prop?.WzProperties.Any(p => p.Name == counter.ToString()) == true)
+                counter++;
             return counter.ToString();
         }
 
-        #region Context Menu
-        /// <summary>
-        /// Show context menu
-        /// </summary>
-        /// <param name="item"></param>
-        /// <param name="location"></param>
-        private void ShowContextMenu(ImageViewer item, Point location)
+        private async System.Threading.Tasks.Task<bool> ShowConfirmAsync(string message)
         {
-            contextMenu.Show(item, location);
-        }
+            Window? owner = GetOwner();
+            bool result = false;
 
-        /// <summary>
-        /// Upscale context menu
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        /// <exception cref="NotImplementedException"></exception>
-        private async void aiUpscaleItem_Click(object sender, EventArgs e)
-        {
-            ImageViewer selectedItem = contextMenu.SourceControl as ImageViewer;
-            if (selectedItem == null)
+            var dlg = new Window
             {
-                return;
-            }
-
-            ObjectInfo objInfo = (ObjectInfo)selectedItem.Tag;
-
-            WzImageProperty l2Prop = Program.InfoManager.GetObjectSet(objInfo.oS)?[objInfo.l0]?[objInfo.l1]?[objInfo.l2];
-
-            if (l2Prop != null)
+                Title = "Confirm",
+                Width = 320, Height = 130,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                CanResize = false
+            };
+            var yes = new Button { Content = "Yes", Width = 70, Margin = new Thickness(4) };
+            var no  = new Button { Content = "No",  Width = 70, Margin = new Thickness(4) };
+            yes.Click += (_, _) => { result = true;  dlg.Close(); };
+            no.Click  += (_, _) => { result = false; dlg.Close(); };
+            dlg.Content = new StackPanel
             {
-                WzSubProperty l2SubProp = (WzSubProperty)l2Prop;
-                WzCanvasProperty l2SubImg = (WzCanvasProperty)l2SubProp["0"];
-                Bitmap bitmap = l2SubImg.GetLinkedWzCanvasBitmap();
-
-                UpscaleImageForm upscaleForm = new UpscaleImageForm(bitmap);
-                upscaleForm.ShowDialog();
-                if (upscaleForm.UserAcceptedImage)
+                Margin = new Thickness(12), Spacing = 12,
+                Children =
                 {
-                    Bitmap upscaledBitmap = upscaleForm.UpscaledImage;
-                    l2SubImg.PngProperty.PNG = upscaledBitmap;
-                    objInfo.Image = upscaledBitmap;
-                    selectedItem.Image = upscaledBitmap;
-
-                    // flag WZ files changed to save it
-                    WzObject topMostWzDir = l2Prop.GetTopMostWzDirectory();
-                    WzObject topMostWzImg = l2Prop.GetTopMostWzImage();
-                    Program.WzManager.SetWzFileUpdated(topMostWzDir.Name, topMostWzImg as WzImage);
+                    new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap },
+                    new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Spacing = 4, Children = { yes, no } }
                 }
-            }
+            };
+            if (owner != null) await dlg.ShowDialog(owner);
+            else dlg.Show();
+            return result;
         }
 
-        /// <summary>
-        /// Event handler for save menu item
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void saveItem_Click(object sender, EventArgs e)
+        private async System.Threading.Tasks.Task ShowAlertAsync(string message)
         {
-            ImageViewer selectedItem = contextMenu.SourceControl as ImageViewer;
-            if (selectedItem != null)
+            Window? owner = GetOwner();
+            var dlg = new Window
             {
-                ObjectInfo objInfo = (ObjectInfo)selectedItem.Tag;
-
-                if (objInfo.Image != null)
+                Title = "Error", Width = 360, Height = 150,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner, CanResize = false
+            };
+            var ok = new Button { Content = "OK", Width = 70, Margin = new Thickness(4) };
+            ok.Click += (_, _) => dlg.Close();
+            dlg.Content = new StackPanel
+            {
+                Margin = new Thickness(12), Spacing = 12,
+                Children =
                 {
-                    System.Windows.Forms.SaveFileDialog dialog = new System.Windows.Forms.SaveFileDialog()
-                    {
-                        FileName = string.Format("{0}.{1}.{2}", objInfo.oS, objInfo.l0, objInfo.l1),
-                        Title = "Select where to save the image...",
-                        Filter = "Portable Network Graphics (*.png)|*.png|CompuServe Graphics Interchange Format (*.gif)|*.gif|Bitmap (*.bmp)|*.bmp|Joint Photographic Experts Group Format (*.jpg)|*.jpg|Tagged Image File Format (*.tif)|*.tif"
-                    };
-                    if (dialog.ShowDialog() != System.Windows.Forms.DialogResult.OK)
-                        return;
-                    switch (dialog.FilterIndex)
-                    {
-                        case 1: //png
-                            objInfo.Image.Save(dialog.FileName, System.Drawing.Imaging.ImageFormat.Png);
-                            break;
-                        case 2: //gif
-                            objInfo.Image.Save(dialog.FileName, System.Drawing.Imaging.ImageFormat.Gif);
-                            break;
-                        case 3: //bmp
-                            objInfo.Image.Save(dialog.FileName, System.Drawing.Imaging.ImageFormat.Bmp);
-                            break;
-                        case 4: //jpg
-                            objInfo.Image.Save(dialog.FileName, System.Drawing.Imaging.ImageFormat.Jpeg);
-                            break;
-                        case 5: //tiff
-                            objInfo.Image.Save(dialog.FileName, System.Drawing.Imaging.ImageFormat.Tiff);
-                            break;
-                    }
+                    new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap },
+                    new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Children = { ok } }
                 }
-            }
+            };
+            if (owner != null) await dlg.ShowDialog(owner);
+            else dlg.Show();
         }
 
-        /// <summary>
-        /// Event handler for the Delete menu item
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void DeleteItem_Click(object sender, EventArgs e)
+        private Window? GetOwner() =>
+            _hcsm?.OwnerWindow ??
+            (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime d ? d.MainWindow : null);
+
+        private void OnObjectSetChanged(object? sender, ObjectSetChangedEventArgs e)
         {
-            ImageViewer selectedItem = contextMenu.SourceControl as ImageViewer;
-            if (selectedItem != null)
-            {
-                // Show confirmation dialog
-                DialogResult result = MessageBox.Show(
-                    this.ResourceManager.GetString("ConfirmItemDelete"), 
-                    this.ResourceManager.GetString("ConfirmItemDeleteTitle"), MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-
-                if (result == DialogResult.Yes)
-                {
-                    // delete off cached obj
-                    ObjectInfo objInfo = (ObjectInfo)selectedItem.Tag;
-
-                    WzImageProperty l1Prop = Program.InfoManager.GetObjectSet(objInfo.oS)?[objInfo.l0]?[objInfo.l1];
-
-                    if (l1Prop != null)
-                    {
-                        WzImageProperty removeL2Prop = l1Prop[objInfo.l2];
-
-                        if (l1Prop.WzProperties.Contains(removeL2Prop))
-                        {
-                            l1Prop.WzProperties.Remove(removeL2Prop);
-
-                            // Perform delete operation
-                            objImagesContainer.Remove(selectedItem);
-                            selectedItem.Dispose();
-
-                            // flag WZ files changed to save it
-                            WzObject topMostWzDir = l1Prop.GetTopMostWzDirectory();
-                            WzObject topMostWzImg = l1Prop.GetTopMostWzImage();
-                            Program.WzManager.SetWzFileUpdated(topMostWzDir.Name, topMostWzImg as WzImage);
-                        }
-                    }
-                }
-            }
-        }
-        #endregion
-
-        #region Hot Swap
-        /// <summary>
-        /// Subscribes to hot swap events from the HotSwapRefreshService
-        /// </summary>
-        /// <param name="refreshService">The hot swap service to subscribe to</param>
-        public void SubscribeToHotSwap(HotSwapRefreshService refreshService)
-        {
-            if (_hotSwapService != null)
-            {
-                _hotSwapService.ObjectSetChanged -= OnObjectSetChanged;
-            }
-
-            _hotSwapService = refreshService;
-
-            if (_hotSwapService != null)
-            {
-                _hotSwapService.ObjectSetChanged += OnObjectSetChanged;
-            }
+            Dispatcher.UIThread.Post(() => HandleSetChange(e));
         }
 
-        /// <summary>
-        /// Handles object set change events
-        /// </summary>
-        private void OnObjectSetChanged(object sender, ObjectSetChangedEventArgs e)
-        {
-            if (InvokeRequired)
-            {
-                BeginInvoke(new Action(() => HandleObjectSetChange(e)));
-                return;
-            }
-            HandleObjectSetChange(e);
-        }
-
-        /// <summary>
-        /// Handles the object set change on the UI thread
-        /// </summary>
-        private void HandleObjectSetChange(ObjectSetChangedEventArgs e)
+        private void HandleSetChange(ObjectSetChangedEventArgs e)
         {
             switch (e.ChangeType)
             {
                 case AssetChangeType.Added:
-                    if (!objSetListBox.Items.Contains(e.SetName))
+                    if (!_setListBox.Items.Contains(e.SetName))
                     {
-                        objSetListBox.Items.Add(e.SetName);
-                        SortObjectSetList();
+                        _setListBox.Items.Add(e.SetName);
+                        SortSetList();
                     }
                     break;
 
                 case AssetChangeType.Removed:
-                    objSetListBox.Items.Remove(e.SetName);
-                    if (objSetListBox.SelectedItem?.ToString() == e.SetName)
+                    if (_setListBox.SelectedItem is string sel && sel == e.SetName)
                     {
-                        ClearObjectDisplay();
-                        if (objSetListBox.Items.Count > 0)
-                        {
-                            objSetListBox.SelectedIndex = 0;
-                        }
+                        ClearAll();
+                        _setListBox.Items.Remove(e.SetName);
+                        if (_setListBox.Items.Count > 0)
+                            _setListBox.SelectedIndex = 0;
+                    }
+                    else
+                    {
+                        _setListBox.Items.Remove(e.SetName);
                     }
                     break;
 
                 case AssetChangeType.Modified:
-                    // If set doesn't exist in list, add it (Windows sometimes reports new files as Changed)
-                    if (!objSetListBox.Items.Contains(e.SetName))
+                    if (!_setListBox.Items.Contains(e.SetName))
                     {
-                        objSetListBox.Items.Add(e.SetName);
-                        SortObjectSetList();
+                        _setListBox.Items.Add(e.SetName);
+                        SortSetList();
                     }
-                    else if (objSetListBox.SelectedItem?.ToString() == e.SetName)
+                    else if (_setListBox.SelectedItem is string cur && cur == e.SetName)
                     {
-                        RefreshCurrentObjectSet();
+                        Program.InfoManager.RefreshObjectSet(e.SetName);
+                        RefreshCurrentSet();
                     }
                     break;
             }
         }
 
-        /// <summary>
-        /// Refreshes the currently displayed object set
-        /// </summary>
-        public void RefreshCurrentObjectSet()
+        private void RefreshCurrentSet()
         {
-            if (objSetListBox.SelectedItem == null)
-                return;
+            if (_setListBox.SelectedItem is not string setName) return;
+            _l0ListBox.Items.Clear();
+            _l1ListBox.Items.Clear();
+            _thumbGrid.Children.Clear();
+            _addImageBtn.IsEnabled = false;
 
-            string selectedSet = objSetListBox.SelectedItem.ToString();
+            WzImage? oSImage = Program.InfoManager.GetObjectSet(setName);
+            if (oSImage == null) return;
+            foreach (WzImageProperty l0 in oSImage.WzProperties)
+                _l0ListBox.Items.Add(l0.Name);
+            if (_l0ListBox.Items.Count > 0)
+                _l0ListBox.SelectedIndex = 0;
+        }
 
-            // Clear current display
-            objL0ListBox.Items.Clear();
-            objL1ListBox.Items.Clear();
-            objImagesContainer.Controls.Clear();
+        private void ClearAll()
+        {
+            _l0ListBox.Items.Clear();
+            _l1ListBox.Items.Clear();
+            _thumbGrid.Children.Clear();
+            _addImageBtn.IsEnabled = false;
+        }
 
-            // Force reload from disk
-            Program.InfoManager.RefreshObjectSet(selectedSet);
+        private void SortSetList()
+        {
+            var items = _setListBox.Items.Cast<string>().OrderBy(s => s).ToList();
+            string? sel = _setListBox.SelectedItem as string;
+            _setListBox.Items.Clear();
+            foreach (var s in items) _setListBox.Items.Add(s);
+            if (sel != null) _setListBox.SelectedItem = sel;
+        }
 
-            // Repopulate L0 list
-            WzImage oSImage = Program.InfoManager.GetObjectSet(selectedSet);
-            if (oSImage != null)
+        private static Avalonia.Media.Imaging.Bitmap? SkBitmapToAvalonia(SKBitmap? sk)
+        {
+            if (sk == null || sk.Width <= 0 || sk.Height <= 0) return null;
+            try
             {
-                foreach (WzImageProperty l0Prop in oSImage.WzProperties)
+                using var data = sk.Encode(SKEncodedImageFormat.Png, 100);
+                using var ms = new MemoryStream();
+                data.SaveTo(ms);
+                ms.Position = 0;
+                return new Avalonia.Media.Imaging.Bitmap(ms);
+            }
+            catch { return null; }
+        }
+
+        private static Button MakeThumb(Avalonia.Media.Imaging.Bitmap? bmp, string label, object? tag)
+        {
+            Control imgCtrl = bmp != null
+                ? (Control)new Image { Source = bmp, Width = 64, Height = 64, Stretch = Stretch.Uniform }
+                : new Border { Width = 64, Height = 64, Background = Brushes.LightGray };
+
+            return new Button
+            {
+                Content = new StackPanel
                 {
-                    objL0ListBox.Items.Add(l0Prop.Name);
-                }
-                // Select first item
-                if (objL0ListBox.Items.Count > 0)
-                {
-                    objL0ListBox.SelectedIndex = 0;
-                }
-            }
+                    Orientation = Orientation.Vertical,
+                    Width = 72,
+                    Children =
+                    {
+                        imgCtrl,
+                        new TextBlock
+                        {
+                            Text = label, FontSize = 9,
+                            TextWrapping = TextWrapping.Wrap, MaxWidth = 72,
+                            TextAlignment = TextAlignment.Center
+                        }
+                    }
+                },
+                Padding = new Thickness(2),
+                Margin = new Thickness(2),
+                Tag = tag
+            };
         }
-
-        /// <summary>
-        /// Clears the object display
-        /// </summary>
-        private void ClearObjectDisplay()
-        {
-            objL0ListBox.Items.Clear();
-            objL1ListBox.Items.Clear();
-            objImagesContainer.Controls.Clear();
-            button_addImage.Enabled = false;
-        }
-
-        /// <summary>
-        /// Sorts the object set list alphabetically
-        /// </summary>
-        private void SortObjectSetList()
-        {
-            var items = objSetListBox.Items.Cast<string>().OrderBy(s => s).ToList();
-            var selected = objSetListBox.SelectedItem;
-            objSetListBox.Items.Clear();
-            foreach (var item in items)
-            {
-                objSetListBox.Items.Add(item);
-            }
-            if (selected != null && objSetListBox.Items.Contains(selected))
-            {
-                objSetListBox.SelectedItem = selected;
-            }
-        }
-        #endregion
     }
 }

@@ -27,6 +27,7 @@ namespace HaCreator.GUI
         public event Action MapPhysicsClicked;
         public event Action ShowQuestEditorWindowClicked;
         public event Action ShowMapPropertiesClicked;
+        public event Action<Avalonia.Controls.TabItem> MapInfoClicked;
 
         public event Action<bool> ShowMinimapToggled;
         public event Action<bool> ParallaxToggled;
@@ -66,6 +67,17 @@ namespace HaCreator.GUI
         public void FireSnapping(bool v)          => SnappingToggled?.Invoke(v);
         public void FireRandomTiles(bool v)       => RandomTilesToggled?.Invoke(v);
         public void FireInfoMode(bool v)          => InfoModeToggled?.Invoke(v);
+        public void FireMapInfo(Avalonia.Controls.TabItem tab)   => MapInfoClicked?.Invoke(tab);
+        public void FireShowQuestEditor()                         => ShowQuestEditorWindowClicked?.Invoke();
+        public void FireShowMapProperties()                       => ShowMapPropertiesClicked?.Invoke();
+        public void FireViewToggled(bool? tiles, bool? objs, bool? npcs, bool? mobs,
+            bool? reactors, bool? portals, bool? footholds, bool? ropes, bool? chairs,
+            bool? tooltips, bool? backgrounds, bool? misc, bool? mirrorField)
+            => ViewToggled?.Invoke(tiles, objs, npcs, mobs, reactors, portals, footholds,
+                                   ropes, chairs, tooltips, backgrounds, misc, mirrorField);
+        public void FireLayerViewChanged(int layer, int platform, bool allLayers, bool allPlats, string tileSet)
+            => LayerViewChanged?.Invoke(layer, platform, allLayers, allPlats, tileSet);
+        public void FireRibbonKeyDown(object sender, EventArgs e) => RibbonKeyDown?.Invoke(sender, e);
 
         // ── State setters (called by HaCreatorStateManager) ──────────
         public void SetEnabled(bool enabled) { }

@@ -23,20 +23,47 @@
         <MenuItem Header="_Redo"          Click="MenuRedo_Click"/>
       </MenuItem>
       <MenuItem Header="_View">
-        <MenuItem Header="Show _Minimap"  IsChecked="False" x:Name="menuMinimap"
+        <MenuItem Header="Show _Minimap"      IsChecked="False" x:Name="menuMinimap"
                   Click="MenuMinimap_Click"/>
-        <MenuItem Header="Emulate _Parallax" IsChecked="False" x:Name="menuParallax"
+        <MenuItem Header="Emulate _Parallax"  IsChecked="False" x:Name="menuParallax"
                   Click="MenuParallax_Click"/>
-        <MenuItem Header="Show _All Layers" IsChecked="False" x:Name="menuAllLayers"
+        <MenuItem Header="Show _All Layers"   IsChecked="False" x:Name="menuAllLayers"
                   Click="MenuAllLayers_Click"/>
+        <Separator/>
+        <MenuItem Header="Item _Types">
+          <MenuItem Header="_Tiles"       IsChecked="True" x:Name="menuVTiles"       Click="MenuViewType_Click"/>
+          <MenuItem Header="_Objects"     IsChecked="True" x:Name="menuVObjs"        Click="MenuViewType_Click"/>
+          <MenuItem Header="_NPCs"        IsChecked="True" x:Name="menuVNpcs"        Click="MenuViewType_Click"/>
+          <MenuItem Header="_Mobs"        IsChecked="True" x:Name="menuVMobs"        Click="MenuViewType_Click"/>
+          <MenuItem Header="_Reactors"    IsChecked="True" x:Name="menuVReactors"    Click="MenuViewType_Click"/>
+          <MenuItem Header="_Portals"     IsChecked="True" x:Name="menuVPortals"     Click="MenuViewType_Click"/>
+          <MenuItem Header="_Footholds"   IsChecked="True" x:Name="menuVFootholds"   Click="MenuViewType_Click"/>
+          <MenuItem Header="_Ropes"       IsChecked="True" x:Name="menuVRopes"       Click="MenuViewType_Click"/>
+          <MenuItem Header="_Chairs"      IsChecked="True" x:Name="menuVChairs"      Click="MenuViewType_Click"/>
+          <MenuItem Header="Too_lTips"    IsChecked="True" x:Name="menuVTooltips"    Click="MenuViewType_Click"/>
+          <MenuItem Header="_Backgrounds" IsChecked="True" x:Name="menuVBackgrounds" Click="MenuViewType_Click"/>
+          <MenuItem Header="_Misc"        IsChecked="True" x:Name="menuVMisc"        Click="MenuViewType_Click"/>
+          <MenuItem Header="Mi_rrorField" IsChecked="True" x:Name="menuVMirrorField" Click="MenuViewType_Click"/>
+        </MenuItem>
       </MenuItem>
       <MenuItem Header="_Map">
-        <MenuItem Header="_Map Info…"     Click="MenuMapInfo_Click"/>
+        <MenuItem Header="_Map Info…"          Click="MenuMapInfo_Click"/>
         <MenuItem Header="Regenerate _Minimap" Click="MenuRegenMinimap_Click"/>
-        <MenuItem Header="_Map Physics…"  Click="MenuMapPhysics_Click"/>
+        <MenuItem Header="_Map Physics…"       Click="MenuMapPhysics_Click"/>
+        <Separator/>
+        <MenuItem Header="_Map Properties…"   Click="MenuMapProperties_Click"/>
       </MenuItem>
       <MenuItem Header="_Tools">
-        <MenuItem Header="User _Settings…" Click="MenuSettings_Click"/>
+        <MenuItem Header="User _Settings…"    Click="MenuSettings_Click"/>
+        <Separator/>
+        <MenuItem Header="_Quest Editor…"     Click="MenuQuestEditor_Click"/>
+        <MenuItem Header="_Map Simulation…"   Click="MenuMapSim_Click"/>
+        <Separator/>
+        <MenuItem Header="_User Objects…"     Click="MenuUserObjs_Click"/>
+        <MenuItem Header="_Export Map…"       Click="MenuExport_Click"/>
+        <Separator/>
+        <MenuItem Header="_Finalize Footholds" Click="MenuFinalize_Click"/>
+        <MenuItem Header="_New Platform…"     Click="MenuNewPlatform_Click"/>
       </MenuItem>
       <MenuItem Header="_Help">
         <MenuItem Header="_About…"        Click="MenuAbout_Click"/>

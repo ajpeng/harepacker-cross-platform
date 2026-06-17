@@ -11,7 +11,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using MapleLib.WzLib.WzProperties;
-using NAudio.Wave;
 
 namespace HaCreator.MapSimulator.Managers
 {
@@ -162,92 +161,21 @@ namespace HaCreator.MapSimulator.Managers
             _activeSoundCounts.Clear();
         }
 
-        /// <summary>
-        /// Represents a single one-shot sound playback instance.
-        /// Uses WaveOutEvent for more reliable playback compared to WaveOut with FunctionCallback.
-        /// </summary>
+        // Audio playback is a no-op stub — cross-platform backend (OpenAL) not yet implemented.
         private class OneShotSound : IDisposable
         {
-            private readonly Stream _byteStream;
-            private readonly Mp3FileReader _mpegStream;
-            private readonly WaveOutEvent _wavePlayer;
-            private readonly Action<OneShotSound> _onCompleted;
-            private int _disposed; // Use int for Interlocked
-            private int _completed;
-
             public string SoundName { get; }
-            public bool IsCompleted => Interlocked.CompareExchange(ref _completed, 0, 0) == 1 ||
-                                       Interlocked.CompareExchange(ref _disposed, 0, 0) == 1;
+            public bool IsCompleted => true;
 
             public OneShotSound(WzBinaryProperty sound, string soundName, float volume, Action<OneShotSound> onCompleted)
             {
                 SoundName = soundName;
-                _onCompleted = onCompleted;
-
-                // Use WaveOutEvent instead of WaveOut(FunctionCallback) for more reliable playback
-                _wavePlayer = new WaveOutEvent();
-
-                if (sound.WavFormat.Encoding == WaveFormatEncoding.MpegLayer3)
-                {
-                    _byteStream = new MemoryStream(sound.GetBytes(false));
-                    _mpegStream = new Mp3FileReader(_byteStream);
-                    _wavePlayer.Init(_mpegStream);
-                }
-                else if (sound.WavFormat.Encoding == WaveFormatEncoding.Pcm)
-                {
-                    throw new NotSupportedException("PCM format not currently supported");
-                }
-                else
-                {
-                    throw new NotSupportedException($"Unsupported audio format: {sound.WavFormat.Encoding}");
-                }
-
-                _wavePlayer.Volume = volume;
-                _wavePlayer.PlaybackStopped += WavePlayer_PlaybackStopped;
+                onCompleted?.Invoke(this);
             }
 
-            private void WavePlayer_PlaybackStopped(object sender, StoppedEventArgs e)
-            {
-                Interlocked.Exchange(ref _completed, 1);
-                _onCompleted?.Invoke(this);
-            }
-
-            public void Play()
-            {
-                if (Interlocked.CompareExchange(ref _disposed, 0, 0) == 1) return;
-                _wavePlayer.Play();
-            }
-
-            public void Stop()
-            {
-                if (Interlocked.CompareExchange(ref _disposed, 0, 0) == 1) return;
-                try
-                {
-                    _wavePlayer.Stop();
-                }
-                catch { }
-            }
-
-            public void Dispose()
-            {
-                if (Interlocked.Exchange(ref _disposed, 1) == 1) return;
-                Interlocked.Exchange(ref _completed, 1);
-
-                try
-                {
-                    _wavePlayer.PlaybackStopped -= WavePlayer_PlaybackStopped;
-                    _wavePlayer.Stop();
-                    _wavePlayer.Dispose();
-                }
-                catch { }
-
-                try
-                {
-                    _mpegStream?.Dispose();
-                    _byteStream?.Dispose();
-                }
-                catch { }
-            }
+            public void Play() { }
+            public void Stop() { }
+            public void Dispose() { }
         }
     }
 }

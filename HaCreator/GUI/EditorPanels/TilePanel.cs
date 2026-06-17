@@ -1,271 +1,368 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Drawing;
-using System.Data;
-using System.Linq;
-using System.Text;
-using System.Windows.Forms;
-using WeifenLuo.WinFormsUI.Docking;
+/* Copyright (c) 2026, ajpeng https://github.com/ajpeng/harepacker-cross-platform */
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Layout;
+using Avalonia.Media;
+using Avalonia.Threading;
 using HaCreator.MapEditor;
-using MapleLib.WzLib;
-using MapleLib.WzLib.WzProperties;
-using MapleLib.WzLib.WzStructure.Data;
-using System.Collections;
-using HaCreator.GUI;
-using MapleLib.WzLib.WzStructure;
 using HaCreator.MapEditor.Info;
 using HaCreator.MapEditor.UndoRedo;
-using HaCreator.CustomControls;
 using HaCreator.Wz;
+using MapleLib.WzLib;
+using MapleLib.WzLib.WzProperties;
+using MapleLib.WzLib.WzStructure;
+using MapleLib.WzLib.WzStructure.Data;
+using SkiaSharp;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 
 namespace HaCreator.GUI.EditorPanels
 {
-    public partial class TilePanel : UserControl
+    /// <summary>
+    /// Avalonia code-only UserControl for the tile placement panel.
+    /// Shows a ComboBox for tile set selection and a scrollable thumbnail grid.
+    /// </summary>
+    public class TilePanel : UserControl
     {
-        private HaCreatorStateManager hcsm;
-        private HotSwapRefreshService _hotSwapService;
+        private HaCreatorStateManager? _hcsm;
+        private HotSwapRefreshService? _hotSwapService;
+
+        private readonly ComboBox _tileSetCombo;
+        private readonly WrapPanel _grid;
+        private bool _suppressSelectionChanged;
 
         public TilePanel()
         {
-            InitializeComponent();
-        }
-
-        #region Hot Swap
-        /// <summary>
-        /// Subscribes to hot swap events from the HotSwapRefreshService
-        /// </summary>
-        /// <param name="refreshService">The hot swap service to subscribe to</param>
-        public void SubscribeToHotSwap(HotSwapRefreshService refreshService)
-        {
-            if (_hotSwapService != null)
+            _tileSetCombo = new ComboBox
             {
-                _hotSwapService.TileSetChanged -= OnTileSetChanged;
-            }
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                Margin = new Thickness(2)
+            };
 
-            _hotSwapService = refreshService;
-
-            if (_hotSwapService != null)
+            _grid = new WrapPanel
             {
-                _hotSwapService.TileSetChanged += OnTileSetChanged;
-            }
-        }
+                Orientation = Orientation.Horizontal
+            };
 
-        /// <summary>
-        /// Handles tile set change events
-        /// </summary>
-        private void OnTileSetChanged(object sender, TileSetChangedEventArgs e)
-        {
-            if (InvokeRequired)
+            var scroll = new ScrollViewer
             {
-                BeginInvoke(new Action(() => HandleTileSetChange(e)));
-                return;
-            }
-            HandleTileSetChange(e);
-        }
+                Content = _grid,
+                HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+                VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto
+            };
 
-        /// <summary>
-        /// Handles the tile set change on the UI thread
-        /// </summary>
-        private void HandleTileSetChange(TileSetChangedEventArgs e)
-        {
-            switch (e.ChangeType)
+            // Use a Grid with two rows: Auto (ComboBox) and * (ScrollViewer fills remainder)
+            var rootGrid = new Grid();
+            rootGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+            rootGrid.RowDefinitions.Add(new RowDefinition(new GridLength(1, GridUnitType.Star)));
+
+            Grid.SetRow(_tileSetCombo, 0);
+            Grid.SetRow(scroll, 1);
+
+            rootGrid.Children.Add(_tileSetCombo);
+            rootGrid.Children.Add(scroll);
+
+            Content = rootGrid;
+
+            _tileSetCombo.SelectionChanged += (_, _) =>
             {
-                case AssetChangeType.Added:
-                    // Add to tileset dropdown if not present
-                    if (!tileSetList.Items.Contains(e.SetName))
-                    {
-                        tileSetList.Items.Add(e.SetName);
-                        SortTileSetList();
-                    }
-                    break;
-
-                case AssetChangeType.Removed:
-                    // Remove from dropdown
-                    tileSetList.Items.Remove(e.SetName);
-                    // If currently selected, clear panel
-                    if (tileSetList.SelectedItem?.ToString() == e.SetName)
-                    {
-                        tileImagesContainer.Controls.Clear();
-                        if (tileSetList.Items.Count > 0)
-                        {
-                            tileSetList.SelectedIndex = 0;
-                        }
-                    }
-                    break;
-
-                case AssetChangeType.Modified:
-                    // If set doesn't exist in list, add it (Windows sometimes reports new files as Changed)
-                    if (!tileSetList.Items.Contains(e.SetName))
-                    {
-                        tileSetList.Items.Add(e.SetName);
-                        SortTileSetList();
-                    }
-                    else if (tileSetList.SelectedItem?.ToString() == e.SetName)
-                    {
-                        // Force reload from disk
-                        Program.InfoManager.RefreshTileSet(e.SetName);
-                        LoadTileSetList();
-                    }
-                    break;
-            }
+                if (!_suppressSelectionChanged)
+                    LoadTileSetList();
+            };
         }
 
         /// <summary>
-        /// Sorts the tile set list alphabetically
+        /// Initialize the panel, populate the tile set combo, and register with the state manager.
         /// </summary>
-        private void SortTileSetList()
-        {
-            var items = tileSetList.Items.Cast<string>().OrderBy(s => s).ToList();
-            var selected = tileSetList.SelectedItem;
-            tileSetList.Items.Clear();
-            foreach (var item in items)
-            {
-                tileSetList.Items.Add(item);
-            }
-            if (selected != null && tileSetList.Items.Contains(selected))
-            {
-                tileSetList.SelectedItem = selected;
-            }
-        }
-        #endregion
-
-        /// <summary>
-        /// Constructor
-        /// </summary>
-        /// <param name="hcsm"></param>
         public void Initialize(HaCreatorStateManager hcsm)
         {
-            this.hcsm = hcsm;
+            _hcsm = hcsm;
             hcsm.SetTilePanel(this);
 
-            foreach (string tileSetName in Program.InfoManager.TileSets.Keys) {
-                tileSetList.Items.Add(tileSetName);
-            }
-        }
-
-        private void searchResultsBox_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            SelectedIndexChanged.Invoke(sender, e);
-        }
-
-        public event EventHandler SelectedIndexChanged;
-
-        private void tileBrowse_Click(object sender, EventArgs e)
-        {
-            lock (hcsm.MultiBoard)
+            _suppressSelectionChanged = true;
+            try
             {
-                new TileSetBrowser(tileSetList).ShowDialog();
+                var sorted = Program.InfoManager.TileSets.Keys
+                    .OrderBy(k => k, StringComparer.OrdinalIgnoreCase);
+                foreach (string name in sorted)
+                    _tileSetCombo.Items.Add(name);
+            }
+            finally
+            {
+                _suppressSelectionChanged = false;
             }
         }
 
         /// <summary>
-        /// Sets the currently selected tileSet, and refresh the list of tiles
+        /// Set the active tile set by name and reload the thumbnail grid.
         /// </summary>
-        /// <param name="tileSet"></param>
         public void SetSelectedTileSet(string tileSet)
         {
-            if (!Program.InfoManager.TileSets.ContainsKey(tileSet))
+            if (_tileSetCombo.SelectedItem is string current && current == tileSet)
+            {
+                // Already selected — still reload in case content changed
+                LoadTileSetList();
                 return;
-            else if ((string) tileSetList.SelectedItem == tileSet) // its the same.
-                return;
-            tileSetList.SelectedItem = tileSet;
+            }
 
+            _suppressSelectionChanged = true;
+            try
+            {
+                _tileSetCombo.SelectedItem = tileSet;
+            }
+            finally
+            {
+                _suppressSelectionChanged = false;
+            }
             LoadTileSetList();
         }
 
-        private void tileSetList_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            LoadTileSetList();
-        }
-
+        /// <summary>
+        /// Reload the thumbnail grid from the currently selected tile set.
+        /// Called externally by the state manager and on combo selection change.
+        /// </summary>
         public void LoadTileSetList()
         {
-            lock (hcsm.MultiBoard)
-            {
-                if (tileSetList.SelectedItem == null) 
-                    return;
+            if (_hcsm == null) return;
 
-                string selectedSetName = (string)tileSetList.SelectedItem;
+            lock (_hcsm.MultiBoard)
+            {
+                if (_tileSetCombo.SelectedItem is not string selectedSetName)
+                    return;
                 if (!Program.InfoManager.TileSets.ContainsKey(selectedSetName))
                     return;
 
-                // Clear existing
-                tileImagesContainer.Controls.Clear();
-
-                WzImage tileSetImage = Program.InfoManager.GetTileSet(selectedSetName);
+                WzImage? tileSetImage = Program.InfoManager.GetTileSet(selectedSetName);
                 if (tileSetImage == null)
                     return;
-                int? mag = InfoTool.GetOptionalInt(tileSetImage["info"]["mag"]);
+
+                int? mag = InfoTool.GetOptionalInt(tileSetImage["info"]?["mag"]);
+
+                // Build button list on background thread, then add to grid on UI thread
+                var buttons = new List<Button>();
 
                 foreach (WzSubProperty tCat in tileSetImage.WzProperties)
                 {
-                    if (tCat.Name == "info") 
+                    if (tCat.Name == "info")
                         continue;
+
                     if (ApplicationSettings.randomTiles)
                     {
-                        WzCanvasProperty canvasProp = (WzCanvasProperty)tCat["0"];
-                        if (canvasProp == null) 
+                        WzCanvasProperty? canvasProp = tCat["0"] as WzCanvasProperty;
+                        if (canvasProp == null)
                             continue;
-                        ImageViewer item = tileImagesContainer.Add(canvasProp.GetLinkedWzCanvasBitmap(), tCat.Name, true);
+
+                        SKBitmap? sk = canvasProp.GetLinkedWzCanvasBitmap();
+                        Avalonia.Media.Imaging.Bitmap? bmp = SkBitmapToAvalonia(sk);
+
                         TileInfo[] randomInfos = new TileInfo[tCat.WzProperties.Count];
                         for (int i = 0; i < randomInfos.Length; i++)
-                        {
-                            randomInfos[i] = TileInfo.Get((string)tileSetList.SelectedItem, tCat.Name, tCat.WzProperties[i].Name, mag);
-                        }
-                        item.Tag = randomInfos;
-                        item.MouseDown += new MouseEventHandler(tileItem_Click);
-                        item.MouseUp += new MouseEventHandler(ImageViewer.item_MouseUp);
+                            randomInfos[i] = TileInfo.Get(selectedSetName, tCat.Name, tCat.WzProperties[i].Name, mag);
+
+                        Button btn = MakeThumb(bmp, tCat.Name, randomInfos);
+                        btn.Click += (s, _) => TileItem_Click((Button)s!);
+                        buttons.Add(btn);
                     }
                     else
                     {
-                        foreach (WzCanvasProperty tile in tCat.WzProperties)
+                        foreach (WzCanvasProperty tile in tCat.WzProperties.OfType<WzCanvasProperty>())
                         {
-                            ImageViewer item = tileImagesContainer.Add(tile.GetLinkedWzCanvasBitmap(), tCat.Name + "/" + tile.Name, true);
-                            item.Tag = TileInfo.Get((string)tileSetList.SelectedItem, tCat.Name, tile.Name, mag);
-                            item.MouseDown += new MouseEventHandler(tileItem_Click);
-                            item.MouseUp += new MouseEventHandler(ImageViewer.item_MouseUp);
+                            SKBitmap? sk = tile.GetLinkedWzCanvasBitmap();
+                            Avalonia.Media.Imaging.Bitmap? bmp = SkBitmapToAvalonia(sk);
+                            TileInfo info = TileInfo.Get(selectedSetName, tCat.Name, tile.Name, mag);
+                            string label = tCat.Name + "/" + tile.Name;
+
+                            Button btn = MakeThumb(bmp, label, info);
+                            btn.Click += (s, _) => TileItem_Click((Button)s!);
+                            buttons.Add(btn);
                         }
                     }
                 }
+
+                Dispatcher.UIThread.Post(() =>
+                {
+                    _grid.Children.Clear();
+                    foreach (var b in buttons)
+                        _grid.Children.Add(b);
+                });
             }
         }
 
-        void tileItem_Click(object sender, MouseEventArgs e)
+        private void TileItem_Click(Button btn)
         {
-            lock (hcsm.MultiBoard)
+            if (_hcsm == null) return;
+
+            MultiBoard multiBoard = _hcsm.MultiBoard;
+
+            lock (multiBoard)
             {
-                ImageViewer item = (ImageViewer)sender;
-                if (!hcsm.MultiBoard.AssertLayerSelected())
+                if (!multiBoard.AssertLayerSelected())
+                    return;
+
+                Layer layer = multiBoard.SelectedBoard!.SelectedLayer;
+
+                TileInfo infoToAdd = ApplicationSettings.randomTiles
+                    ? ((TileInfo[])btn.Tag!)[0]
+                    : (TileInfo)btn.Tag!;
+
+                if (layer.tS != null && infoToAdd.tS != layer.tS)
                 {
+                    // Must not await while holding the lock — release and show dialog async
+                    string oldTS = layer.tS;
+                    string newTS = infoToAdd.tS;
+
+                    _ = Dispatcher.UIThread.InvokeAsync(async () =>
+                    {
+                        bool confirmed = await ShowTSChangeConfirmDialogAsync(oldTS, newTS);
+                        if (!confirmed) return;
+
+                        lock (multiBoard)
+                        {
+                            if (!multiBoard.AssertLayerSelected()) return;
+                            Layer l = multiBoard.SelectedBoard!.SelectedLayer;
+
+                            // Re-check in case the user changed layers while the dialog was open
+                            if (l.tS != null && l.tS != newTS)
+                            {
+                                var actions = new List<UndoRedoAction>
+                                {
+                                    UndoRedoManager.LayerTSChanged(l, l.tS, newTS)
+                                };
+                                l.ReplaceTS(newTS);
+                                multiBoard.SelectedBoard.UndoRedoMan.AddUndoBatch(actions);
+                            }
+
+                            CommitTileSelection(multiBoard, btn);
+                        }
+                    });
                     return;
                 }
-                Layer layer = hcsm.MultiBoard.SelectedBoard.SelectedLayer;
-                if (layer.tS != null)
+
+                CommitTileSelection(multiBoard, btn);
+            }
+        }
+
+        private void CommitTileSelection(MultiBoard multiBoard, Button btn)
+        {
+            if (_hcsm == null) return;
+            _hcsm.EnterEditMode(ItemTypes.Tiles);
+            if (ApplicationSettings.randomTiles)
+                multiBoard.SelectedBoard!.Mouse.SetRandomTilesMode((TileInfo[])btn.Tag!);
+            else
+                multiBoard.SelectedBoard!.Mouse.SetHeldInfo((TileInfo)btn.Tag!);
+            multiBoard.Focus();
+        }
+
+        private async System.Threading.Tasks.Task<bool> ShowTSChangeConfirmDialogAsync(string oldTS, string newTS)
+        {
+            Window? owner = _hcsm?.OwnerWindow ??
+                (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
+                    ? desktop.MainWindow : null);
+
+            var dlg = new Window
+            {
+                Title = "Layer Tile Set Change",
+                Width = 400,
+                Height = 160,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                CanResize = false
+            };
+
+            bool result = false;
+
+            var yesBtn = new Button { Content = "Yes", Width = 80, Margin = new Thickness(4) };
+            var noBtn  = new Button { Content = "No",  Width = 80, Margin = new Thickness(4) };
+
+            yesBtn.Click += (_, _) => { result = true;  dlg.Close(); };
+            noBtn.Click  += (_, _) => { result = false; dlg.Close(); };
+
+            dlg.Content = new StackPanel
+            {
+                Margin = new Thickness(12),
+                Spacing = 12,
+                Children =
                 {
-                    TileInfo infoToAdd = null;
-                    if (ApplicationSettings.randomTiles)
-                        infoToAdd = ((TileInfo[])item.Tag)[0];
-                    else
-                        infoToAdd = (TileInfo)item.Tag;
-                    if (infoToAdd.tS != layer.tS)
+                    new TextBlock
                     {
-                        if (MessageBox.Show("This action will change the layer's tS. Proceed?", "Layer tS Change", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != System.Windows.Forms.DialogResult.Yes)
-                            return;
-                        List<UndoRedoAction> actions = new List<UndoRedoAction>();
-                        actions.Add(UndoRedoManager.LayerTSChanged(layer, layer.tS, infoToAdd.tS));
-                        layer.ReplaceTS(infoToAdd.tS);
-                        hcsm.MultiBoard.SelectedBoard.UndoRedoMan.AddUndoBatch(actions);
+                        Text = $"This action will change the layer tile set from \"{oldTS}\" to \"{newTS}\". Proceed?",
+                        TextWrapping = TextWrapping.Wrap
+                    },
+                    new StackPanel
+                    {
+                        Orientation = Orientation.Horizontal,
+                        HorizontalAlignment = HorizontalAlignment.Right,
+                        Spacing = 4,
+                        Children = { yesBtn, noBtn }
                     }
                 }
-                hcsm.EnterEditMode(ItemTypes.Tiles);
-                if (ApplicationSettings.randomTiles)
-                    hcsm.MultiBoard.SelectedBoard.Mouse.SetRandomTilesMode((TileInfo[])item.Tag);
-                else
-                    hcsm.MultiBoard.SelectedBoard.Mouse.SetHeldInfo((TileInfo)item.Tag);
-                hcsm.MultiBoard.Focus();
-                item.IsActive = true;
+            };
+
+            if (owner != null)
+                await dlg.ShowDialog(owner);
+            else
+                dlg.Show();
+
+            return result;
+        }
+
+        /// <summary>
+        /// Subscribe to HotSwap tile set change events.
+        /// Body intentionally empty — hot-swap support is pending for the Avalonia port.
+        /// </summary>
+        public void SubscribeToHotSwap(HotSwapRefreshService svc)
+        {
+            // stub — hot-swap support pending
+        }
+
+        // ── Helpers ──────────────────────────────────────────────────────────
+
+        private static Avalonia.Media.Imaging.Bitmap? SkBitmapToAvalonia(SKBitmap? sk)
+        {
+            if (sk == null || sk.Width <= 0 || sk.Height <= 0) return null;
+            try
+            {
+                using var data = sk.Encode(SKEncodedImageFormat.Png, 100);
+                using var ms = new MemoryStream();
+                data.SaveTo(ms);
+                ms.Position = 0;
+                return new Avalonia.Media.Imaging.Bitmap(ms);
             }
+            catch { return null; }
+        }
+
+        private static Button MakeThumb(Avalonia.Media.Imaging.Bitmap? bmp, string label, object? tag)
+        {
+            Control imgCtrl = bmp != null
+                ? (Control)new Image { Source = bmp, Width = 64, Height = 64, Stretch = Stretch.Uniform }
+                : new Border { Width = 64, Height = 64, Background = Brushes.LightGray };
+
+            var btn = new Button
+            {
+                Content = new StackPanel
+                {
+                    Orientation = Orientation.Vertical,
+                    Width = 72,
+                    Children =
+                    {
+                        imgCtrl,
+                        new TextBlock
+                        {
+                            Text = label,
+                            FontSize = 9,
+                            TextWrapping = TextWrapping.Wrap,
+                            MaxWidth = 72,
+                            TextAlignment = TextAlignment.Center
+                        }
+                    }
+                },
+                Padding = new Thickness(2),
+                Margin = new Thickness(2),
+                Tag = tag
+            };
+            return btn;
         }
     }
 }

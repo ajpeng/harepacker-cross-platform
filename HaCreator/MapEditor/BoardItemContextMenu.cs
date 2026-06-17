@@ -7,6 +7,7 @@ using MapleLib.WzLib.WzStructure.Data;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using XNA = Microsoft.Xna.Framework;
 
 namespace HaCreator.MapEditor
@@ -114,15 +115,19 @@ namespace HaCreator.MapEditor
 
         private void moveLayer_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
+            List<BoardItem> items;
             lock (multiboard)
             {
+                // Expand foothold anchors to include connected peers
                 for (int i = 0; i < board.SelectedItems.Count; i++)
                     if (board.SelectedItems[i] is FootholdAnchor fa)
                         foreach (FootholdAnchor x in new AnchorEnumerator(fa))
                             x.Selected = true;
-                // TODO: LayerChange dialog not yet ported
-                Debug.WriteLine("[BoardItemContextMenu] LayerChange dialog pending port.");
+                items = board.SelectedItems.ToList();
             }
+            HaCreator.GUI.LayerChangeDialog.DispatchAsync(
+                items, board,
+                multiboard.HaCreatorStateManager?.OwnerWindow);
         }
 
         private int GetZmOfSelectedFoothold()

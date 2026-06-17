@@ -49,6 +49,11 @@
     <Compile Include="GUI\Quest\QuestEditorStopConversationType.cs" />
 
     <!-- Ported Avalonia dialogs -->
+    <Compile Include="GUI\InstanceEditor\InstanceEditors.cs" />
+    <Compile Include="GUI\InfoEditorDialog.cs" />
+    <Compile Include="GUI\MapPhysicsEditorDialog.cs" />
+    <Compile Include="GUI\ManageUserObjectsDialog.cs" />
+    <Compile Include="GUI\LayerChangeDialog.cs" />
     <Compile Include="GUI\NewMapDialog.cs" />
     <Compile Include="GUI\SaveMapDialog.cs" />
     <Compile Include="GUI\FieldSelectorDialog.cs" />
@@ -56,15 +61,28 @@
     <Compile Include="GUI\EditorPanels\AISettingsDialog.cs" />
     <Compile Include="GUI\EditorPanels\AIMapEditWindow.cs" />
 
+    <!-- Ported Avalonia editor panels -->
+    <Compile Include="GUI\EditorPanels\LifePanel.cs" />
+    <Compile Include="GUI\EditorPanels\BlackBorderPanel.cs" />
+    <Compile Include="GUI\EditorPanels\ObjPanel.cs" />
+    <Compile Include="GUI\EditorPanels\BackgroundPanel.cs" />
+
     <!-- WinForms custom controls -->
     <Compile Remove="CustomControls\**" />
 
     <!-- WPF IValueConverter classes -->
     <Compile Remove="Converter\**" />
 
-    <!-- WPF/DirectX MonoGame surface embedding -->
+    <!-- WPF/DirectX MonoGame surface embedding (replaced by MapEditorGame.cs + MapEditorControl.cs) -->
     <Compile Remove="MapEditor\MultiBoard.xaml.cs" />
     <Compile Remove="MapEditor\GraphicsDeviceService.cs" />
+    <!-- Cross-platform MonoGame rendering surface (MapEditorGame.cs is auto-included from MapEditor\) -->
+    <Compile Include="GUI\MapEditorControl.cs" />
+    <!-- Ported left-panel editors (stubs for unported panels) -->
+    <Compile Include="GUI\EditorPanels\PanelStubs.cs" />
+    <!-- Avalonia TilePanel and PortalPanel (ported from WinForms) -->
+    <Compile Include="GUI\EditorPanels\TilePanel.cs" />
+    <Compile Include="GUI\EditorPanels\PortalPanel.cs" />
 
     <!-- MapEditor files with WinForms/WPF/dockpanelsuite dependencies -->
     <Compile Remove="MapEditor\AI\MarkdownToFlowDocumentConverter.cs" />
@@ -76,8 +94,8 @@
 
     <!-- MapLoader is ported to Avalonia -->
 
-    <!-- MapSimulator: pending full SkiaSharp + NAudio.Core + Avalonia port -->
-    <Compile Remove="MapSimulator\**\*.cs" />
+    <!-- MapSimulator temporarily included for error assessment -->
+    <!-- <Compile Remove="MapSimulator\**\*.cs" /> -->
 
   </ItemGroup>
 

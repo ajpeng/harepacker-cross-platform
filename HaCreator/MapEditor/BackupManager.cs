@@ -4,6 +4,7 @@ using HaCreator.Wz;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading.Tasks;
 
 namespace HaCreator.MapEditor
 {
@@ -15,6 +16,7 @@ namespace HaCreator.MapEditor
         private readonly HaCreatorStateManager _hcsm;
         private readonly TabControl _tabs;
         private bool _enabled = false;
+        private System.Threading.Timer? _timer;
 
         private DateTime _lastBackupTime = DateTime.Now;
         private DateTime _lastInteractionTime = DateTime.Now;
@@ -29,7 +31,17 @@ namespace HaCreator.MapEditor
         private string GetBasePath() =>
             Path.Combine(Program.GetLocalSettingsFolder(), "Backups");
 
-        public void Start() => _enabled = true;
+        public void Start()
+        {
+            _enabled = true;
+            _timer = new System.Threading.Timer(_ =>
+            {
+                try { BackupCheck(); }
+                catch (Exception e) { System.Diagnostics.Debug.WriteLine($"Backup failed: {e.Message}"); }
+            }, null, 30_000, 30_000);
+        }
+
+        public void Stop() { _timer?.Dispose(); _timer = null; _enabled = false; }
 
         public void OnUserInteraction() => _lastInteractionTime = DateTime.Now;
 
@@ -110,7 +122,7 @@ namespace HaCreator.MapEditor
             }
         }
 
-        public bool AttemptRestore()
+        public async Task<bool> AttemptRestoreAsync(Window? owner)
         {
             Dictionary<string, string> loadedFiles = new();
             lock (this)
@@ -118,10 +130,76 @@ namespace HaCreator.MapEditor
                 string basePath = GetBasePath();
                 if (!Directory.Exists(basePath)) return false;
 
-                // TODO: Show Avalonia dialog for recovery confirmation
+                foreach (string file in Directory.GetFiles(basePath, "*.ham"))
+                    loadedFiles[Path.GetFileName(file)] = File.ReadAllText(file);
+            }
+
+            if (loadedFiles.Count == 0) return false;
+
+            // Ask user whether to restore
+            bool restore = await ConfirmAsync(
+                owner,
+                "Restore Backup",
+                $"HaCreator found {loadedFiles.Count} backup file(s) from a previous session.\n\nRestore them?");
+
+            if (!restore)
+            {
                 ClearBackups();
                 return false;
             }
+
+            // Load each backup map
+            lock (_multiBoard)
+            {
+                foreach (var kv in loadedFiles)
+                {
+                    if (kv.Key == userObjsFileName)
+                    {
+                        _multiBoard.UserObjects?.DeserializeObjects(kv.Value);
+                        continue;
+                    }
+                    _hcsm.LoadMap();
+                    if (_multiBoard.SelectedBoard != null)
+                        _multiBoard.SelectedBoard.SerializationManager.DeserializeBoard(kv.Value);
+                }
+            }
+            ClearBackups();
+            return loadedFiles.Count > 0;
+        }
+
+        private static async Task<bool> ConfirmAsync(Window? owner, string title, string message)
+        {
+            bool result = false;
+            var btnYes = new Button { Content = "Yes", IsDefault = true };
+            var btnNo  = new Button { Content = "No" };
+            var win = new Window
+            {
+                Title = title, Width = 360, Height = 160,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Content = new Avalonia.Controls.StackPanel
+                {
+                    Margin = new Avalonia.Thickness(12), Spacing = 10,
+                    Children =
+                    {
+                        new Avalonia.Controls.TextBlock
+                        {
+                            Text = message,
+                            TextWrapping = Avalonia.Media.TextWrapping.Wrap
+                        },
+                        new Avalonia.Controls.StackPanel
+                        {
+                            Orientation = Avalonia.Layout.Orientation.Horizontal,
+                            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                            Spacing = 6,
+                            Children = { btnYes, btnNo }
+                        }
+                    }
+                }
+            };
+            btnYes.Click += (_, _) => { result = true;  win.Close(); };
+            btnNo.Click  += (_, _) => { result = false; win.Close(); };
+            await win.ShowDialog(owner ?? (Window?)Program.HaEditorWindow);
+            return result;
         }
     }
 }

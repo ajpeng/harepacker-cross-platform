@@ -192,8 +192,8 @@ namespace HaCreator.MapEditor.Input
                                 foreach (BoardItem item in selectedItems)
                                 {
                                     if (item is ToolTipDot || item is MiscDot) continue;
-                                    else if (item is VRDot) { if (!askedVr) { askedVr = true; selectedBoard.VRRectangle.RemoveItem(null); } } // TODO: add confirmation dialog
-                                    else if (item is MinimapDot) { if (!askedMm) { askedMm = true; selectedBoard.MinimapRectangle.RemoveItem(null); } } // TODO: add confirmation dialog
+                                    else if (item is VRDot) { if (!askedVr) { askedVr = true; selectedBoard.VRRectangle.RemoveItem(null); } }
+                                    else if (item is MinimapDot) { if (!askedMm) { askedMm = true; selectedBoard.MinimapRectangle.RemoveItem(null); } }
                                     else item.RemoveItem(actions);
                                 }
                                 break;

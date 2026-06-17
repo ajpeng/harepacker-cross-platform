@@ -1,578 +1,475 @@
-﻿using HaCreator.CustomControls;
+/* Copyright (c) 2026, ajpeng https://github.com/ajpeng/harepacker-cross-platform */
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Layout;
+using Avalonia.Media;
+using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using HaCreator.MapEditor;
 using HaCreator.MapEditor.Info;
-using HaSharedLibrary.GUI;
+using HaCreator.Wz;
 using MapleLib.WzLib;
-using MapleLib.WzLib.Spine;
 using MapleLib.WzLib.WzProperties;
 using MapleLib.WzLib.WzStructure.Data;
+using SkiaSharp;
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Windows.Forms;
-using WeifenLuo.WinFormsUI.Docking;
-using Xceed.Wpf.AvalonDock.Controls;
-using HaCreator.Wz;
 
 namespace HaCreator.GUI.EditorPanels
 {
-    public partial class BackgroundPanel : UserControl
+    public class BackgroundPanel : UserControl
     {
-        private HaCreatorStateManager hcsm;
-        private HotSwapRefreshService _hotSwapService;
+        private HaCreatorStateManager? _hcsm;
+        private HotSwapRefreshService? _hotSwapService;
 
-        // ContextMenuStrip
-        private readonly ContextMenuStrip contextMenu = new ContextMenuStrip();
-        private readonly ContextMenuStrip contextMenu_spine = new ContextMenuStrip();
-
+        private readonly ListBox _setListBox;
+        private readonly RadioButton _radioBack;
+        private readonly RadioButton _radioAni;
+        private readonly RadioButton _radioSpine;
+        private readonly WrapPanel _thumbGrid;
+        private readonly Button _addImageBtn;
 
         public BackgroundPanel()
         {
-            InitializeComponent();
+            _setListBox = new ListBox { Height = 140 };
 
-            // context menu
-            ToolStripMenuItem saveItem = new ToolStripMenuItem(this.ResourceManager.GetString("ContextStripMenu_Save"));
-            saveItem.Click += saveItem_Click;
+            _radioBack  = new RadioButton { Content = "Back",   GroupName = "BgType", IsChecked = true };
+            _radioAni   = new RadioButton { Content = "Ani",    GroupName = "BgType" };
+            _radioSpine = new RadioButton { Content = "Spine",  GroupName = "BgType" };
 
-            ToolStripMenuItem deleteItem = new ToolStripMenuItem(this.ResourceManager.GetString("ContextStripMenu_Delete"));
-            deleteItem.Click += DeleteItem_Click;
+            _thumbGrid = new WrapPanel { Orientation = Orientation.Horizontal };
 
-            ToolStripMenuItem aiUpscaleItem = new ToolStripMenuItem(this.ResourceManager.GetString("ContextStripMenu_AIUpscale"));
-            aiUpscaleItem.Click += aiUpscaleItem_Click;
+            _addImageBtn = new Button
+            {
+                Content = "Add Image",
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                Margin = new Thickness(2)
+            };
 
-            contextMenu.Items.Add(saveItem);
-            contextMenu.Items.Add(deleteItem);
-            contextMenu.Items.Add(aiUpscaleItem);
+            var radioRow = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 8,
+                Margin = new Thickness(2, 2, 2, 4),
+                Children = { _radioBack, _radioAni, _radioSpine }
+            };
 
-            // context menu for spine
-            ToolStripMenuItem deleteItem2 = new ToolStripMenuItem(this.ResourceManager.GetString("ContextStripMenu_Delete"));
-            deleteItem2.Click += DeleteItem_Click;
+            var scroll = new ScrollViewer
+            {
+                Content = _thumbGrid,
+                HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+                VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto
+            };
 
-            ToolStripMenuItem previewItem = new ToolStripMenuItem(this.ResourceManager.GetString("ContextStripMenu_Preview"));
-            previewItem.Click += previewItem_Click;
+            var root = new Grid();
+            root.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+            root.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+            root.RowDefinitions.Add(new RowDefinition(new GridLength(1, GridUnitType.Star)));
+            root.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
 
-           
-            contextMenu_spine.Items.Add(previewItem);
-            contextMenu_spine.Items.Add(deleteItem2);
+            Grid.SetRow(radioRow,    0);
+            Grid.SetRow(_setListBox, 1);
+            Grid.SetRow(scroll,      2);
+            Grid.SetRow(_addImageBtn, 3);
 
-            // localisation
-            button_addImage.Text = this.ResourceManager.GetString("Button_AddImage");
+            root.Children.Add(radioRow);
+            root.Children.Add(_setListBox);
+            root.Children.Add(scroll);
+            root.Children.Add(_addImageBtn);
+
+            Content = root;
+
+            _setListBox.SelectionChanged     += OnSetSelectionChanged;
+            _radioBack.IsCheckedChanged      += OnTypeChanged;
+            _radioAni.IsCheckedChanged       += OnTypeChanged;
+            _radioSpine.IsCheckedChanged     += OnTypeChanged;
+            _addImageBtn.Click               += OnAddImageClick;
         }
+
+        private BackgroundInfoType SelectedType =>
+            _radioSpine.IsChecked == true ? BackgroundInfoType.Spine :
+            _radioAni.IsChecked   == true ? BackgroundInfoType.Animation :
+            BackgroundInfoType.Background;
 
         public void Initialize(HaCreatorStateManager hcsm)
         {
-            this.hcsm = hcsm;
+            _hcsm = hcsm;
             hcsm.SetBackgroundPanel(this);
 
-            List<string> sortedBgSets = Program.InfoManager.BackgroundSets.Keys.OrderBy(k => k).ToList();
-            foreach (string bS in sortedBgSets)
-            {
-                bgSetListBox.Items.Add(bS);
-            }
+            foreach (string bS in Program.InfoManager.BackgroundSets.Keys.OrderBy(k => k))
+                _setListBox.Items.Add(bS);
         }
 
-        private BackgroundInfoType GetBackGroundInfoTypeByCheckbox()
+        public void SubscribeToHotSwap(HotSwapRefreshService svc)
         {
-            BackgroundInfoType infoType = BackgroundInfoType.Animation;
-            if (radioButton_spine.Checked)
-            {
-                infoType = BackgroundInfoType.Spine;
-            }
-            else if (aniBg.Checked)
-            {
-                infoType = BackgroundInfoType.Animation;
-            }
-            else
-            {
-                infoType = BackgroundInfoType.Background;
-            }
-            return infoType;
+            if (_hotSwapService != null)
+                _hotSwapService.BackgroundSetChanged -= OnBackgroundSetChanged;
+
+            _hotSwapService = svc;
+
+            if (_hotSwapService != null)
+                _hotSwapService.BackgroundSetChanged += OnBackgroundSetChanged;
         }
 
-        /// <summary>
-        /// On image selection changed
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void bgSetListBox_SelectedIndexChanged(object sender, EventArgs e)
+        private void OnTypeChanged(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
-            if (bgSetListBox.SelectedItem == null)
-                return;
-            bgImageContainer.Controls.Clear();
-
-            BackgroundInfoType infoType = GetBackGroundInfoTypeByCheckbox();
-
-            WzImage bgSetImage = Program.InfoManager.GetBackgroundSet((string)bgSetListBox.SelectedItem);
-            if (bgSetImage == null)
-                return;
-            WzImageProperty parentProp = bgSetImage[infoType.ToPropertyString()];
-            if (parentProp == null || parentProp.WzProperties == null)
-                return;
-
-            foreach (WzImageProperty prop in parentProp.WzProperties)
-            {
-                BackgroundInfo bgInfo = BackgroundInfo.Get(hcsm.MultiBoard.GraphicsDevice, (string)bgSetListBox.SelectedItem, infoType, prop.Name);
-                if (bgInfo == null)
-                    continue;
-
-                ImageViewer item = bgImageContainer.Add(bgInfo.Image, prop.Name, true);
-                item.Tag = bgInfo;
-                item.MouseDown += new MouseEventHandler(bgItem_Click);
-                item.MouseUp += new MouseEventHandler(ImageViewer.item_MouseUp);
-                item.MaxHeight = UserSettings.ImageViewerHeight;
-                item.MaxWidth = UserSettings.ImageViewerWidth;
-            }
+            if ((sender as RadioButton)?.IsChecked == true)
+                ReloadThumbnails();
         }
 
-        /// <summary>
-        /// On click
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void bgItem_Click(object sender, MouseEventArgs e)
+        private void OnSetSelectionChanged(object? sender, SelectionChangedEventArgs e) => ReloadThumbnails();
+
+        private void ReloadThumbnails()
         {
-            ImageViewer imageViewer = sender as ImageViewer;
-            BackgroundInfo bgInfo = (BackgroundInfo)((ImageViewer)sender).Tag;
+            if (_hcsm == null) return;
+            if (_setListBox.SelectedItem is not string setName) return;
 
-            if (e.Button == MouseButtons.Left)
-            {
-                lock (hcsm.MultiBoard)
-                {
-                    hcsm.EnterEditMode(ItemTypes.Backgrounds);
-                    hcsm.MultiBoard.SelectedBoard.Mouse.SetHeldInfo(bgInfo);
-                    hcsm.MultiBoard.Focus();
-                    ((ImageViewer)sender).IsActive = true;
-                }
-            }
-            else if (e.Button == MouseButtons.Right) // right click
-            {
-                // Show context menu for delete option
-                ShowContextMenu((ImageViewer)sender, e.Location, bgInfo.Type == BackgroundInfoType.Spine);
-            }
-        }
+            BackgroundInfoType infoType = SelectedType;
+            var buttons = new List<Button>();
 
-        /// <summary>
-        /// Add image button
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void button_addImage_Click(object sender, EventArgs e)
-        {
-            if (bgSetListBox.SelectedItem == null)
+            lock (_hcsm.MultiBoard)
             {
-                return;
-            }
+                WzImage? bgSetImage = Program.InfoManager.GetBackgroundSet(setName);
+                if (bgSetImage == null) return;
 
-            using (OpenFileDialog openFileDialog = new OpenFileDialog())
-            {
-                //openFileDialog.Filter = "Image Files (*.png;*.jpg;*.jpeg;*.gif;*.bmp)|*.png;*.jpg;*.jpeg;*.gif;*.bmp";
-                openFileDialog.Filter = "Image Files (*.png;*.jpg;*.jpeg)|*.png;*.jpg;*.jpeg";
-                openFileDialog.Title = this.ResourceManager.GetString("SelectAnImageToAdd");
+                WzImageProperty? parentProp = bgSetImage[infoType.ToPropertyString()];
+                if (parentProp?.WzProperties == null) return;
 
-                if (openFileDialog.ShowDialog() == DialogResult.OK)
+                foreach (WzImageProperty prop in parentProp.WzProperties)
                 {
                     try
                     {
-                        Bitmap newImage = new Bitmap(openFileDialog.FileName); // dont close this
+                        BackgroundInfo? bgInfo = BackgroundInfo.Get(_hcsm.MultiBoard.GraphicsDevice, setName, infoType, prop.Name);
+                        if (bgInfo == null) continue;
 
-                        string bgSetName = (string)bgSetListBox.SelectedItem;
-                        BackgroundInfoType infoType = BackgroundInfoType.Background;// GetBackGroundInfoTypeByCheckbox();
+                        SKBitmap? sk = bgInfo.Image;
+                        var bmp = SkBitmapToAvalonia(sk);
 
-                        WzImage bgSetImage = Program.InfoManager.GetBackgroundSet(bgSetName);
-                        if (bgSetImage == null)
-                            return;
-                        WzSubProperty parentProp = (WzSubProperty)bgSetImage[infoType.ToPropertyString()]; // "back" WzSubProperty
-
-                        // Generate a new unique name for the background
-                        string newBgName = GenerateUniqueBgName(bgSetName, infoType.ToPropertyString());
-
-                        // Create a new WzCanvasProperty for the image
-                        WzCanvasProperty newBgProp = new WzCanvasProperty(newBgName);
-                        newBgProp.PngProperty = new WzPngProperty();
-                        newBgProp.PngProperty.PNG = newImage;
-
-                        newBgProp.AddProperty(new WzIntProperty("z", 0));
-                        newBgProp.AddProperty(new WzVectorProperty("origin", 0, 0));
-
-                        // Add the new property to the parent
-                        parentProp.AddProperty(newBgProp);
-
-                        // there's no fixed place or consistency in the WZ
-                        // sometimes its at the top-center
-                        // sometimes bottom-left or bottom-right
-                        // it depends on nexon-devs, better off making this automatic for the user.
-                        Point point = new Point(newImage.Width / 2, newImage.Height); // set at bottom-center
-
-                        // Create a new BackgroundInfo object
-                        BackgroundInfo newBgInfo = new BackgroundInfo(newBgProp, newImage, point, bgSetName, infoType, newBgName, newBgProp, null);
-                        // BackgroundInfo(WzImageProperty imageProperty, Bitmap image, System.Drawing.Point origin, string bS, BackgroundInfoType _type, string no, WzObject parentObject, WzSpineAnimationItem wzSpineAnimationItem)
-                        //BackgroundInfo newBgInfo = BackgroundInfo.Get(hcsm.MultiBoard.GraphicsDevice, bgSetName, infoType, newBgName);
-
-
-                        // Add the new image to the container
-                        ImageViewer newItem = bgImageContainer.Add(newBgInfo.Image, newBgName, true);
-                        newItem.Tag = newBgInfo;
-                        newItem.MouseDown += new MouseEventHandler(bgItem_Click);
-                        newItem.MouseUp += new MouseEventHandler(ImageViewer.item_MouseUp);
-                        newItem.MaxHeight = UserSettings.ImageViewerHeight;
-                        newItem.MaxWidth = UserSettings.ImageViewerWidth;
-
-                        // Flag WZ file as updated
-                        Program.WzManager.SetWzFileUpdated(bgSetImage.WzFileParent.Name, bgSetImage);
-
-                        MessageBox.Show(
-                            string.Format(this.ResourceManager.GetString("ImageAddSuccessful"), openFileDialog.FileName, newBgName),
-                            this.ResourceManager.GetString("ImageAddSuccessfulTitle"), MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        Button btn = MakeThumb(bmp, prop.Name, bgInfo);
+                        WireItemEvents(btn, bgInfo, parentProp, infoType);
+                        buttons.Add(btn);
                     }
-                    catch (Exception ex)
-                    {
-                        MessageBox.Show($"Error adding image: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    }
+                    catch { }
                 }
+            }
+
+            Dispatcher.UIThread.Post(() =>
+            {
+                _thumbGrid.Children.Clear();
+                foreach (var b in buttons)
+                    _thumbGrid.Children.Add(b);
+            });
+        }
+
+        private void WireItemEvents(Button btn, BackgroundInfo bgInfo, WzImageProperty parentProp, BackgroundInfoType infoType)
+        {
+            btn.Click += (_, _) =>
+            {
+                if (_hcsm == null) return;
+                lock (_hcsm.MultiBoard)
+                {
+                    _hcsm.EnterEditMode(ItemTypes.Backgrounds);
+                    _hcsm.MultiBoard.SelectedBoard?.Mouse.SetHeldInfo(bgInfo);
+                    _hcsm.MultiBoard.Focus();
+                }
+            };
+
+            var ctx = new ContextMenu();
+
+            if (infoType == BackgroundInfoType.Spine)
+            {
+                var previewItem = new MenuItem { Header = "Preview (not supported)" };
+                previewItem.Click += (_, _) => { };
+                var deleteItem2 = new MenuItem { Header = "Delete" };
+                deleteItem2.Click += async (_, _) => await DeleteBg(btn, bgInfo, parentProp);
+                ctx.Items.Add(previewItem);
+                ctx.Items.Add(deleteItem2);
+            }
+            else
+            {
+                var saveItem = new MenuItem { Header = "Save" };
+                saveItem.Click += async (_, _) => await SaveBgImage(bgInfo, infoType);
+                var deleteItem = new MenuItem { Header = "Delete" };
+                deleteItem.Click += async (_, _) => await DeleteBg(btn, bgInfo, parentProp);
+                ctx.Items.Add(saveItem);
+                ctx.Items.Add(deleteItem);
+            }
+
+            btn.ContextMenu = ctx;
+        }
+
+        private async System.Threading.Tasks.Task SaveBgImage(BackgroundInfo bgInfo, BackgroundInfoType infoType)
+        {
+            if (bgInfo.Image == null) return;
+
+            var top = TopLevel.GetTopLevel(this);
+            if (top == null) return;
+
+            var file = await top.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = "Save image",
+                SuggestedFileName = $"{bgInfo.bS}.{infoType.ToPropertyString()}.{bgInfo.no}",
+                FileTypeChoices = new[]
+                {
+                    new FilePickerFileType("PNG") { Patterns = ["*.png"] }
+                }
+            });
+
+            if (file == null) return;
+            try
+            {
+                await using var stream = await file.OpenWriteAsync();
+                using var encoded = bgInfo.Image.Encode(SKEncodedImageFormat.Png, 100);
+                encoded.SaveTo(stream);
+            }
+            catch { }
+        }
+
+        private async System.Threading.Tasks.Task DeleteBg(Button btn, BackgroundInfo bgInfo, WzImageProperty parentProp)
+        {
+            if (!await ShowConfirmAsync("Delete this background?")) return;
+
+            WzImageProperty? removeProp = parentProp[bgInfo.no];
+            if (removeProp != null && parentProp.WzProperties.Contains(removeProp))
+            {
+                parentProp.WzProperties.Remove(removeProp);
+
+                WzObject? topDir = parentProp.GetTopMostWzDirectory();
+                WzObject? topImg = parentProp.Parent as WzImage;
+                if (topDir != null && topImg is WzImage wzImg)
+                    Program.WzManager.SetWzFileUpdated(topDir.Name, wzImg);
+
+                Dispatcher.UIThread.Post(() => _thumbGrid.Children.Remove(btn));
             }
         }
 
-        /// <summary>
-        /// Generates a new object name for the image
-        /// 0,1,2,3,4,5,6 ...
-        /// </summary>
-        /// <param name="objSetName"></param>
-        /// <param name="l0Name"></param>
-        /// <param name="l1Name"></param>
-        /// <returns></returns>
-        private string GenerateUniqueBgName(string objSetName, string infoTypeName)
+        private async void OnAddImageClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
-            int counter = 1;
-            WzImage bgSetImage = Program.InfoManager.GetBackgroundSet(objSetName);
-            if (bgSetImage == null)
-                return counter.ToString();
-            WzImageProperty l1Prop = bgSetImage[infoTypeName];
-            while (l1Prop.WzProperties.Any(p => p.Name == counter.ToString()))
+            if (_setListBox.SelectedItem is not string setName) return;
+
+            var top = TopLevel.GetTopLevel(this);
+            if (top == null) return;
+
+            var files = await top.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
             {
-                counter++;
+                Title = "Select image to add",
+                AllowMultiple = false,
+                FileTypeFilter = new[]
+                {
+                    new FilePickerFileType("Images") { Patterns = ["*.png", "*.jpg", "*.jpeg"] }
+                }
+            });
+
+            if (files.Count == 0) return;
+            string filePath = files[0].TryGetLocalPath() ?? string.Empty;
+            if (string.IsNullOrEmpty(filePath)) return;
+
+            try
+            {
+                SKBitmap? newImage = SKBitmap.Decode(filePath);
+                if (newImage == null) return;
+
+                BackgroundInfoType infoType = BackgroundInfoType.Background;
+
+                WzImage? bgSetImage = Program.InfoManager.GetBackgroundSet(setName);
+                if (bgSetImage == null) return;
+
+                WzSubProperty? parentProp = bgSetImage[infoType.ToPropertyString()] as WzSubProperty;
+                if (parentProp == null) return;
+
+                string newName = GenerateUniqueBgName(setName, infoType.ToPropertyString());
+
+                WzCanvasProperty newBgProp = new WzCanvasProperty(newName);
+                newBgProp.PngProperty = new WzPngProperty();
+                newBgProp.PngProperty.PNG = newImage;
+                newBgProp.AddProperty(new WzIntProperty("z", 0));
+                newBgProp.AddProperty(new WzVectorProperty("origin", 0, 0));
+
+                parentProp.AddProperty(newBgProp);
+
+                System.Drawing.Point origin = new System.Drawing.Point(newImage.Width / 2, newImage.Height);
+                BackgroundInfo newBgInfo = new BackgroundInfo(newBgProp, newImage, origin, setName, infoType, newName, newBgProp, null);
+
+                if (bgSetImage.WzFileParent != null)
+                    Program.WzManager.SetWzFileUpdated(bgSetImage.WzFileParent.Name, bgSetImage);
+
+                var bmp = SkBitmapToAvalonia(newImage);
+                Button btn = MakeThumb(bmp, newName, newBgInfo);
+                WireItemEvents(btn, newBgInfo, parentProp, infoType);
+                _thumbGrid.Children.Add(btn);
             }
+            catch (Exception ex)
+            {
+                await ShowAlertAsync($"Error adding image: {ex.Message}");
+            }
+        }
+
+        private string GenerateUniqueBgName(string setName, string infoTypeName)
+        {
+            WzImage? bgSetImage = Program.InfoManager.GetBackgroundSet(setName);
+            WzImageProperty? parent = bgSetImage?[infoTypeName];
+            int counter = 1;
+            while (parent?.WzProperties.Any(p => p.Name == counter.ToString()) == true)
+                counter++;
             return counter.ToString();
         }
 
-        #region Context Menu
-        /// <summary>
-        /// Show context menu
-        /// </summary>
-        /// <param name="item"></param>
-        /// <param name="location"></param>
-        /// <param name="bIsSpine">Is spine object selected</param>
-        private void ShowContextMenu(ImageViewer item, Point location, bool bIsSpine)
+        private async System.Threading.Tasks.Task<bool> ShowConfirmAsync(string message)
         {
-            if (bIsSpine)
-                contextMenu_spine.Show(item, location);
-            else
-                contextMenu.Show(item, location);
-        }
+            Window? owner = GetOwner();
+            bool result = false;
 
-        /// <summary>
-        /// Upscale context menu
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        /// <exception cref="NotImplementedException"></exception>
-        private async void aiUpscaleItem_Click(object sender, EventArgs e)
-        {
-            ImageViewer selectedItem = contextMenu.SourceControl as ImageViewer;
-            if (selectedItem == null)
+            var dlg = new Window
             {
-                return;
-            }
-            if (bgSetListBox.SelectedItem == null)
-                return;
-
-            BackgroundInfo objInfo = (BackgroundInfo)selectedItem.Tag;
-
-            BackgroundInfoType infoType = GetBackGroundInfoTypeByCheckbox();
-
-            WzImage bgSetImage = Program.InfoManager.GetBackgroundSet((string)bgSetListBox.SelectedItem);
-            WzImageProperty parentProp = bgSetImage?[infoType.ToPropertyString()]; // i,e syarenian.img  dragonDream.img > "back"
-            if (parentProp != null)
+                Title = "Confirm",
+                Width = 320, Height = 130,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                CanResize = false
+            };
+            var yes = new Button { Content = "Yes", Width = 70, Margin = new Thickness(4) };
+            var no  = new Button { Content = "No",  Width = 70, Margin = new Thickness(4) };
+            yes.Click += (_, _) => { result = true;  dlg.Close(); };
+            no.Click  += (_, _) => { result = false; dlg.Close(); };
+            dlg.Content = new StackPanel
             {
-                WzSubProperty parentSubProp = (WzSubProperty)parentProp;
-                WzCanvasProperty l2SubImg = (WzCanvasProperty)parentSubProp[objInfo.no];
-                Bitmap bitmap = l2SubImg.GetLinkedWzCanvasBitmap();
-
-                UpscaleImageForm upscaleForm = new UpscaleImageForm(bitmap);
-                upscaleForm.ShowDialog();
-                if (upscaleForm.UserAcceptedImage)
+                Margin = new Thickness(12), Spacing = 12,
+                Children =
                 {
-                    Bitmap upscaledBitmap = upscaleForm.UpscaledImage;
-                    l2SubImg.PngProperty.PNG = upscaledBitmap;
-                    objInfo.Image = upscaledBitmap;
-                    selectedItem.Image = upscaledBitmap;
-
-                    // flag WZ files changed to save it
-                    WzObject topMostWzDir = parentProp.GetTopMostWzDirectory();
-                    WzImage topMostWzImg = parentProp.Parent as WzImage;
-
-                    Program.WzManager.SetWzFileUpdated(topMostWzDir.Name, topMostWzImg as WzImage);
+                    new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap },
+                    new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Spacing = 4, Children = { yes, no } }
                 }
-            }
+            };
+            if (owner != null) await dlg.ShowDialog(owner);
+            else dlg.Show();
+            return result;
         }
 
-        /// <summary>
-        /// Event handler for the preview menu item
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void previewItem_Click(object sender, EventArgs e)
+        private async System.Threading.Tasks.Task ShowAlertAsync(string message)
         {
-            ToolStripMenuItem menuItem_ = sender as ToolStripMenuItem;
-            BackgroundInfo bgInfo_ = menuItem_.Tag as BackgroundInfo;
-
-            WzImageProperty spineAtlasProp = bgInfo_.WzImageProperty.WzProperties.FirstOrDefault(
-                wzprop => wzprop is WzStringProperty && ((WzStringProperty)wzprop).IsSpineAtlasResources);
-
-            if (spineAtlasProp != null)
+            Window? owner = GetOwner();
+            var dlg = new Window
             {
-                WzStringProperty stringObj = (WzStringProperty)spineAtlasProp;
-                Thread thread = new Thread(() =>
-                {
-                    WzSpineAnimationItem item = new WzSpineAnimationItem(stringObj);
-
-                    string path_title = stringObj.Parent?.FullPath ?? "Animate";
-
-                    // Create xna window
-                    SpineAnimationWindow Window = new SpineAnimationWindow(item, path_title);
-                    Window.Run();
-                });
-                thread.Start();
-                thread.Join();
-            }
-        }
-
-
-        /// <summary>
-        /// Event handler for save menu item
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void saveItem_Click(object sender, EventArgs e)
-        {
-            ImageViewer selectedItem = contextMenu.SourceControl as ImageViewer;
-            if (selectedItem != null)
+                Title = "Error", Width = 360, Height = 150,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner, CanResize = false
+            };
+            var ok = new Button { Content = "OK", Width = 70, Margin = new Thickness(4) };
+            ok.Click += (_, _) => dlg.Close();
+            dlg.Content = new StackPanel
             {
-                BackgroundInfoType infoType = GetBackGroundInfoTypeByCheckbox();
-
-                if (infoType != BackgroundInfoType.Spine)
+                Margin = new Thickness(12), Spacing = 12,
+                Children =
                 {
-                    BackgroundInfo objInfo = (BackgroundInfo)selectedItem.Tag;
-
-                    if (objInfo.Image != null)
-                    {
-                        System.Windows.Forms.SaveFileDialog dialog = new System.Windows.Forms.SaveFileDialog()
-                        {
-                            FileName = string.Format("{0}.{1}.{2}", (string)bgSetListBox.SelectedItem, infoType.ToPropertyString(), objInfo.no),
-                            Title = "Select where to save the image...",
-                            Filter = "Portable Network Graphics (*.png)|*.png|CompuServe Graphics Interchange Format (*.gif)|*.gif|Bitmap (*.bmp)|*.bmp|Joint Photographic Experts Group Format (*.jpg)|*.jpg|Tagged Image File Format (*.tif)|*.tif"
-                        };
-                        if (dialog.ShowDialog() != System.Windows.Forms.DialogResult.OK)
-                            return;
-                        switch (dialog.FilterIndex)
-                        {
-                            case 1: //png
-                                objInfo.Image.Save(dialog.FileName, System.Drawing.Imaging.ImageFormat.Png);
-                                break;
-                            case 2: //gif
-                                objInfo.Image.Save(dialog.FileName, System.Drawing.Imaging.ImageFormat.Gif);
-                                break;
-                            case 3: //bmp
-                                objInfo.Image.Save(dialog.FileName, System.Drawing.Imaging.ImageFormat.Bmp);
-                                break;
-                            case 4: //jpg
-                                objInfo.Image.Save(dialog.FileName, System.Drawing.Imaging.ImageFormat.Jpeg);
-                                break;
-                            case 5: //tiff
-                                objInfo.Image.Save(dialog.FileName, System.Drawing.Imaging.ImageFormat.Tiff);
-                                break;
-                        }
-                    }
+                    new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap },
+                    new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Children = { ok } }
                 }
-            }
+            };
+            if (owner != null) await dlg.ShowDialog(owner);
+            else dlg.Show();
         }
 
-        /// <summary>
-        /// Event handler for the Delete menu item
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void DeleteItem_Click(object sender, EventArgs e)
+        private Window? GetOwner() =>
+            _hcsm?.OwnerWindow ??
+            (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime d ? d.MainWindow : null);
+
+        private void OnBackgroundSetChanged(object? sender, BackgroundSetChangedEventArgs e)
         {
-            ImageViewer selectedItem = contextMenu.SourceControl as ImageViewer;
-            if (selectedItem != null)
-            {
-                // Show confirmation dialog
-                DialogResult result = MessageBox.Show(
-                    this.ResourceManager.GetString("ConfirmItemDelete"),
-                    this.ResourceManager.GetString("ConfirmItemDeleteTitle"), MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-
-                if (result == DialogResult.Yes)
-                {
-                    BackgroundInfoType infoType = GetBackGroundInfoTypeByCheckbox();
-
-                    // delete off cached obj
-                    BackgroundInfo objInfo = (BackgroundInfo)selectedItem.Tag;
-
-                    WzImage bgSetImage = Program.InfoManager.GetBackgroundSet((string)bgSetListBox.SelectedItem);
-                    WzImageProperty parentProp = bgSetImage?[infoType.ToPropertyString()];
-                    if (parentProp != null)
-                    {
-                        WzImageProperty removeL2Prop = parentProp[objInfo.no];
-
-                        if (parentProp.WzProperties.Contains(removeL2Prop))
-                        {
-                            parentProp.WzProperties.Remove(removeL2Prop);
-
-                            // Perform delete operation
-                            //objImagesContainer.Remove(selectedItem);
-                            selectedItem.Dispose();
-
-                            // flag WZ files changed to save it
-                            WzObject topMostWzDir = parentProp.GetTopMostWzDirectory();
-                            WzImage topMostWzImg = parentProp.Parent as WzImage;
-
-                            Program.WzManager.SetWzFileUpdated(topMostWzDir.Name, topMostWzImg as WzImage);
-                        }
-                    }
-                }
-            }
-        }
-        #endregion
-
-        #region Hot Swap
-        /// <summary>
-        /// Subscribes to hot swap events from the HotSwapRefreshService
-        /// </summary>
-        /// <param name="refreshService">The hot swap service to subscribe to</param>
-        public void SubscribeToHotSwap(HotSwapRefreshService refreshService)
-        {
-            if (_hotSwapService != null)
-            {
-                _hotSwapService.BackgroundSetChanged -= OnBackgroundSetChanged;
-            }
-
-            _hotSwapService = refreshService;
-
-            if (_hotSwapService != null)
-            {
-                _hotSwapService.BackgroundSetChanged += OnBackgroundSetChanged;
-            }
+            Dispatcher.UIThread.Post(() => HandleSetChange(e));
         }
 
-        /// <summary>
-        /// Handles background set change events
-        /// </summary>
-        private void OnBackgroundSetChanged(object sender, BackgroundSetChangedEventArgs e)
-        {
-            if (InvokeRequired)
-            {
-                BeginInvoke(new Action(() => HandleBackgroundSetChange(e)));
-                return;
-            }
-            HandleBackgroundSetChange(e);
-        }
-
-        /// <summary>
-        /// Handles the background set change on the UI thread
-        /// </summary>
-        private void HandleBackgroundSetChange(BackgroundSetChangedEventArgs e)
+        private void HandleSetChange(BackgroundSetChangedEventArgs e)
         {
             switch (e.ChangeType)
             {
                 case AssetChangeType.Added:
-                    if (!bgSetListBox.Items.Contains(e.SetName))
+                    if (!_setListBox.Items.Contains(e.SetName))
                     {
-                        bgSetListBox.Items.Add(e.SetName);
-                        SortBackgroundSetList();
+                        _setListBox.Items.Add(e.SetName);
+                        SortSetList();
                     }
                     break;
 
                 case AssetChangeType.Removed:
-                    bgSetListBox.Items.Remove(e.SetName);
-                    if (bgSetListBox.SelectedItem?.ToString() == e.SetName)
+                    if (_setListBox.SelectedItem is string sel && sel == e.SetName)
                     {
-                        ClearBackgroundDisplay();
-                        if (bgSetListBox.Items.Count > 0)
-                        {
-                            bgSetListBox.SelectedIndex = 0;
-                        }
+                        _thumbGrid.Children.Clear();
+                        _setListBox.Items.Remove(e.SetName);
+                        if (_setListBox.Items.Count > 0)
+                            _setListBox.SelectedIndex = 0;
+                    }
+                    else
+                    {
+                        _setListBox.Items.Remove(e.SetName);
                     }
                     break;
 
                 case AssetChangeType.Modified:
-                    // If set doesn't exist in list, add it (Windows sometimes reports new files as Changed)
-                    if (!bgSetListBox.Items.Contains(e.SetName))
+                    if (!_setListBox.Items.Contains(e.SetName))
                     {
-                        bgSetListBox.Items.Add(e.SetName);
-                        SortBackgroundSetList();
+                        _setListBox.Items.Add(e.SetName);
+                        SortSetList();
                     }
-                    else if (bgSetListBox.SelectedItem?.ToString() == e.SetName)
+                    else if (_setListBox.SelectedItem is string cur && cur == e.SetName)
                     {
-                        RefreshCurrentBackgroundSet();
+                        Program.InfoManager.RefreshBackgroundSet(e.SetName);
+                        ReloadThumbnails();
                     }
                     break;
             }
         }
 
-        /// <summary>
-        /// Refreshes the currently displayed background set
-        /// </summary>
-        public void RefreshCurrentBackgroundSet()
+        private void SortSetList()
         {
-            if (bgSetListBox.SelectedItem == null)
-                return;
-
-            string selectedSet = bgSetListBox.SelectedItem.ToString();
-
-            // Clear and reload
-            bgImageContainer.Controls.Clear();
-
-            // Force reload from disk
-            Program.InfoManager.RefreshBackgroundSet(selectedSet);
-
-            // Trigger selection changed to reload
-            bgSetListBox_SelectedIndexChanged(this, EventArgs.Empty);
+            var items = _setListBox.Items.Cast<string>().OrderBy(s => s).ToList();
+            string? sel = _setListBox.SelectedItem as string;
+            _setListBox.Items.Clear();
+            foreach (var s in items) _setListBox.Items.Add(s);
+            if (sel != null) _setListBox.SelectedItem = sel;
         }
 
-        /// <summary>
-        /// Clears the background display
-        /// </summary>
-        private void ClearBackgroundDisplay()
+        private static Avalonia.Media.Imaging.Bitmap? SkBitmapToAvalonia(SKBitmap? sk)
         {
-            bgImageContainer.Controls.Clear();
-        }
-
-        /// <summary>
-        /// Sorts the background set list alphabetically
-        /// </summary>
-        private void SortBackgroundSetList()
-        {
-            var items = bgSetListBox.Items.Cast<string>().OrderBy(s => s).ToList();
-            var selected = bgSetListBox.SelectedItem;
-            bgSetListBox.Items.Clear();
-            foreach (var item in items)
+            if (sk == null || sk.Width <= 0 || sk.Height <= 0) return null;
+            try
             {
-                bgSetListBox.Items.Add(item);
+                using var data = sk.Encode(SKEncodedImageFormat.Png, 100);
+                using var ms = new MemoryStream();
+                data.SaveTo(ms);
+                ms.Position = 0;
+                return new Avalonia.Media.Imaging.Bitmap(ms);
             }
-            if (selected != null && bgSetListBox.Items.Contains(selected))
-            {
-                bgSetListBox.SelectedItem = selected;
-            }
+            catch { return null; }
         }
-        #endregion
+
+        private static Button MakeThumb(Avalonia.Media.Imaging.Bitmap? bmp, string label, object? tag)
+        {
+            Control imgCtrl = bmp != null
+                ? (Control)new Image { Source = bmp, Width = 64, Height = 64, Stretch = Stretch.Uniform }
+                : new Border { Width = 64, Height = 64, Background = Brushes.LightGray };
+
+            return new Button
+            {
+                Content = new StackPanel
+                {
+                    Orientation = Orientation.Vertical,
+                    Width = 72,
+                    Children =
+                    {
+                        imgCtrl,
+                        new TextBlock
+                        {
+                            Text = label, FontSize = 9,
+                            TextWrapping = TextWrapping.Wrap, MaxWidth = 72,
+                            TextAlignment = TextAlignment.Center
+                        }
+                    }
+                },
+                Padding = new Thickness(2),
+                Margin = new Thickness(2),
+                Tag = tag
+            };
+        }
     }
 }
