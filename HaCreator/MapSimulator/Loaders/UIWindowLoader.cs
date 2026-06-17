@@ -2,6 +2,7 @@ using HaCreator.MapSimulator.UI;
 using HaCreator.MapSimulator.UI.Controls;
 using HaSharedLibrary.Render.DX;
 using HaSharedLibrary.Util;
+using SkiaSharp;
 using MapleLib.WzLib;
 using MapleLib.WzLib.WzProperties;
 using Microsoft.Xna.Framework;
@@ -39,7 +40,7 @@ namespace HaCreator.MapSimulator.Loaders
                 return CreatePlaceholderInventory(device, screenWidth, screenHeight);
             }
 
-            System.Drawing.Bitmap bgBitmap = backgrnd.GetLinkedWzCanvasBitmap();
+            SKBitmap bgBitmap = backgrnd.GetLinkedWzCanvasBitmap();
             Texture2D bgTexture = bgBitmap.ToTexture2D(device);
             IDXObject frame = new DXObject(0, 0, bgTexture, 0);
 
@@ -117,7 +118,7 @@ namespace HaCreator.MapSimulator.Loaders
                 return CreatePlaceholderEquip(device, screenWidth, screenHeight);
             }
 
-            System.Drawing.Bitmap bgBitmap = backgrnd.GetLinkedWzCanvasBitmap();
+            SKBitmap bgBitmap = backgrnd.GetLinkedWzCanvasBitmap();
             Texture2D bgTexture = bgBitmap.ToTexture2D(device);
             IDXObject frame = new DXObject(0, 0, bgTexture, 0);
 
@@ -155,7 +156,7 @@ namespace HaCreator.MapSimulator.Loaders
                 return CreatePlaceholderEquipBigBang(device, screenWidth, screenHeight);
             }
 
-            System.Drawing.Bitmap bgBitmap = backgrnd.GetLinkedWzCanvasBitmap();
+            SKBitmap bgBitmap = backgrnd.GetLinkedWzCanvasBitmap();
             Texture2D bgTexture = bgBitmap.ToTexture2D(device);
             IDXObject frame = new DXObject(0, 0, bgTexture, 0);
 
@@ -168,7 +169,7 @@ namespace HaCreator.MapSimulator.Loaders
             {
                 try
                 {
-                    System.Drawing.Bitmap fgBitmap = backgrnd2.GetLinkedWzCanvasBitmap();
+                    SKBitmap fgBitmap = backgrnd2.GetLinkedWzCanvasBitmap();
                     Texture2D fgTexture = fgBitmap.ToTexture2D(device);
                     IDXObject foreground = new DXObject(0, 0, fgTexture, 0);
                     System.Drawing.PointF? origin = backgrnd2.GetCanvasOriginPosition();
@@ -185,7 +186,7 @@ namespace HaCreator.MapSimulator.Loaders
             {
                 try
                 {
-                    System.Drawing.Bitmap slotBitmap = backgrnd3.GetLinkedWzCanvasBitmap();
+                    SKBitmap slotBitmap = backgrnd3.GetLinkedWzCanvasBitmap();
                     Texture2D slotTexture = slotBitmap.ToTexture2D(device);
                     IDXObject slotLabels = new DXObject(0, 0, slotTexture, 0);
                     System.Drawing.PointF? slotOrigin = backgrnd3.GetCanvasOriginPosition();
@@ -278,7 +279,7 @@ namespace HaCreator.MapSimulator.Loaders
                 return CreatePlaceholderSkill(device, screenWidth, screenHeight);
             }
 
-            System.Drawing.Bitmap bgBitmap = backgrnd.GetLinkedWzCanvasBitmap();
+            SKBitmap bgBitmap = backgrnd.GetLinkedWzCanvasBitmap();
             Texture2D bgTexture = bgBitmap.ToTexture2D(device);
             IDXObject frame = new DXObject(0, 0, bgTexture, 0);
 
@@ -345,7 +346,7 @@ namespace HaCreator.MapSimulator.Loaders
                 return CreatePlaceholderAbility(device, screenWidth, screenHeight);
             }
 
-            System.Drawing.Bitmap bgBitmap = backgrnd.GetLinkedWzCanvasBitmap();
+            SKBitmap bgBitmap = backgrnd.GetLinkedWzCanvasBitmap();
             Texture2D bgTexture = bgBitmap.ToTexture2D(device);
             IDXObject frame = new DXObject(0, 0, bgTexture, 0);
 
@@ -424,7 +425,7 @@ namespace HaCreator.MapSimulator.Loaders
             {
                 try
                 {
-                    System.Drawing.Bitmap detailBgBitmap = backgrnd3.GetLinkedWzCanvasBitmap();
+                    SKBitmap detailBgBitmap = backgrnd3.GetLinkedWzCanvasBitmap();
                     Texture2D detailBgTexture = detailBgBitmap.ToTexture2D(device);
                     IDXObject detailFrame = new DXObject(0, 0, detailBgTexture, 0);
                     ability.SetDetailBackground(detailFrame);
@@ -470,7 +471,7 @@ namespace HaCreator.MapSimulator.Loaders
                 return CreatePlaceholderAbilityBigBang(device, screenWidth, screenHeight);
             }
 
-            System.Drawing.Bitmap bgBitmap = backgrnd.GetLinkedWzCanvasBitmap();
+            SKBitmap bgBitmap = backgrnd.GetLinkedWzCanvasBitmap();
             Texture2D bgTexture = bgBitmap.ToTexture2D(device);
             IDXObject frame = new DXObject(0, 0, bgTexture, 0);
 
@@ -483,7 +484,7 @@ namespace HaCreator.MapSimulator.Loaders
             {
                 try
                 {
-                    System.Drawing.Bitmap fgBitmap = backgrnd2.GetLinkedWzCanvasBitmap();
+                    SKBitmap fgBitmap = backgrnd2.GetLinkedWzCanvasBitmap();
                     Texture2D fgTexture = fgBitmap.ToTexture2D(device);
                     IDXObject foreground = new DXObject(0, 0, fgTexture, 0);
                     // Origin is (-6, -22), so offset is (6, 22)
@@ -569,7 +570,7 @@ namespace HaCreator.MapSimulator.Loaders
             {
                 try
                 {
-                    System.Drawing.Bitmap detailBgBitmap = detailBackgrnd.GetLinkedWzCanvasBitmap();
+                    SKBitmap detailBgBitmap = detailBackgrnd.GetLinkedWzCanvasBitmap();
                     Texture2D detailBgTexture = detailBgBitmap.ToTexture2D(device);
                     IDXObject detailFrame = new DXObject(0, 0, detailBgTexture, 0);
                     ability.SetDetailBackground(detailFrame);
@@ -583,7 +584,7 @@ namespace HaCreator.MapSimulator.Loaders
             {
                 try
                 {
-                    System.Drawing.Bitmap detailFgBitmap = detailBackgrnd2.GetLinkedWzCanvasBitmap();
+                    SKBitmap detailFgBitmap = detailBackgrnd2.GetLinkedWzCanvasBitmap();
                     Texture2D detailFgTexture = detailFgBitmap.ToTexture2D(device);
                     IDXObject detailForeground = new DXObject(0, 0, detailFgTexture, 0);
                     // Origin is (-6, -7), so offset is (6, 7)
@@ -649,7 +650,7 @@ namespace HaCreator.MapSimulator.Loaders
                 return CreatePlaceholderSkillBigBang(device, screenWidth, screenHeight);
             }
 
-            System.Drawing.Bitmap bgBitmap = backgrnd.GetLinkedWzCanvasBitmap();
+            SKBitmap bgBitmap = backgrnd.GetLinkedWzCanvasBitmap();
             Texture2D bgTexture = bgBitmap.ToTexture2D(device);
             IDXObject frame = new DXObject(0, 0, bgTexture, 0);
 
@@ -662,7 +663,7 @@ namespace HaCreator.MapSimulator.Loaders
             {
                 try
                 {
-                    System.Drawing.Bitmap fgBitmap = backgrnd2.GetLinkedWzCanvasBitmap();
+                    SKBitmap fgBitmap = backgrnd2.GetLinkedWzCanvasBitmap();
                     Texture2D fgTexture = fgBitmap.ToTexture2D(device);
                     IDXObject foreground = new DXObject(0, 0, fgTexture, 0);
                     System.Drawing.PointF? origin = backgrnd2.GetCanvasOriginPosition();
@@ -679,7 +680,7 @@ namespace HaCreator.MapSimulator.Loaders
             {
                 try
                 {
-                    System.Drawing.Bitmap bg3Bitmap = backgrnd3.GetLinkedWzCanvasBitmap();
+                    SKBitmap bg3Bitmap = backgrnd3.GetLinkedWzCanvasBitmap();
                     Texture2D bg3Texture = bg3Bitmap.ToTexture2D(device);
                     IDXObject skillListBg = new DXObject(0, 0, bg3Texture, 0);
                     System.Drawing.PointF? origin = backgrnd3.GetCanvasOriginPosition();
@@ -899,7 +900,7 @@ namespace HaCreator.MapSimulator.Loaders
                 if (backgrndObj == null)
                     return null;
 
-                System.Drawing.Bitmap bgBitmap = null;
+                SKBitmap bgBitmap = null;
                 if (backgrndObj is WzCanvasProperty canvasProp)
                 {
                     bgBitmap = canvasProp.GetLinkedWzCanvasBitmap();
@@ -977,7 +978,7 @@ namespace HaCreator.MapSimulator.Loaders
 
             try
             {
-                System.Drawing.Bitmap bitmap = null;
+                SKBitmap bitmap = null;
                 if (obj is WzCanvasProperty canvas)
                 {
                     bitmap = canvas.GetLinkedWzCanvasBitmap();
@@ -1013,7 +1014,7 @@ namespace HaCreator.MapSimulator.Loaders
 
             try
             {
-                System.Drawing.Bitmap bitmap = canvas.GetLinkedWzCanvasBitmap();
+                SKBitmap bitmap = canvas.GetLinkedWzCanvasBitmap();
                 return bitmap?.ToTexture2D(device);
             }
             catch
@@ -1073,7 +1074,7 @@ namespace HaCreator.MapSimulator.Loaders
                 return CreatePlaceholderQuestBigBang(device, screenWidth, screenHeight);
             }
 
-            System.Drawing.Bitmap bgBitmap = backgrnd.GetLinkedWzCanvasBitmap();
+            SKBitmap bgBitmap = backgrnd.GetLinkedWzCanvasBitmap();
             Texture2D bgTexture = bgBitmap.ToTexture2D(device);
             IDXObject frame = new DXObject(0, 0, bgTexture, 0);
 
@@ -1086,7 +1087,7 @@ namespace HaCreator.MapSimulator.Loaders
             {
                 try
                 {
-                    System.Drawing.Bitmap fgBitmap = backgrnd2.GetLinkedWzCanvasBitmap();
+                    SKBitmap fgBitmap = backgrnd2.GetLinkedWzCanvasBitmap();
                     Texture2D fgTexture = fgBitmap.ToTexture2D(device);
                     IDXObject foreground = new DXObject(0, 0, fgTexture, 0);
                     System.Drawing.PointF? origin = backgrnd2.GetCanvasOriginPosition();
@@ -1180,7 +1181,7 @@ namespace HaCreator.MapSimulator.Loaders
                 return CreatePlaceholderInventoryBigBang(device, screenWidth, screenHeight);
             }
 
-            System.Drawing.Bitmap bgBitmap = backgrnd.GetLinkedWzCanvasBitmap();
+            SKBitmap bgBitmap = backgrnd.GetLinkedWzCanvasBitmap();
             Texture2D bgTexture = bgBitmap.ToTexture2D(device);
             IDXObject frame = new DXObject(0, 0, bgTexture, 0);
 
@@ -1193,7 +1194,7 @@ namespace HaCreator.MapSimulator.Loaders
             {
                 try
                 {
-                    System.Drawing.Bitmap fgBitmap = backgrnd2.GetLinkedWzCanvasBitmap();
+                    SKBitmap fgBitmap = backgrnd2.GetLinkedWzCanvasBitmap();
                     Texture2D fgTexture = fgBitmap.ToTexture2D(device);
                     IDXObject foreground = new DXObject(0, 0, fgTexture, 0);
                     System.Drawing.PointF? origin = backgrnd2.GetCanvasOriginPosition();
@@ -1211,7 +1212,7 @@ namespace HaCreator.MapSimulator.Loaders
             {
                 try
                 {
-                    System.Drawing.Bitmap fullBgBitmap = fullBackgrnd.GetLinkedWzCanvasBitmap();
+                    SKBitmap fullBgBitmap = fullBackgrnd.GetLinkedWzCanvasBitmap();
                     Texture2D fullBgTexture = fullBgBitmap.ToTexture2D(device);
                     IDXObject expandedFrame = new DXObject(0, 0, fullBgTexture, 0);
 
@@ -1219,7 +1220,7 @@ namespace HaCreator.MapSimulator.Loaders
                     int fgOffsetX = 6, fgOffsetY = 23;
                     if (fullBackgrnd2 != null)
                     {
-                        System.Drawing.Bitmap fullFgBitmap = fullBackgrnd2.GetLinkedWzCanvasBitmap();
+                        SKBitmap fullFgBitmap = fullBackgrnd2.GetLinkedWzCanvasBitmap();
                         Texture2D fullFgTexture = fullFgBitmap.ToTexture2D(device);
                         expandedForeground = new DXObject(0, 0, fullFgTexture, 0);
                         System.Drawing.PointF? fullOrigin = fullBackgrnd2.GetCanvasOriginPosition();
@@ -1302,7 +1303,7 @@ namespace HaCreator.MapSimulator.Loaders
                 return CreatePlaceholderQuest(device, screenWidth, screenHeight);
             }
 
-            System.Drawing.Bitmap bgBitmap = backgrnd.GetLinkedWzCanvasBitmap();
+            SKBitmap bgBitmap = backgrnd.GetLinkedWzCanvasBitmap();
             Texture2D bgTexture = bgBitmap.ToTexture2D(device);
             IDXObject frame = new DXObject(0, 0, bgTexture, 0);
 

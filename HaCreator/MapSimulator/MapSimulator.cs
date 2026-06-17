@@ -10,7 +10,6 @@ using HaSharedLibrary.Wz;
 using HaCreator.MapSimulator.Entities;
 using HaCreator.MapSimulator.Animation;
 using MobItem = HaCreator.MapSimulator.Entities.MobItem;
-using HaRepacker.Utils;
 using HaSharedLibrary;
 using HaSharedLibrary.Render;
 using HaSharedLibrary.Render.DX;
@@ -28,7 +27,6 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 
-using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -422,7 +420,7 @@ namespace HaCreator.MapSimulator
                     Width = 800;
                     break;
             }
-            this.UserScreenScaleFactor = (float) ScreenDPIUtil.GetScreenScaleFactor();
+            this.UserScreenScaleFactor = 1.0f; // ScreenDPIUtil not available cross-platform
 
             RenderHeight = (int) (Height * UserScreenScaleFactor);
             RenderWidth = (int)(Width * UserScreenScaleFactor);
@@ -896,10 +894,9 @@ namespace HaCreator.MapSimulator
             */
             ///////////// End Border
 
-            // Debug items
-            System.Drawing.Bitmap bitmap_debug = new System.Drawing.Bitmap(1, 1);
-            bitmap_debug.SetPixel(0, 0, System.Drawing.Color.White);
-            _debugBoundaryTexture = bitmap_debug.ToTexture2D(_DxDeviceManager.GraphicsDevice);
+            // Debug items — 1×1 white texture for boundary rendering
+            _debugBoundaryTexture = new Texture2D(_DxDeviceManager.GraphicsDevice, 1, 1);
+            _debugBoundaryTexture.SetData(new[] { Color.White });
 
             // Initialize chat system
             _chat.Initialize(_fontChat, _debugBoundaryTexture, Height);

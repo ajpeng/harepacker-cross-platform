@@ -25,12 +25,10 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using HaSharedLibrary.Wz;
 using MapleLib.Helpers;
-using SharpDX.Direct2D1.Effects;
-using System.Drawing.Printing;
 using HaCreator.MapSimulator.UI.Controls;
-using System.Windows.Forms;
 using HaCreator.MapSimulator.Loaders;
 using HaSharedLibrary.Render;
+using SkiaSharp;
 
 namespace HaCreator.MapSimulator {
     public class MapSimulatorLoader {
@@ -320,7 +318,7 @@ namespace HaCreator.MapSimulator {
 
                     WzSpineObject spineObject = new WzSpineObject(new WzSpineAnimationItem(stringObj));
 
-                    spineObject.spineAnimationItem.LoadResources(device); //  load spine resources (this must happen after window is loaded)
+                    spineObject.spineAnimationItem.LoadResources(); //  load spine resources (this must happen after window is loaded)
                     spineObject.skeleton = new Skeleton(spineObject.spineAnimationItem.SkeletonData);
                     //spineObject.skeleton.R =153;
                     //spineObject.skeleton.G = 255;
@@ -477,16 +475,16 @@ namespace HaCreator.MapSimulator {
         /// <returns></returns>
         public static TooltipItem CreateTooltipFromProperty(TexturePool texturePool, float UserScreenScaleFactor, WzSubProperty farmFrameParent, ToolTipInstance tooltip, GraphicsDevice device) {
             // Wz frames
-            System.Drawing.Bitmap c = ((WzCanvasProperty)farmFrameParent?["c"])?.GetLinkedWzCanvasBitmap();
-            System.Drawing.Bitmap cover = ((WzCanvasProperty)farmFrameParent?["cover"])?.GetLinkedWzCanvasBitmap();
-            System.Drawing.Bitmap e = ((WzCanvasProperty)farmFrameParent?["e"])?.GetLinkedWzCanvasBitmap();
-            System.Drawing.Bitmap n = ((WzCanvasProperty)farmFrameParent?["n"])?.GetLinkedWzCanvasBitmap();
-            System.Drawing.Bitmap s = ((WzCanvasProperty)farmFrameParent?["s"])?.GetLinkedWzCanvasBitmap();
-            System.Drawing.Bitmap w = ((WzCanvasProperty)farmFrameParent?["w"])?.GetLinkedWzCanvasBitmap();
-            System.Drawing.Bitmap ne = ((WzCanvasProperty)farmFrameParent?["ne"])?.GetLinkedWzCanvasBitmap(); // top right
-            System.Drawing.Bitmap nw = ((WzCanvasProperty)farmFrameParent?["nw"])?.GetLinkedWzCanvasBitmap(); // top left
-            System.Drawing.Bitmap se = ((WzCanvasProperty)farmFrameParent?["se"])?.GetLinkedWzCanvasBitmap(); // bottom right
-            System.Drawing.Bitmap sw = ((WzCanvasProperty)farmFrameParent?["sw"])?.GetLinkedWzCanvasBitmap(); // bottom left
+            SKBitmap c = ((WzCanvasProperty)farmFrameParent?["c"])?.GetLinkedWzCanvasBitmap();
+            SKBitmap cover = ((WzCanvasProperty)farmFrameParent?["cover"])?.GetLinkedWzCanvasBitmap();
+            SKBitmap e = ((WzCanvasProperty)farmFrameParent?["e"])?.GetLinkedWzCanvasBitmap();
+            SKBitmap n = ((WzCanvasProperty)farmFrameParent?["n"])?.GetLinkedWzCanvasBitmap();
+            SKBitmap s = ((WzCanvasProperty)farmFrameParent?["s"])?.GetLinkedWzCanvasBitmap();
+            SKBitmap w = ((WzCanvasProperty)farmFrameParent?["w"])?.GetLinkedWzCanvasBitmap();
+            SKBitmap ne = ((WzCanvasProperty)farmFrameParent?["ne"])?.GetLinkedWzCanvasBitmap(); // top right
+            SKBitmap nw = ((WzCanvasProperty)farmFrameParent?["nw"])?.GetLinkedWzCanvasBitmap(); // top left
+            SKBitmap se = ((WzCanvasProperty)farmFrameParent?["se"])?.GetLinkedWzCanvasBitmap(); // bottom right
+            SKBitmap sw = ((WzCanvasProperty)farmFrameParent?["sw"])?.GetLinkedWzCanvasBitmap(); // bottom left
 
 
             // tooltip property
@@ -499,34 +497,41 @@ namespace HaCreator.MapSimulator {
 
             string renderText = string.Format("{0}{1}{2}", title, Environment.NewLine, desc);
 
-            //System.Drawing.Color color_bgFill = System.Drawing.Color.FromArgb(230, 17, 54, 82); // pre V patch (dark blue theme used post-bb), leave this here in case someone needs it
-            System.Drawing.Color color_bgFill = System.Drawing.Color.FromArgb(255, 17, 17, 17); // post V patch (dark black theme used), use color picker on paint via image extracted from WZ if you need to get it
-            System.Drawing.Color color_foreGround = System.Drawing.Color.White;
+            // post V patch (dark black theme); pre V was Color.FromArgb(230, 17, 54, 82) dark blue
+            SKColor color_bgFill = new SKColor(17, 17, 17, 255);
+            SKColor color_foreGround = SKColors.White;
             const int WIDTH_PADDING = 10;
             const int HEIGHT_PADDING = 6;
 
-            // Create
-            using (System.Drawing.Font font = new System.Drawing.Font(GLOBAL_FONT, TOOLTIP_FONTSIZE / UserScreenScaleFactor)) {
-                System.Drawing.Graphics graphics_dummy = System.Drawing.Graphics.FromImage(new System.Drawing.Bitmap(1, 1)); // dummy image just to get the Graphics object for measuring string
-                System.Drawing.SizeF tooltipSize = graphics_dummy.MeasureString(renderText, font);
+            using var paint = new SKPaint {
+                TextSize = TOOLTIP_FONTSIZE / UserScreenScaleFactor,
+                Color = color_foreGround,
+                IsAntialias = true,
+                Typeface = SKTypeface.FromFamilyName(GLOBAL_FONT) ?? SKTypeface.Default,
+            };
+            paint.GetFontMetrics(out SKFontMetrics metrics);
+            float lineHeight = -metrics.Ascent + metrics.Descent;
+            var lines = renderText.Split('\n');
+            float maxLineWidth = 0;
+            foreach (var line in lines)
+                maxLineWidth = Math.Max(maxLineWidth, paint.MeasureText(line));
 
-                int effective_width = (int)tooltipSize.Width + WIDTH_PADDING;
-                int effective_height = (int)tooltipSize.Height + HEIGHT_PADDING;
+            int effective_width = (int)maxLineWidth + WIDTH_PADDING;
+            int effective_height = (int)(lineHeight * lines.Length) + HEIGHT_PADDING;
 
-                System.Drawing.Bitmap bmp_tooltip = new System.Drawing.Bitmap(effective_width, effective_height);
-                using (System.Drawing.Graphics graphics = System.Drawing.Graphics.FromImage(bmp_tooltip)) {
-                    // Frames and background
-                    UIFrameHelper.DrawUIFrame(graphics, color_bgFill, ne, nw, se, sw, e, w, n, s, c, 0, effective_width, effective_height);
-
-                    // Text
-                    graphics.DrawString(renderText, font, new System.Drawing.SolidBrush(color_foreGround), WIDTH_PADDING / 2, HEIGHT_PADDING / 2);
-                    graphics.Flush();
+            var bmp_tooltip = new SKBitmap(Math.Max(1, effective_width), Math.Max(1, effective_height));
+            using (var canvas = new SKCanvas(bmp_tooltip)) {
+                UIFrameHelper.DrawUIFrame(canvas, color_bgFill, ne, nw, se, sw, e, w, n, s, c, 0, effective_width, effective_height);
+                float ty = HEIGHT_PADDING / 2f - metrics.Ascent;
+                foreach (var line in lines) {
+                    canvas.DrawText(line, WIDTH_PADDING / 2f, ty, paint);
+                    ty += lineHeight;
                 }
-                IDXObject dxObj = new DXObject(tooltip.X, tooltip.Y, bmp_tooltip.ToTexture2D(device), 0);
-                TooltipItem item = new TooltipItem(tooltip, dxObj);
-
-                return item;
             }
+            IDXObject dxObj = new DXObject(tooltip.X, tooltip.Y, bmp_tooltip.ToTexture2D(device), 0);
+            TooltipItem item = new TooltipItem(tooltip, dxObj);
+
+            return item;
         }
 
         /// <summary>
@@ -540,42 +545,48 @@ namespace HaCreator.MapSimulator {
         /// <param name="UserScreenScaleFactor"></param>
         /// <param name="device"></param>
         /// <returns></returns>
-        public static NameTooltipItem CreateNPCMobNameTooltip(string renderText, int x, int y, System.Drawing.Color color_foreGround,
+        public static NameTooltipItem CreateNPCMobNameTooltip(string renderText, int x, int y, SKColor color_foreGround,
             TexturePool texturePool, float UserScreenScaleFactor, GraphicsDevice device)
         {
-            //System.Drawing.Color color_bgFill = System.Drawing.Color.FromArgb(230, 17, 54, 82); // pre V patch (dark blue theme used post-bb), leave this here in case someone needs it
-            System.Drawing.Color color_bgFill = System.Drawing.Color.FromArgb(200, 17, 17, 17); // post V patch (dark black theme used), use color picker on paint via image extracted from WZ if you need to get it
+            // post V patch (dark black theme); pre V was Color.FromArgb(230, 17, 54, 82) dark blue
+            SKColor color_bgFill = new SKColor(17, 17, 17, 200);
 
-            const int WIDTH_PADDING = 6; // use even numbers or it gets odd
+            const int WIDTH_PADDING = 6;
             const int HEIGHT_PADDING = 2;
 
-            // Create
-            using (System.Drawing.Font font = new System.Drawing.Font(GLOBAL_FONT, TOOLTIP_FONTSIZE / UserScreenScaleFactor))
+            using var paint = new SKPaint {
+                TextSize = TOOLTIP_FONTSIZE / UserScreenScaleFactor,
+                Color = color_foreGround,
+                IsAntialias = true,
+                Typeface = SKTypeface.FromFamilyName(GLOBAL_FONT) ?? SKTypeface.Default,
+            };
+            paint.GetFontMetrics(out SKFontMetrics metrics);
+            float lineHeight = -metrics.Ascent + metrics.Descent;
+            var lines = renderText.Split('\n');
+            float maxLineWidth = 0;
+            foreach (var line in lines)
+                maxLineWidth = Math.Max(maxLineWidth, paint.MeasureText(line));
+
+            int effective_width = (int)maxLineWidth + WIDTH_PADDING;
+            int effective_height = (int)(lineHeight * lines.Length) + HEIGHT_PADDING;
+
+            var bmp_tooltip = new SKBitmap(Math.Max(1, effective_width), Math.Max(1, effective_height));
+            using (var canvas = new SKCanvas(bmp_tooltip))
             {
-                System.Drawing.Graphics graphics_dummy = System.Drawing.Graphics.FromImage(new System.Drawing.Bitmap(1, 1)); // dummy image just to get the Graphics object for measuring string
-                System.Drawing.SizeF tooltipSize = graphics_dummy.MeasureString(renderText, font);
-
-                int effective_width = (int)tooltipSize.Width + WIDTH_PADDING;
-                int effective_height = (int)tooltipSize.Height + HEIGHT_PADDING;
-
-                System.Drawing.Bitmap bmp_tooltip = new System.Drawing.Bitmap(effective_width, effective_height);
-                using (System.Drawing.Graphics graphics = System.Drawing.Graphics.FromImage(bmp_tooltip))
-                {
-                    // Frames and background
-                    UIFrameHelper.DrawUIFrame(graphics, color_bgFill, effective_width, effective_height);
-
-                    // Text
-                    graphics.DrawString(renderText, font, new System.Drawing.SolidBrush(color_foreGround), (WIDTH_PADDING / 2), HEIGHT_PADDING / 2);
-                    graphics.Flush();
+                UIFrameHelper.DrawUIFrame(canvas, color_bgFill, effective_width, effective_height);
+                float ty = HEIGHT_PADDING / 2f - metrics.Ascent;
+                foreach (var line in lines) {
+                    canvas.DrawText(line, WIDTH_PADDING / 2f, ty, paint);
+                    ty += lineHeight;
                 }
-
-                int tooltipShiftX = (x - (effective_width / 2));
-
-                IDXObject dxObj = new DXObject(tooltipShiftX, y, bmp_tooltip.ToTexture2D(device), 0);
-                NameTooltipItem item = new NameTooltipItem(dxObj);
-
-                return item;
             }
+
+            int tooltipShiftX = x - (effective_width / 2);
+
+            IDXObject dxObj = new DXObject(tooltipShiftX, y, bmp_tooltip.ToTexture2D(device), 0);
+            NameTooltipItem item = new NameTooltipItem(dxObj);
+
+            return item;
         }
         #endregion
 

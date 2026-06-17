@@ -1,5 +1,6 @@
 using System.Linq;
 using HaCreator.MapEditor.Info;
+using SkiaSharp;
 using HaCreator.MapEditor.Instance;
 using HaCreator.MapSimulator.Animation;
 using HaCreator.MapSimulator.Entities;
@@ -106,7 +107,7 @@ namespace HaCreator.MapSimulator.Loaders
                 }
             }
 
-            System.Drawing.Color color_foreGround = System.Drawing.Color.White; // mob foreground color
+            SKColor color_foreGround = SKColors.White; // mob foreground color
             NameTooltipItem nameTooltip = MapSimulatorLoader.CreateNPCMobNameTooltip(
                 mobInstance.MobInfo.Name, mobInstance.X, mobInstance.Y, color_foreGround,
                 texturePool, UserScreenScaleFactor, device);
@@ -242,7 +243,7 @@ namespace HaCreator.MapSimulator.Loaders
             if (animationSet.ActionCount == 0) // fix japan ms v186, (9000021.img「ガガ」) なぜだ？;(
                 return null;
 
-            System.Drawing.Color color_foreGround = System.Drawing.Color.FromArgb(255, 255, 255, 0); // gold npc foreground color
+            SKColor color_foreGround = new SKColor(255, 255, 0, 255); // gold // gold npc foreground color
 
             NameTooltipItem nameTooltip = MapSimulatorLoader.CreateNPCMobNameTooltip(
                 npcInstance.NpcInfo.StringName, npcInstance.X, npcInstance.Y, color_foreGround,

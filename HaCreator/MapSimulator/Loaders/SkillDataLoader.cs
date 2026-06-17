@@ -1,5 +1,6 @@
 using HaCreator.MapSimulator.UI;
 using HaSharedLibrary.Util;
+using SkiaSharp;
 using MapleLib.WzLib;
 using MapleLib.WzLib.WzProperties;
 using Microsoft.Xna.Framework.Graphics;
@@ -189,7 +190,7 @@ namespace HaCreator.MapSimulator.Loaders
             if (iconProp == null)
                 return null;
 
-            System.Drawing.Bitmap iconBitmap = iconProp.GetLinkedWzCanvasBitmap();
+            SKBitmap iconBitmap = iconProp.GetLinkedWzCanvasBitmap();
             Texture2D iconTexture = iconBitmap?.ToTexture2D(device);
             if (iconTexture == null)
                 return null;
@@ -199,7 +200,7 @@ namespace HaCreator.MapSimulator.Loaders
             WzCanvasProperty disabledIconProp = (WzCanvasProperty)skillEntry["iconDisabled"];
             if (disabledIconProp != null)
             {
-                System.Drawing.Bitmap disabledBitmap = disabledIconProp.GetLinkedWzCanvasBitmap();
+                SKBitmap disabledBitmap = disabledIconProp.GetLinkedWzCanvasBitmap();
                 disabledIconTexture = disabledBitmap?.ToTexture2D(device);
             }
 
@@ -208,7 +209,7 @@ namespace HaCreator.MapSimulator.Loaders
             WzCanvasProperty mouseOverIconProp = (WzCanvasProperty)skillEntry["iconMouseOver"];
             if (mouseOverIconProp != null)
             {
-                System.Drawing.Bitmap mouseOverBitmap = mouseOverIconProp.GetLinkedWzCanvasBitmap();
+                SKBitmap mouseOverBitmap = mouseOverIconProp.GetLinkedWzCanvasBitmap();
                 mouseOverIconTexture = mouseOverBitmap?.ToTexture2D(device);
             }
 
@@ -332,7 +333,7 @@ namespace HaCreator.MapSimulator.Loaders
             if (iconProp == null)
                 return null;
 
-            System.Drawing.Bitmap iconBitmap = iconProp.GetLinkedWzCanvasBitmap();
+            SKBitmap iconBitmap = iconProp.GetLinkedWzCanvasBitmap();
             return iconBitmap?.ToTexture2D(device);
         }
 

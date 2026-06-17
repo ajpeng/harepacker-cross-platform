@@ -8,7 +8,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Audio;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
-using NAudio.Wave;
+using SkiaSharp;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -244,7 +244,7 @@ namespace HaCreator.MapSimulator.UI
             {
                 if (imgProperty is WzCanvasProperty property)
                 {
-                    System.Drawing.Bitmap btImage = property.GetLinkedWzCanvasBitmap(); // maximise
+                    SKBitmap btImage = property.GetLinkedWzCanvasBitmap(); // maximise
                     System.Drawing.PointF origin = property.GetCanvasOriginPosition();
                     int? delay = property[WzCanvasProperty.AnimationDelayPropertyName]?.GetInt();
 

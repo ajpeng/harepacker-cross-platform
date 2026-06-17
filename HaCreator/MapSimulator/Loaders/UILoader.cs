@@ -12,6 +12,7 @@ using MapleLib.WzLib.WzStructure.Data;
 using MapleLib.Converters;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using SkiaSharp;
 using System;
 using System.Collections.Generic;
 using HaCreator.MapSimulator.UI.Controls;
@@ -53,7 +54,7 @@ namespace HaCreator.MapSimulator.Loaders
                 {
                     HaUIGrid grid = new HaUIGrid(1, 1);
 
-                    System.Drawing.Bitmap backgrnd = ((WzCanvasProperty)mainBarProperties?["backgrnd"])?.GetLinkedWzCanvasBitmap();
+                    SKBitmap backgrnd = ((WzCanvasProperty)mainBarProperties?["backgrnd"])?.GetLinkedWzCanvasBitmap();
 
                     grid.AddRenderable(0, 0, new HaUIImage(new HaUIInfo()
                     {
@@ -70,13 +71,13 @@ namespace HaCreator.MapSimulator.Loaders
                         VerticalAlignment = HaUIAlignment.End
                     });
 
-                    System.Drawing.Bitmap bitmap_lvBacktrnd = ((WzCanvasProperty)mainBarProperties?["lvBacktrnd"])?.GetLinkedWzCanvasBitmap();
+                    SKBitmap bitmap_lvBacktrnd = ((WzCanvasProperty)mainBarProperties?["lvBacktrnd"])?.GetLinkedWzCanvasBitmap();
 
                     stackPanel_charStats.AddRenderable(new HaUIImage(new HaUIInfo() { Bitmap = bitmap_lvBacktrnd }));
 
                     // Draw HP, MP, EXP area
-                    System.Drawing.Bitmap bitmap_gaugeBackgrd = ((WzCanvasProperty)mainBarProperties?["gaugeBackgrd"])?.GetLinkedWzCanvasBitmap();
-                    System.Drawing.Bitmap bitmap_gaugeCover = ((WzCanvasProperty)mainBarProperties?["gaugeCover"])?.GetLinkedWzCanvasBitmap();
+                    SKBitmap bitmap_gaugeBackgrd = ((WzCanvasProperty)mainBarProperties?["gaugeBackgrd"])?.GetLinkedWzCanvasBitmap();
+                    SKBitmap bitmap_gaugeCover = ((WzCanvasProperty)mainBarProperties?["gaugeCover"])?.GetLinkedWzCanvasBitmap();
 
                     HaUIGrid grid_hpMpExp = new HaUIGrid(1, 1);
                     grid_hpMpExp.AddRenderable(0, 0, new HaUIImage(new HaUIInfo() { Bitmap = bitmap_gaugeCover }));
@@ -195,8 +196,8 @@ namespace HaCreator.MapSimulator.Loaders
 
 
                     // Draw Chat UI
-                    System.Drawing.Bitmap bitmap_chatSpace = ((WzCanvasProperty)mainBarProperties?["chatSpace"])?.GetLinkedWzCanvasBitmap(); // chat foreground
-                    System.Drawing.Bitmap bitmap_chatSpace2 = ((WzCanvasProperty)mainBarProperties?["chatSpace2"])?.GetLinkedWzCanvasBitmap(); // chat background
+                    SKBitmap bitmap_chatSpace = ((WzCanvasProperty)mainBarProperties?["chatSpace"])?.GetLinkedWzCanvasBitmap(); // chat foreground
+                    SKBitmap bitmap_chatSpace2 = ((WzCanvasProperty)mainBarProperties?["chatSpace2"])?.GetLinkedWzCanvasBitmap(); // chat background
 
                     HaUIGrid grid_chat = new HaUIGrid(1, 1, new HaUIInfo()
                     {
@@ -226,7 +227,7 @@ namespace HaCreator.MapSimulator.Loaders
                     }));
 
                     // notice
-                    System.Drawing.Bitmap bitmap_notice = ((WzCanvasProperty)mainBarProperties?["notice"])?.GetLinkedWzCanvasBitmap();
+                    SKBitmap bitmap_notice = ((WzCanvasProperty)mainBarProperties?["notice"])?.GetLinkedWzCanvasBitmap();
                     HaUIImage uiImage_notice = new HaUIImage(new HaUIInfo()
                     {
                         Bitmap = bitmap_notice,
@@ -243,7 +244,7 @@ namespace HaCreator.MapSimulator.Loaders
                     IDXObject dxObj_chatUI = new DXObject(UI_PADDING_PX, (int)(renderParams.RenderHeight / renderParams.RenderObjectScaling) - grid_chat.GetSize().Height - 36, texture_chatUI, 0);
 
                     // Scroll up+down, Chat, report/ claim, notice, stat, quest, inventory, equip, skill, key set
-                    System.Drawing.Bitmap bitmap_lvNumber1 = ((WzCanvasProperty)mainBarProperties?["lvNumber/1"])?.GetLinkedWzCanvasBitmap();
+                    SKBitmap bitmap_lvNumber1 = ((WzCanvasProperty)mainBarProperties?["lvNumber/1"])?.GetLinkedWzCanvasBitmap();
 
                     // chat
                     WzSubProperty subProperty_chatOpen = (WzSubProperty)mainBarProperties?["chatOpen"];
@@ -519,7 +520,7 @@ namespace HaCreator.MapSimulator.Loaders
                     HaUIGrid grid = new HaUIGrid(1, 1);
 
                     // Main background - 800x71 in pre-BB
-                    System.Drawing.Bitmap backgrnd = ((WzCanvasProperty)baseProperties?["backgrnd"])?.GetLinkedWzCanvasBitmap();
+                    SKBitmap backgrnd = ((WzCanvasProperty)baseProperties?["backgrnd"])?.GetLinkedWzCanvasBitmap();
 
                     if (backgrnd != null)
                     {
@@ -799,31 +800,31 @@ namespace HaCreator.MapSimulator.Loaders
             }
 
             // Wz frames
-            System.Drawing.Bitmap c = ((WzCanvasProperty)useFrameMaxMap?["c"])?.GetLinkedWzCanvasBitmap(); // the bg color
-            System.Drawing.Bitmap e = ((WzCanvasProperty)useFrameMaxMap?["e"])?.GetLinkedWzCanvasBitmap();
-            System.Drawing.Bitmap n = ((WzCanvasProperty)useFrameMaxMap?["n"])?.GetLinkedWzCanvasBitmap();
-            System.Drawing.Bitmap s = ((WzCanvasProperty)useFrameMaxMap?["s"])?.GetLinkedWzCanvasBitmap();
-            System.Drawing.Bitmap w = ((WzCanvasProperty)useFrameMaxMap?["w"])?.GetLinkedWzCanvasBitmap();
-            System.Drawing.Bitmap ne = ((WzCanvasProperty)useFrameMaxMap?["ne"])?.GetLinkedWzCanvasBitmap(); // top right
-            System.Drawing.Bitmap nw = ((WzCanvasProperty)useFrameMaxMap?["nw"])?.GetLinkedWzCanvasBitmap(); // top left
-            System.Drawing.Bitmap se = ((WzCanvasProperty)useFrameMaxMap?["se"])?.GetLinkedWzCanvasBitmap(); // bottom right
-            System.Drawing.Bitmap sw = ((WzCanvasProperty)useFrameMaxMap?["sw"])?.GetLinkedWzCanvasBitmap(); // bottom left
+            SKBitmap c = ((WzCanvasProperty)useFrameMaxMap?["c"])?.GetLinkedWzCanvasBitmap(); // the bg color
+            SKBitmap e = ((WzCanvasProperty)useFrameMaxMap?["e"])?.GetLinkedWzCanvasBitmap();
+            SKBitmap n = ((WzCanvasProperty)useFrameMaxMap?["n"])?.GetLinkedWzCanvasBitmap();
+            SKBitmap s = ((WzCanvasProperty)useFrameMaxMap?["s"])?.GetLinkedWzCanvasBitmap();
+            SKBitmap w = ((WzCanvasProperty)useFrameMaxMap?["w"])?.GetLinkedWzCanvasBitmap();
+            SKBitmap ne = ((WzCanvasProperty)useFrameMaxMap?["ne"])?.GetLinkedWzCanvasBitmap(); // top right
+            SKBitmap nw = ((WzCanvasProperty)useFrameMaxMap?["nw"])?.GetLinkedWzCanvasBitmap(); // top left
+            SKBitmap se = ((WzCanvasProperty)useFrameMaxMap?["se"])?.GetLinkedWzCanvasBitmap(); // bottom right
+            SKBitmap sw = ((WzCanvasProperty)useFrameMaxMap?["sw"])?.GetLinkedWzCanvasBitmap(); // bottom left
 
             // Constants
             const int MAPMARK_MAPNAME_LEFT_MARGIN = 4;
             const int MAPMARK_MAPNAME_TOP_MARGIN = 17;
             const int MAP_IMAGE_TEXT_PADDING = 2; // the number of pixels from the left to draw the minimap image
-            System.Drawing.Color color_bgFill = System.Drawing.Color.Transparent;
-            System.Drawing.Color color_foreGround = System.Drawing.Color.White;
+            SKColor color_bgFill = SKColors.Transparent;
+            SKColor color_foreGround = SKColors.White;
 
 
             // Map background image
             // Using HaUIGrid and HaUIStackPanel
-            System.Drawing.Bitmap miniMapImage = mapBoard.MiniMap; // the original minimap image without UI frame overlay
+            SKBitmap miniMapImage = mapBoard.MiniMap; // the original minimap image without UI frame overlay
 
 
             // Create Map mark
-            System.Drawing.Bitmap mapMark = null;
+            SKBitmap mapMark = null;
             if (Program.InfoManager.MapMarks.ContainsKey(mapBoard.MapInfo.mapMark))
             {
                 mapMark = Program.InfoManager.MapMarks[mapBoard.MapInfo.mapMark];
@@ -867,7 +868,7 @@ namespace HaCreator.MapSimulator.Loaders
             mapNameMarkStackPanel.AddRenderable(haUITextMapNameStreetName);
             fullMiniMapStackPanel.AddRenderable(mapNameMarkStackPanel);
 
-            System.Drawing.Bitmap finalMininisedMinimapBitmap = HaUIHelper.RenderAndMergeMinimapUIFrame(fullMiniMapStackPanel, color_bgFill, ne, nw, se, sw, e, w, n, s,
+            SKBitmap finalMininisedMinimapBitmap = HaUIHelper.RenderAndMergeMinimapUIFrame(fullMiniMapStackPanel, color_bgFill, ne, nw, se, sw, e, w, n, s,
                 c, mapMark != null ? mapMark.Height : 0);
 
             HaUIGrid minimapUiGrid = new HaUIGrid(1, 1);
@@ -878,20 +879,20 @@ namespace HaCreator.MapSimulator.Loaders
             fullMiniMapStackPanel.AddRenderable(minimapUiGrid);
 
             // Render final minimap Bitmap with UI frames
-            System.Drawing.Bitmap finalFullMinimapBitmap = HaUIHelper.RenderAndMergeMinimapUIFrame(fullMiniMapStackPanel, color_bgFill, ne, nw, se, sw, e, w, n, s,
+            SKBitmap finalFullMinimapBitmap = HaUIHelper.RenderAndMergeMinimapUIFrame(fullMiniMapStackPanel, color_bgFill, ne, nw, se, sw, e, w, n, s,
                 c, mapMark != null ? mapMark.Height : 0);
 
             Texture2D texturer_miniMapMinimised = finalMininisedMinimapBitmap.ToTexture2D(device);
             Texture2D texturer_miniMap = finalFullMinimapBitmap.ToTexture2D(device);
 
             // Dots pixel
-            System.Drawing.Bitmap bmp_DotPixel = new System.Drawing.Bitmap(2, 4);
-            using (System.Drawing.Graphics graphics = System.Drawing.Graphics.FromImage(bmp_DotPixel))
+            var bmp_DotPixel = new SKBitmap(2, 4);
+            using (var dotCanvas = new SKCanvas(bmp_DotPixel))
+            using (var dotPaint = new SKPaint { Color = SKColors.Yellow })
             {
-                graphics.FillRectangle(new System.Drawing.SolidBrush(System.Drawing.Color.Yellow), new System.Drawing.RectangleF(0, 0, bmp_DotPixel.Width, bmp_DotPixel.Height));
-                graphics.Flush();
+                dotCanvas.DrawRect(0, 0, bmp_DotPixel.Width, bmp_DotPixel.Height, dotPaint);
             }
-            IDXObject dxObj_miniMapPixel = new DXObject(0, n.Height, bmp_DotPixel.ToTexture2D(device), 0);
+            IDXObject dxObj_miniMapPixel = new DXObject(0, n?.Height ?? 0, bmp_DotPixel.ToTexture2D(device), 0);
 
             // Map
             IDXObject dxObj_miniMap_Minimised = new DXObject(0, 0, texturer_miniMapMinimised, 0);

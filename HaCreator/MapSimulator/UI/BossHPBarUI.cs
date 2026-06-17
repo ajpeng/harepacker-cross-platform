@@ -2,10 +2,12 @@ using System;
 using System.Collections.Generic;
 using HaCreator.MapSimulator.Entities;
 using HaSharedLibrary.Render.DX;
+using HaSharedLibrary.Util;
 using MapleLib.WzLib;
 using MapleLib.WzLib.WzProperties;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using SkiaSharp;
 
 namespace HaCreator.MapSimulator.UI
 {
@@ -200,24 +202,10 @@ namespace HaCreator.MapSimulator.UI
             return null;
         }
 
-        private Texture2D BitmapToTexture2D(System.Drawing.Bitmap bitmap, GraphicsDevice device)
+        private Texture2D BitmapToTexture2D(SKBitmap bitmap, GraphicsDevice device)
         {
             if (bitmap == null) return null;
-
-            var texture = new Texture2D(device, bitmap.Width, bitmap.Height);
-            var data = new Color[bitmap.Width * bitmap.Height];
-
-            for (int y = 0; y < bitmap.Height; y++)
-            {
-                for (int x = 0; x < bitmap.Width; x++)
-                {
-                    var pixel = bitmap.GetPixel(x, y);
-                    data[y * bitmap.Width + x] = new Color(pixel.R, pixel.G, pixel.B, pixel.A);
-                }
-            }
-
-            texture.SetData(data);
-            return texture;
+            return bitmap.ToTexture2D(device);
         }
 
         /// <summary>
