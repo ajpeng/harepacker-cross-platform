@@ -158,6 +158,11 @@ namespace HaCreator.MapEditor.Instance.Shapes
             board.ParentControl.DrawLine(sprite, new XNA.Vector2(firstDot.X + xShift, firstDot.Y + yShift), new XNA.Vector2(secondDot.X + xShift, secondDot.Y + yShift), color);
         }
 
+        public virtual void DrawSK(SkiaSharp.SKCanvas canvas, XNA.Color color, int xShift, int yShift)
+        {
+            MultiBoard.DrawLineSK(canvas, firstDot.X + xShift, firstDot.Y + yShift, secondDot.X + xShift, secondDot.Y + yShift, color);
+        }
+
         public MapleDot GetOtherDot(MapleDot x)
         {
             if (firstDot == x)

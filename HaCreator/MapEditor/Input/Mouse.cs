@@ -422,6 +422,10 @@ namespace HaCreator.MapEditor.Input
         {
         }
 
+        public override void DrawSK(SkiaSharp.SKCanvas canvas, Microsoft.Xna.Framework.Color color, int xShift, int yShift)
+        {
+        }
+
         public override SKBitmap? Image => placeholder;
 
         public override System.Drawing.Point Origin => origin;

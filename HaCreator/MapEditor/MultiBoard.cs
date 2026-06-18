@@ -7,8 +7,10 @@ using HaCreator.MapEditor.Input;
 using HaCreator.MapEditor.Text;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using SkiaSharp;
 using System;
 using System.Collections.Generic;
+using XNA = Microsoft.Xna.Framework;
 
 namespace HaCreator.MapEditor
 {
@@ -137,8 +139,8 @@ namespace HaCreator.MapEditor
         public bool AddHScrollbarValue(int delta)
         {
             if (SelectedBoard == null) return false;
-            int max = Math.Max(0, (SelectedBoard.MapSize.X - CurrentDXWindowSize.Width) / 2);
-            int newVal = Math.Clamp(SelectedBoard.hScroll + delta, -max, max);
+            int max = Math.Max(0, SelectedBoard.MapSize.X - CurrentDXWindowSize.Width);
+            int newVal = Math.Clamp(SelectedBoard.hScroll + delta, 0, max);
             if (newVal == SelectedBoard.hScroll) return false;
             SelectedBoard.hScroll = newVal;
             return true;
@@ -148,8 +150,8 @@ namespace HaCreator.MapEditor
         public bool AddVScrollbarValue(int delta)
         {
             if (SelectedBoard == null) return false;
-            int max = Math.Max(0, (SelectedBoard.MapSize.Y - CurrentDXWindowSize.Height) / 2);
-            int newVal = Math.Clamp(SelectedBoard.vScroll + delta, -max, max);
+            int max = Math.Max(0, SelectedBoard.MapSize.Y - CurrentDXWindowSize.Height);
+            int newVal = Math.Clamp(SelectedBoard.vScroll + delta, 0, max);
             if (newVal == SelectedBoard.vScroll) return false;
             SelectedBoard.vScroll = newVal;
             return true;
@@ -158,8 +160,8 @@ namespace HaCreator.MapEditor
         public void AdjustScrollBars()
         {
             if (SelectedBoard == null) return;
-            MaxHScroll = Math.Max(0, (SelectedBoard.MapSize.X - CurrentDXWindowSize.Width)  / 2);
-            MaxVScroll = Math.Max(0, (SelectedBoard.MapSize.Y - CurrentDXWindowSize.Height) / 2);
+            MaxHScroll = Math.Max(0, SelectedBoard.MapSize.X - CurrentDXWindowSize.Width);
+            MaxVScroll = Math.Max(0, SelectedBoard.MapSize.Y - CurrentDXWindowSize.Height);
         }
         public void OnMinimapStateChanged(Board board, bool hasMm) => MinimapStateChanged?.Invoke(this, hasMm);
         public void OnSelectedItemChanged(BoardItem? selectedItem) => SelectedItemChanged?.Invoke(selectedItem);
@@ -298,6 +300,96 @@ namespace HaCreator.MapEditor
             }
         }
 
+        // ── SkiaSharp rendering ────────────────────────────────────────────
+
+        /// <summary>Converts an XNA Color to a SkiaSharp SKColor.</summary>
+        public static SKColor ToSKColor(XNA.Color c) => new SKColor(c.R, c.G, c.B, c.A);
+
+        /// <summary>Draws a bitmap to the SKCanvas at <paramref name="dst"/>, with optional horizontal flip.</summary>
+        public static void DrawBitmapSK(SKCanvas canvas, SKBitmap bmp, SKRect dst, XNA.Color color, bool flip = false)
+        {
+            if (bmp == null || dst.Width <= 0 || dst.Height <= 0) return;
+            using var paint = new SKPaint { Color = SKColors.White.WithAlpha(color.A) };
+            if (flip)
+            {
+                canvas.Save();
+                canvas.Scale(-1f, 1f, dst.MidX, 0f);
+                canvas.DrawBitmap(bmp, dst, paint);
+                canvas.Restore();
+            }
+            else
+            {
+                canvas.DrawBitmap(bmp, dst, paint);
+            }
+        }
+
+        public static void DrawLineSK(SKCanvas canvas, float x1, float y1, float x2, float y2, XNA.Color color)
+        {
+            using var paint = new SKPaint
+            {
+                Color       = ToSKColor(color),
+                StrokeWidth = Math.Max(1, UserSettings.LineWidth),
+                IsAntialias = false,
+                IsStroke    = true,
+            };
+            canvas.DrawLine(x1, y1, x2, y2, paint);
+        }
+
+        public static void FillRectangleSK(SKCanvas canvas, int x, int y, int w, int h, XNA.Color color)
+        {
+            using var paint = new SKPaint { Color = ToSKColor(color) };
+            canvas.DrawRect(SKRect.Create(x, y, w, h), paint);
+        }
+
+        public static void DrawDotSK(SKCanvas canvas, int x, int y, XNA.Color color, int dotSize)
+        {
+            int half = UserSettings.DotWidth * dotSize;
+            FillRectangleSK(canvas, x - half, y - half, half * 2, half * 2, color);
+        }
+
+        public static void DrawRectangleSK(SKCanvas canvas, int x, int y, int w, int h, XNA.Color color)
+        {
+            DrawLineSK(canvas, x, y, x + w, y, color);
+            DrawLineSK(canvas, x + w, y, x + w, y + h, color);
+            DrawLineSK(canvas, x + w, y + h, x, y + h, color);
+            DrawLineSK(canvas, x, y + h, x, y, color);
+        }
+
+        /// <summary>
+        /// Renders the currently selected board using SkiaSharp.
+        /// Called by SkiaEditorRenderer on its background thread.
+        /// </summary>
+        public void RenderFrameSK(SKCanvas canvas, int viewW, int viewH)
+        {
+            Board? board = SelectedBoard;
+            if (board == null) return;
+
+            float zoom = board.Zoom;
+
+            // Pass 1: back backgrounds (no zoom)
+            lock (this) { board.RenderBackgroundsSK(canvas); }
+
+            // Pass 2: main items with zoom transform
+            canvas.Save();
+            canvas.Scale(zoom, zoom);
+            lock (this)
+            {
+                board.RenderBoardSK(canvas);
+                var mapSz = board.MapSize;
+                if (mapSz.X < viewW)
+                    DrawLineSK(canvas, mapSz.X, 0, mapSz.X, viewH, XNA.Color.Black);
+                if (mapSz.Y < viewH)
+                    DrawLineSK(canvas, 0, mapSz.Y, viewW, mapSz.Y, XNA.Color.Black);
+            }
+            canvas.Restore();
+
+            // Pass 3: front backgrounds (no zoom)
+            lock (this) { board.RenderFrontBackgroundsSK(canvas); }
+
+            // Pass 4: minimap overlay (no zoom)
+            lock (this) { board.RenderMinimapSK(canvas); }
+        }
+
         // ── Input handling (called by MapEditorControl) ────────────────────
 
         public void HandleMouseMove(int x, int y)
@@ -374,12 +466,6 @@ namespace HaCreator.MapEditor
                     PhysicalToVirtual(y, SelectedBoard.CenterPoint.Y, SelectedBoard.vScroll, 0, zoom));
                 MouseDoubleClick?.Invoke(SelectedBoard, GetObjectUnderPoint(realPos), realPos, virtPos);
             }
-        }
-
-        public void HandleMouseWheel(int delta)
-        {
-            if (!AddHScrollbarValue(delta))
-                AddVScrollbarValue(delta);
         }
 
         public void HandleKeyDown(bool ctrl, bool shift, bool alt, Key key)

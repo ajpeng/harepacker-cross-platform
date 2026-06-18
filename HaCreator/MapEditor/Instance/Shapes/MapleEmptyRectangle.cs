@@ -186,15 +186,19 @@ namespace HaCreator.MapEditor.Instance.Shapes
         public virtual void Draw(SpriteBatch sprite, int xShift, int yShift, SelectionInfo sel)
         {
             XNA.Color lineColor = ab.GetColor(sel);
-            int x, y;
-            if (a.X < b.X) x = a.X + xShift;
-            else x = b.X + xShift;
-            if (b.Y < c.Y) y = b.Y + yShift;
-            else y = c.Y + yShift;
             ab.Draw(sprite, lineColor, xShift, yShift);
             bc.Draw(sprite, lineColor, xShift, yShift);
             cd.Draw(sprite, lineColor, xShift, yShift);
             da.Draw(sprite, lineColor, xShift, yShift);
+        }
+
+        public virtual void DrawSK(SkiaSharp.SKCanvas canvas, int xShift, int yShift, SelectionInfo sel)
+        {
+            XNA.Color lineColor = ab.GetColor(sel);
+            ab.DrawSK(canvas, lineColor, xShift, yShift);
+            bc.DrawSK(canvas, lineColor, xShift, yShift);
+            cd.DrawSK(canvas, lineColor, xShift, yShift);
+            da.DrawSK(canvas, lineColor, xShift, yShift);
         }
 
         public ItemTypes Type

@@ -22,6 +22,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Threading;
 using HaSharedLibrary.Wz;
 using MapleLib.Helpers;
@@ -67,27 +68,111 @@ namespace HaCreator.MapSimulator {
         /// <param name="onComplete">Optional callback invoked on the UI thread when the simulator exits.</param>
         /// <returns></returns>
         public static void CreateAndShowMapSimulator(Board mapBoard, string titleName, Func<int, Tuple<Board, string>> loadMapCallback = null, Action onComplete = null) {
+            // MonoGame DesktopGL uses SDL2 which requires the macOS/Linux main thread for window creation.
+            // On non-Windows we use the cross-platform SkiaSharp-based simulator instead.
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
+                {
+                    try
+                    {
+                        var simWin = new SKMapSimulatorWindow(mapBoard.ParentControl, mapBoard, titleName);
+                        var owner  = Program.HaEditorWindow as Avalonia.Controls.Window;
+                        if (owner != null) simWin.Show(owner);
+                        else simWin.Show();
+                        onComplete?.Invoke();
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.Error.WriteLine($"[MapSimulator] Error opening simulator: {ex}");
+                        string msg = $"{ex.GetType().Name}: {ex.Message}";
+                        string detail = ex.StackTrace?.Length > 0
+                            ? ex.StackTrace.Substring(0, Math.Min(500, ex.StackTrace.Length))
+                            : string.Empty;
+
+                        var btn = new Avalonia.Controls.Button
+                        {
+                            Content = "OK", IsDefault = true,
+                            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                        };
+                        var win = new Avalonia.Controls.Window
+                        {
+                            Title = "Map Simulation Error",
+                            Width = 500, Height = 260,
+                            WindowStartupLocation = Avalonia.Controls.WindowStartupLocation.CenterOwner,
+                            Content = new Avalonia.Controls.StackPanel
+                            {
+                                Margin = new Avalonia.Thickness(16), Spacing = 10,
+                                Children =
+                                {
+                                    new Avalonia.Controls.TextBlock
+                                    {
+                                        TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+                                        Text = $"Failed to open map simulator:\n\n{msg}\n\n{detail}"
+                                    },
+                                    btn
+                                }
+                            }
+                        };
+                        btn.Click += (_, _) => win.Close();
+                        var ownerWin = Program.HaEditorWindow as Avalonia.Controls.Window;
+                        if (ownerWin != null) await win.ShowDialog(ownerWin);
+                        else win.Show();
+                    }
+                });
+                return;
+            }
+
             if (mapBoard.MiniMap == null)
                 mapBoard.RegenerateMinimap();
 
             Thread thread = new Thread(() => {
-                var mapSimulator = new MapSimulator(mapBoard, titleName);
-
-                // Set the callback for seamless map transitions
-                if (loadMapCallback != null)
+                try
                 {
-                    mapSimulator.SetLoadMapCallback(loadMapCallback);
+                    var mapSimulator = new MapSimulator(mapBoard, titleName);
+
+                    if (loadMapCallback != null)
+                        mapSimulator.SetLoadMapCallback(loadMapCallback);
+
+                    mapSimulator.Run();
+
+                    onComplete?.Invoke();
                 }
-
-                mapSimulator.Run();
-
-                // Signal completion on the UI thread
-                onComplete?.Invoke();
+                catch (Exception ex)
+                {
+                    Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
+                    {
+                        var btn = new Avalonia.Controls.Button { Content = "OK", IsDefault = true,
+                            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right };
+                        var win = new Avalonia.Controls.Window
+                        {
+                            Title = "Map Simulation Error",
+                            Width = 420, Height = 180,
+                            WindowStartupLocation = Avalonia.Controls.WindowStartupLocation.CenterOwner,
+                            Content = new Avalonia.Controls.StackPanel
+                            {
+                                Margin = new Avalonia.Thickness(16), Spacing = 10,
+                                Children =
+                                {
+                                    new Avalonia.Controls.TextBlock
+                                    {
+                                        TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+                                        Text = $"Map Simulation failed: {ex.Message}"
+                                    },
+                                    btn
+                                }
+                            }
+                        };
+                        btn.Click += (_, _) => win.Close();
+                        var owner = Program.HaEditorWindow as Avalonia.Controls.Window;
+                        if (owner != null) await win.ShowDialog(owner);
+                        else win.Show();
+                    });
+                }
             }) {
                 Priority = ThreadPriority.Highest
             };
             thread.Start();
-            // Don't Join() - let the game run independently to avoid deadlock with Dispatcher.Invoke
         }
 
         #region Common

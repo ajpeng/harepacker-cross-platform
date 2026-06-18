@@ -50,6 +50,20 @@ namespace HaCreator.GUI
             foreach (string path in WzFileManager.COMMON_MAPLESTORY_DIRECTORY.Where(Directory.Exists))
                 if (!cmbPath.Items.Contains(path))
                     cmbPath.Items.Add(path);
+
+            // Auto-detect common dev WZ paths (e.g. sibling roguestory project)
+            var autoDetectPaths = new[]
+            {
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Workspace", "roguestory"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "roguestory"),
+            };
+            foreach (string p in autoDetectPaths)
+            {
+                if (Directory.Exists(p) && Directory.GetFiles(p, "Map.wz").Length > 0
+                    && !cmbPath.Items.Contains(p))
+                    cmbPath.Items.Add(p);
+            }
+
             if (cmbPath.Items.Count == 0)
                 cmbPath.Items.Add("Select MapleStory Folder");
 

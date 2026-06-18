@@ -101,6 +101,12 @@ namespace HaCreator.MapEditor.Instance.Shapes
             Board.ParentControl.FillRectangle(sprite, new XNA.Rectangle(this.X - UserSettings.DotWidth + xShift, this.Y - UserSettings.DotWidth + yShift, UserSettings.DotWidth * 2, UserSettings.DotWidth * 2), color);
         }
 
+        public override void DrawSK(SkiaSharp.SKCanvas canvas, XNA.Color color, int xShift, int yShift)
+        {
+            int half = UserSettings.DotWidth;
+            MultiBoard.FillRectangleSK(canvas, X - half + xShift, Y - half + yShift, half * 2, half * 2, color);
+        }
+
         public void DisconnectLine(MapleLine line)
         {
             connectedLines.Remove(line);

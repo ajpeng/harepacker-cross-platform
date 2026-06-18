@@ -10,34 +10,36 @@ using Avalonia.Threading;
 using HaCreator.MapEditor;
 using SkiaSharp;
 using System;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
-using System.Threading;
 using Point = Avalonia.Point;
 
 namespace HaCreator.GUI
 {
     /// <summary>
-    /// Avalonia control that hosts the MonoGame map-editor canvas.
-    /// MonoGame renders to an offscreen RenderTarget2D on a background thread;
+    /// Avalonia control that hosts the SkiaSharp map-editor canvas.
+    /// SkiaEditorRenderer renders to an offscreen SKBitmap on a background thread;
     /// frames are copied to a WriteableBitmap every ~33 ms for display.
     /// Mouse and keyboard events are forwarded to MultiBoard for editing logic.
     /// </summary>
     public sealed class MapEditorControl : UserControl
     {
         private readonly MultiBoard _multiBoard;
-        private readonly Image _image = new() { Stretch = Stretch.Fill };
+        private readonly Image _image = new() { Stretch = Stretch.None };
         private WriteableBitmap? _bitmap;
         private byte[]? _displayBuffer;
 
-        private MapEditorGame? _game;
-        private Thread? _gameThread;
+        private SkiaEditorRenderer? _skiaRenderer;
+        private bool _rendererStarted;
         private readonly DispatcherTimer _refreshTimer;
 
         // Track last pointer position for move deduplication
         private int _lastPx, _lastPy;
+
+        // Middle-click pan state
+        private bool _isPanning;
+        private Point _panLast;
 
         public MapEditorControl(MultiBoard multiBoard)
         {
@@ -48,6 +50,8 @@ namespace HaCreator.GUI
             Focusable  = true;
             DragDrop.SetAllowDrop(this, true);
 
+            // Prevent the Image from consuming pointer events — let them bubble to this UserControl
+            _image.IsHitTestVisible = false;
             Content = _image;
 
             AddHandler(DragDrop.DragOverEvent, OnDragOver);
@@ -68,53 +72,23 @@ namespace HaCreator.GUI
         protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
         {
             base.OnAttachedToVisualTree(e);
-            StartMonoGame();
+            _rendererStarted = false;
             _refreshTimer.Start();
         }
 
         protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
         {
             _refreshTimer.Stop();
-            _game?.Exit();
+            _skiaRenderer?.Stop();
+            _rendererStarted = false;
             base.OnDetachedFromVisualTree(e);
-        }
-
-        // ── MonoGame startup ───────────────────────────────────────────────
-
-        private void StartMonoGame()
-        {
-            int w = Math.Max((int)Bounds.Width,  800);
-            int h = Math.Max((int)Bounds.Height, 600);
-            _multiBoard.CurrentDXWindowSize = new System.Drawing.Size(w, h);
-
-            // On macOS, SDL_VIDEODRIVER=offscreen avoids NSApp main-thread conflicts
-            if (OperatingSystem.IsMacOS())
-                Environment.SetEnvironmentVariable("SDL_VIDEODRIVER", "offscreen");
-
-            _gameThread = new Thread(() =>
-            {
-                try
-                {
-                    _game = new MapEditorGame(_multiBoard, w, h);
-                    _game.Run();
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"[MapEditorControl] MonoGame failed: {ex}");
-                }
-            })
-            {
-                IsBackground = true,
-                Name = "MonoGame-Render"
-            };
-            _gameThread.Start();
         }
 
         // ── Frame display ──────────────────────────────────────────────────
 
         private void OnRefreshTick(object? sender, EventArgs e)
         {
-            if (_game == null || !_multiBoard.DeviceReady) return;
+            if (_skiaRenderer == null || !_multiBoard.DeviceReady) return;
 
             int w = _multiBoard.CurrentDXWindowSize.Width;
             int h = _multiBoard.CurrentDXWindowSize.Height;
@@ -133,7 +107,7 @@ namespace HaCreator.GUI
                 _image.Source  = _bitmap;
             }
 
-            if (_displayBuffer != null && _game.TryGetFrame(_displayBuffer))
+            if (_displayBuffer != null && _skiaRenderer.TryGetFrame(_displayBuffer))
             {
                 using var fb = _bitmap.Lock();
                 Marshal.Copy(_displayBuffer, 0, fb.Address, _displayBuffer.Length);
@@ -146,16 +120,47 @@ namespace HaCreator.GUI
         {
             int w = (int)e.NewSize.Width;
             int h = (int)e.NewSize.Height;
-            if (w > 0 && h > 0)
-                _game?.Resize(w, h);
+            if (w <= 0 || h <= 0) return;
+
+            if (!_rendererStarted)
+            {
+                // First real layout — start renderer at actual size
+                _multiBoard.CurrentDXWindowSize = new System.Drawing.Size(w, h);
+                _skiaRenderer = new SkiaEditorRenderer(_multiBoard, w, h);
+                _skiaRenderer.Start();
+                _rendererStarted = true;
+            }
+            else
+            {
+                _skiaRenderer?.Resize(w, h);
+            }
         }
 
         // ── Pointer events ────────────────────────────────────────────────
+
+        protected override void OnPointerEntered(PointerEventArgs e)
+        {
+            base.OnPointerEntered(e);
+            Focus();
+        }
 
         protected override void OnPointerMoved(PointerEventArgs e)
         {
             base.OnPointerMoved(e);
             var pt = e.GetPosition(this);
+
+            if (_isPanning)
+            {
+                // Middle-click drag: drag right → map slides right → shows left portion of map
+                double dx = pt.X - _panLast.X;
+                double dy = pt.Y - _panLast.Y;
+                _panLast = pt;
+                _multiBoard.AddHScrollbarValue(-(int)Math.Round(dx));
+                _multiBoard.AddVScrollbarValue(-(int)Math.Round(dy));
+                e.Handled = true;
+                return;
+            }
+
             int x = (int)pt.X, y = (int)pt.Y;
             if (x == _lastPx && y == _lastPy) return;
             _lastPx = x; _lastPy = y;
@@ -167,8 +172,18 @@ namespace HaCreator.GUI
             base.OnPointerPressed(e);
             Focus();
             var pt    = e.GetPosition(this);
-            int x = (int)pt.X, y = (int)pt.Y;
             var props = e.GetCurrentPoint(this).Properties;
+
+            if (props.IsMiddleButtonPressed)
+            {
+                _isPanning = true;
+                _panLast   = pt;
+                e.Pointer.Capture(this);
+                e.Handled = true;
+                return;
+            }
+
+            int x = (int)pt.X, y = (int)pt.Y;
             bool left  = props.IsLeftButtonPressed;
             bool right = props.IsRightButtonPressed;
             _multiBoard.HandleMouseDown(x, y, left, right);
@@ -177,9 +192,17 @@ namespace HaCreator.GUI
         protected override void OnPointerReleased(PointerReleasedEventArgs e)
         {
             base.OnPointerReleased(e);
+
+            if (_isPanning && e.InitialPressMouseButton == MouseButton.Middle)
+            {
+                _isPanning = false;
+                e.Pointer.Capture(null);
+                e.Handled = true;
+                return;
+            }
+
             var pt    = e.GetPosition(this);
             int x = (int)pt.X, y = (int)pt.Y;
-            var props = e.GetCurrentPoint(this).Properties;
             // Properties reflect state AFTER release: check InitialPressMouseButton
             bool left  = e.InitialPressMouseButton == MouseButton.Left;
             bool right = e.InitialPressMouseButton == MouseButton.Right;
@@ -195,9 +218,14 @@ namespace HaCreator.GUI
         protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
         {
             base.OnPointerWheelChanged(e);
-            // Delta.Y > 0 = wheel up; match original WinForms convention (positive = scroll right/up)
-            int delta = (int)(e.Delta.Y * UserSettings.ScrollDistance);
-            _multiBoard.HandleMouseWheel(delta);
+            e.Handled = true;
+            const int WheelSpeed = 60;
+            int dy = (int)Math.Round(e.Delta.Y * WheelSpeed);
+            int dx = (int)Math.Round(e.Delta.X * WheelSpeed);
+            // Wheel-up (dy > 0) → show higher part of map → decrease vScroll
+            if (dy != 0) _multiBoard.AddVScrollbarValue(-dy);
+            // Swipe-right (dx > 0) → show right part of map → increase hScroll
+            if (dx != 0) _multiBoard.AddHScrollbarValue(dx);
         }
 
         // ── Drag-drop ─────────────────────────────────────────────────────
@@ -247,7 +275,7 @@ namespace HaCreator.GUI
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"[MapEditorControl] Drop failed for '{path}': {ex.Message}");
+                    Console.Error.WriteLine($"[MapEditorControl] Drop failed for '{path}': {ex.Message}");
                 }
             }
             e.Handled = true;

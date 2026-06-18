@@ -45,7 +45,13 @@ namespace HaCreator.MapEditor.Instance.Misc
         public override void Draw(SpriteBatch sprite, XNA.Color dotColor, int xShift, int yShift)
         {
             base.Draw(sprite, dotColor, xShift, yShift);
-            board.ParentControl.FontEngine.DrawString(sprite, new System.Drawing.Point(X + xShift + 2, Y + yShift + 2), XNA.Color.Black, Name, Width);
+            board.ParentControl.FontEngine?.DrawString(sprite, new System.Drawing.Point(X + xShift + 2, Y + yShift + 2), XNA.Color.Black, Name, Width);
+        }
+
+        public override void DrawSK(SkiaSharp.SKCanvas canvas, XNA.Color dotColor, int xShift, int yShift)
+        {
+            base.DrawSK(canvas, dotColor, xShift, yShift);
+            board.ParentControl.FontEngine?.DrawStringSK(canvas, new System.Drawing.Point(X + xShift + 2, Y + yShift + 2), SkiaSharp.SKColors.Black, Name, Width);
         }
 
         public MiscRectangle(Board board, MapleRectangle.SerializationForm json)

@@ -70,14 +70,18 @@ namespace HaCreator.MapEditor.Instance
         public override void Draw(SpriteBatch sprite, XNA.Color color, int xShift, int yShift)
         {
             XNA.Rectangle destinationRectangle = new XNA.Rectangle((int)X + xShift - Origin.X, (int)Y + yShift - Origin.Y, Width, Height);
-            sprite.Draw(baseInfo.GetTexture(sprite), destinationRectangle, 
-                null, 
-                color, 
-                0f, 
-                new XNA.Vector2(0f, 0f), 
-                SpriteEffects.None, 
-                1f);
+            sprite.Draw(baseInfo.GetTexture(sprite), destinationRectangle,
+                null, color, 0f, new XNA.Vector2(0f, 0f), SpriteEffects.None, 1f);
             base.Draw(sprite, color, xShift, yShift);
+        }
+
+        public override void DrawSK(SkiaSharp.SKCanvas canvas, XNA.Color color, int xShift, int yShift)
+        {
+            var bmp = baseInfo.Image;
+            if (bmp == null) return;
+            var dst = SkiaSharp.SKRect.Create(X + xShift - Origin.X, Y + yShift - Origin.Y, Width, Height);
+            MultiBoard.DrawBitmapSK(canvas, bmp, dst, color);
+            base.DrawSK(canvas, color, xShift, yShift);
         }
 
         public override MapleDrawableInfo BaseInfo

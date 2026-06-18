@@ -166,6 +166,14 @@ namespace HaCreator.MapEditor
             }
         }
 
+        public virtual void DrawSK(SkiaSharp.SKCanvas canvas, XNA.Color color, int xShift, int yShift)
+        {
+            if (ApplicationSettings.InfoMode)
+            {
+                MultiBoard.DrawDotSK(canvas, X + xShift, Y + yShift, UserSettings.OriginColor, 1);
+            }
+        }
+
         public virtual bool CheckIfLayerSelected(SelectionInfo sel)
         {
             // By default, item is nonlayered

@@ -127,22 +127,27 @@ namespace HaCreator.MapEditor.Instance.Shapes
             XNA.Color lineColor = ab.Color;
             if (Selected)
                 lineColor = dotColor;
-            int x, y;
-            if (a.X < b.X) 
-                x = a.X + xShift;
-            else 
-                x = b.X + xShift;
-
-            if (b.Y < c.Y) 
-                y = b.Y + yShift;
-            else 
-                y = c.Y + yShift;
-
+            int x = a.X < b.X ? a.X + xShift : b.X + xShift;
+            int y = b.Y < c.Y ? b.Y + yShift : c.Y + yShift;
             Board.ParentControl.FillRectangle(sprite, new XNA.Rectangle(x, y, Width, Height), Color);
             ab.Draw(sprite, lineColor, xShift, yShift);
             bc.Draw(sprite, lineColor, xShift, yShift);
             cd.Draw(sprite, lineColor, xShift, yShift);
             da.Draw(sprite, lineColor, xShift, yShift);
+        }
+
+        public override void DrawSK(SkiaSharp.SKCanvas canvas, XNA.Color dotColor, int xShift, int yShift)
+        {
+            XNA.Color lineColor = ab.Color;
+            if (Selected)
+                lineColor = dotColor;
+            int x = a.X < b.X ? a.X + xShift : b.X + xShift;
+            int y = b.Y < c.Y ? b.Y + yShift : c.Y + yShift;
+            MultiBoard.FillRectangleSK(canvas, x, y, Width, Height, Color);
+            ab.DrawSK(canvas, lineColor, xShift, yShift);
+            bc.DrawSK(canvas, lineColor, xShift, yShift);
+            cd.DrawSK(canvas, lineColor, xShift, yShift);
+            da.DrawSK(canvas, lineColor, xShift, yShift);
         }
 
         public override MapleDrawableInfo BaseInfo

@@ -775,14 +775,14 @@ namespace HaCreator.MapEditor
                 Debug.WriteLine("[HaCreatorStateManager] OwnerWindow not set; cannot open FieldSelector");
                 return;
             }
-            var dlg = new HaCreator.GUI.FieldSelectorDialog(_multiBoard, _tabs, MakeRightClickHandler());
+            var dlg = new HaCreator.GUI.FieldSelectorDialog(_multiBoard, _tabs, MakeRightClickHandler(), autoCloseOnSelect: true);
             await dlg.ShowDialog(OwnerWindow);
         }
 
         public async Task ShowFieldSelectorAsync()
         {
             if (OwnerWindow == null) return;
-            var dlg = new HaCreator.GUI.FieldSelectorDialog(_multiBoard, _tabs, MakeRightClickHandler());
+            var dlg = new HaCreator.GUI.FieldSelectorDialog(_multiBoard, _tabs, MakeRightClickHandler(), autoCloseOnSelect: true);
             await dlg.ShowDialog(OwnerWindow);
         }
 

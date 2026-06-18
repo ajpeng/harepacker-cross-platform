@@ -431,6 +431,141 @@ namespace HaCreator.MapEditor
             _cachedPortalCount = -1;
         }
 
+        // ── SkiaSharp render path ──────────────────────────────────────────
+
+        public void RenderBackgroundsSK(SKCanvas canvas)
+        {
+            if (mapInfo == null) return;
+            int xShift = centerPoint.X - hScroll;
+            int yShift = centerPoint.Y - vScroll;
+            SelectionInfo sel = GetUserSelectionInfo();
+            if ((sel.visibleTypes & ItemTypes.Backgrounds) != 0)
+            {
+                foreach (BackgroundInstance bg in boardItems.BackBackgrounds)
+                    bg.DrawSK(canvas, bg.GetColor(sel, bg.Selected), xShift, yShift);
+            }
+        }
+
+        public void RenderFrontBackgroundsSK(SKCanvas canvas)
+        {
+            if (mapInfo == null) return;
+            int xShift = centerPoint.X - hScroll;
+            int yShift = centerPoint.Y - vScroll;
+            SelectionInfo sel = GetUserSelectionInfo();
+            if ((sel.visibleTypes & ItemTypes.Backgrounds) != 0)
+            {
+                foreach (BackgroundInstance bg in boardItems.FrontBackgrounds)
+                    bg.DrawSK(canvas, bg.GetColor(sel, bg.Selected), xShift, yShift);
+            }
+        }
+
+        public void RenderBoardSK(SKCanvas canvas)
+        {
+            if (mapInfo == null) return;
+            int xShift = centerPoint.X - hScroll;
+            int yShift = centerPoint.Y - vScroll;
+            SelectionInfo sel = GetUserSelectionInfo();
+
+            foreach (IMapleList list in boardItems.AllItemLists)
+                RenderListSK(list, canvas, xShift, yShift, sel);
+
+            if (mouse.MultiSelectOngoing)
+            {
+                Rectangle selectionRect = InputHandler.CreateRectangle(
+                    new Point(
+                        MultiBoard.VirtualToPhysical(mouse.MultiSelectStart.X, centerPoint.X, hScroll, 0),
+                        MultiBoard.VirtualToPhysical(mouse.MultiSelectStart.Y, centerPoint.Y, vScroll, 0)),
+                    new Point(
+                        MultiBoard.VirtualToPhysical(mouse.X, centerPoint.X, hScroll, 0),
+                        MultiBoard.VirtualToPhysical(mouse.Y, centerPoint.Y, vScroll, 0)));
+                MultiBoard.DrawRectangleSK(canvas, selectionRect.X, selectionRect.Y, selectionRect.Width, selectionRect.Height, UserSettings.SelectSquare);
+                MultiBoard.FillRectangleSK(canvas, selectionRect.X + 1, selectionRect.Y + 1, selectionRect.Width - 1, selectionRect.Height - 1, UserSettings.SelectSquareFill);
+            }
+
+            if (VRRectangle != null && (sel.visibleTypes & VRRectangle.Type) != 0)
+                VRRectangle.DrawSK(canvas, xShift, yShift, sel);
+            if (MinimapRectangle != null && (sel.visibleTypes & MinimapRectangle.Type) != 0)
+                MinimapRectangle.DrawSK(canvas, xShift, yShift, sel);
+
+            if (ApplicationSettings.InfoMode)
+            {
+                int cx = MultiBoard.VirtualToPhysical(-5, centerPoint.X, hScroll, 0);
+                int cy = MultiBoard.VirtualToPhysical(-5, centerPoint.Y, vScroll, 0);
+                MultiBoard.FillRectangleSK(canvas, cx, cy, 10, 10, Color.DarkRed);
+            }
+        }
+
+        public void RenderMinimapSK(SKCanvas canvas)
+        {
+            if (miniMap == null || !UserSettings.useMiniMap) return;
+
+            Rectangle minimapImageArea = new Rectangle(
+                (miniMapPos.X + centerPoint.X) / _mag,
+                (miniMapPos.Y + centerPoint.Y) / _mag,
+                miniMap.Width,
+                miniMap.Height);
+
+            MultiBoard.FillRectangleSK(canvas, minimapArea.X, minimapArea.Y, minimapArea.Width, minimapArea.Height, Color.Gray);
+
+            using var paint = new SKPaint { Color = SKColors.White };
+            canvas.DrawBitmap(miniMap,
+                SKRect.Create(minimapImageArea.X, minimapImageArea.Y, minimapImageArea.Width, minimapImageArea.Height),
+                paint);
+
+            int viewportWidth  = (int)(parent.CurrentDXWindowSize.Width  / _zoom);
+            int viewportHeight = (int)(parent.CurrentDXWindowSize.Height / _zoom);
+            MultiBoard.DrawRectangleSK(canvas, hScroll / _mag, vScroll / _mag, viewportWidth / _mag, viewportHeight / _mag, Color.Blue);
+            MultiBoard.DrawRectangleSK(canvas, minimapImageArea.X, minimapImageArea.Y, minimapImageArea.Width, minimapImageArea.Height, Color.Black);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void RenderListSK(IMapleList list, SKCanvas canvas, int xShift, int yShift, SelectionInfo sel)
+        {
+            if (list.ListType == ItemTypes.Backgrounds)
+                return;
+
+            if (list.ListType == ItemTypes.None)
+            {
+                foreach (BoardItem item in list)
+                {
+                    if (parent.IsItemInRange(item.X, item.Y, item.Width, item.Height, xShift - item.Origin.X, yShift - item.Origin.Y) && ((sel.visibleTypes & item.Type) != 0))
+                        item.DrawSK(canvas, item.GetColor(sel, item.Selected), xShift, yShift);
+                }
+            }
+            else if ((sel.visibleTypes & list.ListType) != 0)
+            {
+                if (list.IsItem)
+                {
+                    foreach (BoardItem item in list)
+                    {
+                        if (parent.IsItemInRange(item.X, item.Y, item.Width, item.Height, xShift - item.Origin.X, yShift - item.Origin.Y))
+                            item.DrawSK(canvas, item.GetColor(sel, item.Selected), xShift, yShift);
+                    }
+
+                    if (list.ListType == ItemTypes.Portals)
+                    {
+                        Color portalLineColor = (sel.editedTypes & ItemTypes.Portals) == ItemTypes.Portals ? Color.LightBlue : MultiBoard.InactiveColor;
+                        foreach (var (p1, p2) in GetPortalConnectionPairs())
+                        {
+                            int x1 = MultiBoard.VirtualToPhysical(p1.X, centerPoint.X, hScroll, 0);
+                            int y1 = MultiBoard.VirtualToPhysical(p1.Y, centerPoint.Y, vScroll, 0);
+                            int x2 = MultiBoard.VirtualToPhysical(p2.X, centerPoint.X, hScroll, 0);
+                            int y2 = MultiBoard.VirtualToPhysical(p2.Y, centerPoint.Y, vScroll, 0);
+                            MultiBoard.DrawLineSK(canvas, x1, y1, x2, y2, portalLineColor);
+                        }
+                    }
+                }
+                else
+                {
+                    foreach (MapleLine line in list)
+                    {
+                        if (parent.IsItemInRange(Math.Min(line.FirstDot.X, line.SecondDot.X), Math.Min(line.FirstDot.Y, line.SecondDot.Y), Math.Abs(line.FirstDot.X - line.SecondDot.X), Math.Abs(line.FirstDot.Y - line.SecondDot.Y), xShift, yShift))
+                            line.DrawSK(canvas, line.GetColor(sel), xShift, yShift);
+                    }
+                }
+            }
+        }
+
         public void Dispose()
         {
             lock (parent)
@@ -544,18 +679,8 @@ namespace HaCreator.MapEditor
 
         public int hScroll
         {
-            get
-            {
-                return _hScroll;
-            }
-            set
-            {
-                lock (parent)
-                {
-                    _hScroll = value;
-                    parent.SetHScrollbarValue(_hScroll);
-                }
-            }
+            get { return _hScroll; }
+            set { lock (parent) { _hScroll = value; } }
         }
 
         public Point CenterPoint
@@ -566,18 +691,8 @@ namespace HaCreator.MapEditor
 
         public int vScroll
         {
-            get
-            {
-                return _vScroll;
-            }
-            set
-            {
-                lock (parent)
-                {
-                    _vScroll = value;
-                    parent.SetVScrollbarValue(_vScroll);
-                }
-            }
+            get { return _vScroll; }
+            set { lock (parent) { _vScroll = value; } }
         }
 
         public MultiBoard ParentControl

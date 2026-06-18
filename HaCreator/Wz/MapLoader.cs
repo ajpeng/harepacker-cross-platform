@@ -1011,6 +1011,11 @@ namespace HaCreator.Wz
                 mapBoard.BoardItems.Sort();
                 mapBoard.Loading = false;
 
+                // Center the initial view so items are visible immediately
+                multiBoard.AdjustScrollBars();
+                mapBoard.hScroll = (int)(multiBoard.MaxHScroll / 2);
+                mapBoard.vScroll = (int)(multiBoard.MaxVScroll / 2);
+
                 // LBTop LBBottom LBSide
                 multiBoard.HaCreatorStateManager?.UpdateEditorPanelVisibility();
             }
@@ -1092,6 +1097,8 @@ namespace HaCreator.Wz
             {
                 multiBoard.SelectedBoard.SerializationManager.DeserializeBoard(data);
                 multiBoard.AdjustScrollBars();
+                multiBoard.SelectedBoard.hScroll = (int)(multiBoard.MaxHScroll / 2);
+                multiBoard.SelectedBoard.vScroll = (int)(multiBoard.MaxVScroll / 2);
             }
             multiBoard.SelectedBoard.Loading = false;
         }

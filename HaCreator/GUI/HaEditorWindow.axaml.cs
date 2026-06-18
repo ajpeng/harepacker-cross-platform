@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using HaCreator.GUI.EditorPanels;
 using HaCreator.MapEditor;
+using HaCreator.MapEditor.Input;
 using System;
 
 namespace HaCreator.GUI
@@ -13,6 +14,7 @@ namespace HaCreator.GUI
         private readonly HaRibbon _ribbon = new HaRibbon();
         private HaCreatorStateManager? _stateManager;
         private MapEditorControl? _mapControl;
+        private InputHandler? _inputHandler;
 
         public HaEditorWindow()
         {
@@ -38,6 +40,9 @@ namespace HaCreator.GUI
                 txtSelectedItem);
             _stateManager.OwnerWindow = this;
             _multiBoard.Ribbon = _ribbon;
+
+            // Wire up input handler before loading panels (subscribes to MultiBoard events)
+            _inputHandler = new InputHandler(_multiBoard);
 
             // Embed the MonoGame canvas into the canvas host border
             _mapControl = new MapEditorControl(_multiBoard);

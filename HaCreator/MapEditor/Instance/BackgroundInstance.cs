@@ -78,7 +78,7 @@ namespace HaCreator.MapEditor.Instance
 
         public override void Draw(SpriteBatch sprite, XNA.Color color, int xShift, int yShift)
         {
-            if (sprite == null || baseInfo.GetTexture(sprite)==null)
+            if (sprite == null || baseInfo.GetTexture(sprite) == null)
                 return;
 
             XNA.Rectangle destinationRectangle = new XNA.Rectangle((int)X + xShift - Origin.X, (int)Y + yShift - Origin.Y, Width, Height);
@@ -91,6 +91,15 @@ namespace HaCreator.MapEditor.Instance
                 1);
 
             base.Draw(sprite, color, xShift, yShift);
+        }
+
+        public override void DrawSK(SkiaSharp.SKCanvas canvas, XNA.Color color, int xShift, int yShift)
+        {
+            var bmp = baseInfo.Image;
+            if (bmp == null) return;
+            var dst = SkiaSharp.SKRect.Create(X + xShift - Origin.X, Y + yShift - Origin.Y, Width, Height);
+            MultiBoard.DrawBitmapSK(canvas, bmp, dst, color, Flip);
+            base.DrawSK(canvas, color, xShift, yShift);
         }
 
         public override MapleDrawableInfo BaseInfo

@@ -90,6 +90,30 @@ namespace HaCreator.MapEditor.Text
             }
         }
 
+        public void DrawStringSK(SKCanvas canvas, System.Drawing.Point position, SKColor color, string str, int maxWidth)
+        {
+            if (string.IsNullOrEmpty(str)) return;
+            if (UserSettings.ClipText)
+            {
+                float totalW = measurePaint.MeasureText(str);
+                if (totalW > maxWidth)
+                {
+                    float dotsW = measurePaint.MeasureText("...");
+                    while (str.Length > 0 && measurePaint.MeasureText(str) + dotsW > maxWidth)
+                        str = str[..^1];
+                    str += "...";
+                }
+            }
+            using var paint = new SKPaint
+            {
+                Typeface = typeface,
+                TextSize = size,
+                IsAntialias = true,
+                Color = color,
+            };
+            canvas.DrawText(str, position.X, position.Y + (int)Math.Ceiling(size), paint);
+        }
+
         public System.Drawing.SizeF MeasureString(string s)
         {
             if (string.IsNullOrEmpty(s)) return System.Drawing.SizeF.Empty;

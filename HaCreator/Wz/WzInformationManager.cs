@@ -62,6 +62,7 @@ namespace HaCreator.Wz
 
         /// <summary>
         /// Gets a tile set image, loading on-demand if not already loaded.
+        /// Ensures the WzImage is parsed before returning (required for both WZ and DataSource modes).
         /// </summary>
         public WzImage GetTileSet(string name)
         {
@@ -74,10 +75,13 @@ namespace HaCreator.Wz
                 image = Program.DataSource.GetImage("Map", $"Tile/{name}.img");
                 if (image != null)
                 {
-                    if (!image.Parsed)
-                        image.ParseImage();
+                    if (!image.Parsed) image.ParseImage();
                     TileSets[name] = image;
                 }
+            }
+            else if (image != null && !image.Parsed) // WZ mode: parse lazily
+            {
+                image.ParseImage();
             }
             return image;
         }
@@ -96,10 +100,13 @@ namespace HaCreator.Wz
                 image = Program.DataSource.GetImage("Map", $"Obj/{name}.img");
                 if (image != null)
                 {
-                    if (!image.Parsed)
-                        image.ParseImage();
+                    if (!image.Parsed) image.ParseImage();
                     ObjectSets[name] = image;
                 }
+            }
+            else if (image != null && !image.Parsed)
+            {
+                image.ParseImage();
             }
             return image;
         }
@@ -118,10 +125,13 @@ namespace HaCreator.Wz
                 image = Program.DataSource.GetImage("Map", $"Back/{name}.img");
                 if (image != null)
                 {
-                    if (!image.Parsed)
-                        image.ParseImage();
+                    if (!image.Parsed) image.ParseImage();
                     BackgroundSets[name] = image;
                 }
+            }
+            else if (image != null && !image.Parsed)
+            {
+                image.ParseImage();
             }
             return image;
         }
